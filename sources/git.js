@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { fetchJSON } = require("../lib/fetch");
+const { deleteAction, untrackAction } = require("../lib/actions");
 
 const DEFAULT_REPO = "https://github.com/Comfy-Org/ComfyUI/";
 
@@ -75,11 +76,8 @@ module.exports = {
         actions: [
           { id: "launch", label: "Launch", style: "primary", enabled: false },
           { id: "pull", label: "Git Pull", style: "default", enabled: false },
-          { id: "delete", label: "Delete", style: "danger", enabled: true,
-            showProgress: true, progressTitle: "Deleting…",
-            confirm: { title: "Delete Installation", message: `This will permanently delete all files in:\n${installation.installPath}\n\nThis cannot be undone.` } },
-          { id: "remove", label: "Untrack", style: "danger", enabled: true,
-            confirm: { title: "Untrack Installation", message: "This will stop tracking this installation. Files on disk will not be affected." } },
+          deleteAction(installation),
+          untrackAction(),
         ],
       },
     ];
@@ -103,7 +101,7 @@ module.exports = {
     return { ok: false, message: `Action "${actionId}" not yet implemented.` };
   },
 
-  async getFieldOptions(fieldId, selections) {
+  async getFieldOptions(fieldId, selections, _context) {
     if (fieldId === "branch") {
       const parsed = parseGitHubRepo(selections.repo?.value || "");
       if (!parsed) throw new Error("Invalid GitHub repository URL.");

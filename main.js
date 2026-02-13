@@ -27,6 +27,13 @@ function createLauncherWindow() {
 
   launcherWindow.setMenuBarVisibility(false);
   launcherWindow.loadFile("index.html");
+
+  launcherWindow.on("close", () => {
+    if (comfyProcess) {
+      killProcessTree(comfyProcess);
+      comfyProcess = null;
+    }
+  });
 }
 
 function createTray(installationName) {

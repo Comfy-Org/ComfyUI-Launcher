@@ -4,51 +4,51 @@ const fs = require("fs");
 
 const dataPath = path.join(app.getPath("userData"), "installations.json");
 
-function load() {
+async function load() {
   try {
-    return JSON.parse(fs.readFileSync(dataPath, "utf-8"));
+    return JSON.parse(await fs.promises.readFile(dataPath, "utf-8"));
   } catch {
     return [];
   }
 }
 
-function save(installations) {
-  fs.mkdirSync(path.dirname(dataPath), { recursive: true });
-  fs.writeFileSync(dataPath, JSON.stringify(installations, null, 2));
+async function save(installations) {
+  await fs.promises.mkdir(path.dirname(dataPath), { recursive: true });
+  await fs.promises.writeFile(dataPath, JSON.stringify(installations, null, 2));
 }
 
-function list() {
+async function list() {
   return load();
 }
 
-function add(installation) {
-  const installations = load();
+async function add(installation) {
+  const installations = await load();
   const entry = {
     id: `inst-${Date.now()}`,
     createdAt: new Date().toISOString(),
     ...installation,
   };
   installations.push(entry);
-  save(installations);
+  await save(installations);
   return entry;
 }
 
-function remove(id) {
-  const installations = load().filter((i) => i.id !== id);
-  save(installations);
+async function remove(id) {
+  const installations = (await load()).filter((i) => i.id !== id);
+  await save(installations);
 }
 
-function update(id, data) {
-  const installations = load();
+async function update(id, data) {
+  const installations = await load();
   const index = installations.findIndex((i) => i.id === id);
   if (index === -1) return null;
   installations[index] = { ...installations[index], ...data };
-  save(installations);
+  await save(installations);
   return installations[index];
 }
 
-function get(id) {
-  return load().find((i) => i.id === id) || null;
+async function get(id) {
+  return (await load()).find((i) => i.id === id) || null;
 }
 
 module.exports = { list, add, remove, update, get };

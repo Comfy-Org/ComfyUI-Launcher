@@ -178,13 +178,8 @@ window.Launcher.newInstall = {
         select.innerHTML = "<option>No options available</option>";
         return;
       }
-      let defaultIndex = 0;
-      if (this._detectedGPU && field.id === "asset") {
-        const gpuMatch = options.findIndex((opt) =>
-          opt.label.toLowerCase().includes(this._detectedGPU)
-        );
-        if (gpuMatch >= 0) defaultIndex = gpuMatch;
-      }
+      let defaultIndex = options.findIndex((opt) => opt.recommended);
+      if (defaultIndex < 0) defaultIndex = 0;
       options.forEach((opt, i) => {
         const el = document.createElement("option");
         el.value = i;

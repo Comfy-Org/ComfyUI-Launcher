@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { fetchJSON } = require("../lib/fetch");
+const { deleteAction, untrackAction } = require("../lib/actions");
 
 function formatTime(secs) {
   if (secs < 0 || !isFinite(secs)) return "—";
@@ -100,11 +101,8 @@ module.exports = {
           { id: "launch", label: "Launch", style: "primary", enabled: installation.status === "installed",
             showProgress: true, progressTitle: "Starting ComfyUI…" },
           { id: "check-update", label: "Check for Update", style: "default", enabled: false },
-          { id: "delete", label: "Delete", style: "danger", enabled: true,
-            showProgress: true, progressTitle: "Deleting…",
-            confirm: { title: "Delete Installation", message: `This will permanently delete all files in:\n${installation.installPath}\n\nThis cannot be undone.` } },
-          { id: "remove", label: "Untrack", style: "danger", enabled: true,
-            confirm: { title: "Untrack Installation", message: "This will stop tracking this installation. Files on disk will not be affected." } },
+          deleteAction(installation),
+          untrackAction(),
         ],
       },
     ];
@@ -164,7 +162,7 @@ module.exports = {
     return { ok: false, message: `Action "${actionId}" not yet implemented.` };
   },
 
-  async getFieldOptions(fieldId, selections) {
+  async getFieldOptions(fieldId, selections, context) {
     if (fieldId === "release") {
       const releases = await fetchJSON(
         "https://api.github.com/repos/Comfy-Org/ComfyUI/releases?per_page=30"
@@ -179,12 +177,14 @@ module.exports = {
     if (fieldId === "asset") {
       const release = selections.release?.data;
       if (!release) return [];
+      const gpu = context && context.gpu;
       return release.assets
         .filter((a) => a.name.endsWith(".7z"))
         .map((a) => ({
           value: a.browser_download_url,
           label: `${a.name}  (${(a.size / 1048576).toFixed(0)} MB)`,
           data: a,
+          recommended: gpu ? a.name.toLowerCase().includes(gpu) : false,
         }));
     }
 

@@ -66,13 +66,7 @@ window.Launcher.settings = {
             if (opt.value === f.value) el.selected = true;
             select.appendChild(el);
           });
-          select.onchange = async () => {
-            await window.api.setSetting(f.id, select.value);
-            if (f.id === "theme") {
-              const resolved = await window.api.getResolvedTheme();
-              window.Launcher.applyTheme(resolved);
-            }
-          };
+          select.onchange = () => window.api.setSetting(f.id, select.value);
           field.appendChild(select);
         } else if (f.type === "number") {
           const input = document.createElement("input");
