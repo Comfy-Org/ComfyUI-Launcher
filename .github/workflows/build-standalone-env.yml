@@ -20,6 +20,9 @@ on:
         required: true
         default: "standalone-v0.1.0"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
