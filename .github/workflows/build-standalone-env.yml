@@ -1,0 +1,236 @@
+name: Build Standalone Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      python_version:
+        description: "Python version (e.g. 3.12.12)"
+        required: true
+        default: "3.12.12"
+      pbs_release:
+        description: "python-build-standalone release tag (e.g. 20260211)"
+        required: true
+        default: "20260211"
+      comfyui_ref:
+        description: "ComfyUI branch/tag to pull requirements from"
+        required: true
+        default: "main"
+      release_tag:
+        description: "Tag for the GitHub Release to upload to"
+        required: true
+        default: "standalone-v0.1.0"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows NVIDIA
+          - id: win-nvidia-cu130
+            os: windows-latest
+            python_platform: x86_64-pc-windows-msvc
+            torch_index: https://download.pytorch.org/whl/cu130
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: 7z
+          - id: win-nvidia-cu128
+            os: windows-latest
+            python_platform: x86_64-pc-windows-msvc
+            torch_index: https://download.pytorch.org/whl/cu128
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: 7z
+          - id: win-nvidia-cu126
+            os: windows-latest
+            python_platform: x86_64-pc-windows-msvc
+            torch_index: https://download.pytorch.org/whl/cu126
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: 7z
+          # Windows Other
+          - id: win-intel-xpu
+            os: windows-latest
+            python_platform: x86_64-pc-windows-msvc
+            torch_index: https://download.pytorch.org/whl/xpu
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: 7z
+          - id: win-amd
+            os: windows-latest
+            python_platform: x86_64-pc-windows-msvc
+            torch_index: https://download.pytorch.org/whl/cpu
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: 7z
+            # Note: Windows AMD ROCm support is experimental.
+            # Using CPU wheels as a stable baseline; users can upgrade to ROCm nightly after install.
+          - id: win-cpu
+            os: windows-latest
+            python_platform: x86_64-pc-windows-msvc
+            torch_index: https://download.pytorch.org/whl/cpu
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: 7z
+          # macOS
+          - id: mac-mps
+            os: macos-latest
+            python_platform: aarch64-apple-darwin
+            torch_index: ""
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: tar.gz
+          # Linux NVIDIA
+          - id: linux-nvidia-cu130
+            os: ubuntu-latest
+            python_platform: x86_64-unknown-linux-gnu
+            torch_index: https://download.pytorch.org/whl/cu130
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: tar.gz
+          - id: linux-nvidia-cu128
+            os: ubuntu-latest
+            python_platform: x86_64-unknown-linux-gnu
+            torch_index: https://download.pytorch.org/whl/cu128
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: tar.gz
+          - id: linux-nvidia-cu126
+            os: ubuntu-latest
+            python_platform: x86_64-unknown-linux-gnu
+            torch_index: https://download.pytorch.org/whl/cu126
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: tar.gz
+          # Linux Other
+          - id: linux-intel-xpu
+            os: ubuntu-latest
+            python_platform: x86_64-unknown-linux-gnu
+            torch_index: https://download.pytorch.org/whl/xpu
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: tar.gz
+          - id: linux-amd
+            os: ubuntu-latest
+            python_platform: x86_64-unknown-linux-gnu
+            torch_index: https://download.pytorch.org/whl/rocm6.2.4
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: tar.gz
+          - id: linux-cpu
+            os: ubuntu-latest
+            python_platform: x86_64-unknown-linux-gnu
+            torch_index: https://download.pytorch.org/whl/cpu
+            torch_packages: "torch torchvision torchaudio"
+            archive_ext: tar.gz
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.id }}
+
+    steps:
+      - name: Checkout launcher repo
+        uses: actions/checkout@v4
+
+      - name: Determine Python archive name
+        id: pyname
+        shell: bash
+        run: |
+          # python-build-standalone naming: cpython-{ver}+{release}-{platform}-install_only.tar.gz
+          PYTHON_VER="${{ inputs.python_version }}"
+          PBS_TAG="${{ inputs.pbs_release }}"
+          PLATFORM="${{ matrix.python_platform }}"
+          ARCHIVE_NAME="cpython-${PYTHON_VER}+${PBS_TAG}-${PLATFORM}-install_only.tar.gz"
+          echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "download_url=https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Download python-build-standalone
+        shell: bash
+        run: |
+          curl -L -o python-standalone.tar.gz "${{ steps.pyname.outputs.download_url }}"
+          mkdir python-extract
+          tar -xzf python-standalone.tar.gz -C python-extract
+          # The archive extracts to a `python/` directory
+          mv python-extract/python standalone-env
+
+      - name: Fetch ComfyUI requirements
+        shell: bash
+        run: |
+          curl -L -o requirements.txt \
+            "https://raw.githubusercontent.com/Comfy-Org/ComfyUI/${{ inputs.comfyui_ref }}/requirements.txt"
+          # Filter out comfyui-* frontend packages (installed with ComfyUI source)
+          grep -v -i "^comfyui" requirements.txt > requirements_deps.txt || true
+
+      - name: Install dependencies into standalone Python
+        shell: bash
+        run: |
+          # Determine Python binary path
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            PYTHON="standalone-env/python.exe"
+          else
+            PYTHON="standalone-env/bin/python3"
+            chmod +x "$PYTHON"
+          fi
+
+          # Ensure pip is available
+          "$PYTHON" -m ensurepip --upgrade 2>/dev/null || true
+          "$PYTHON" -m pip install --upgrade pip
+
+          # Build the install command
+          INDEX_ARGS=""
+          if [[ -n "${{ matrix.torch_index }}" ]]; then
+            INDEX_ARGS="--extra-index-url ${{ matrix.torch_index }}"
+          fi
+
+          # Install PyTorch + dependencies
+          "$PYTHON" -m pip install --no-cache-dir \
+            ${{ matrix.torch_packages }} \
+            $INDEX_ARGS \
+            -r requirements_deps.txt \
+            pygit2
+
+      - name: Strip unnecessary files
+        shell: bash
+        run: |
+          # Find site-packages
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            SITE_PACKAGES="standalone-env/Lib/site-packages"
+          else
+            SITE_PACKAGES=$(find standalone-env/lib -name site-packages -type d | head -1)
+          fi
+
+          echo "Stripping from: $SITE_PACKAGES"
+
+          # Remove large unnecessary torch files
+          rm -f "$SITE_PACKAGES/torch/lib/dnnl.lib" 2>/dev/null || true
+          rm -f "$SITE_PACKAGES/torch/lib/libprotoc.lib" 2>/dev/null || true
+          rm -f "$SITE_PACKAGES/torch/lib/libprotobuf.lib" 2>/dev/null || true
+
+          # Remove test directories
+          find "$SITE_PACKAGES" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
+          find "$SITE_PACKAGES" -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
+
+          # Remove __pycache__
+          find standalone-env -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
+          # Remove .dist-info (saves space, not needed at runtime)
+          find "$SITE_PACKAGES" -type d -name "*.dist-info" -exec rm -rf {} + 2>/dev/null || true
+
+          # Report size
+          echo "Final environment size:"
+          du -sh standalone-env
+
+      - name: Package archive (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          7z a -t7z -m0=lzma2 -mx=7 -ms=on \
+            "comfyui-standalone-${{ matrix.id }}.7z" \
+            standalone-env
+
+      - name: Package archive (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          tar -czf "comfyui-standalone-${{ matrix.id }}.tar.gz" standalone-env
+
+      - name: Report archive size
+        shell: bash
+        run: |
+          ls -lh comfyui-standalone-${{ matrix.id }}.*
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          files: comfyui-standalone-${{ matrix.id }}.*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

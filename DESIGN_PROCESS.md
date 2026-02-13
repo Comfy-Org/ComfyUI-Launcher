@@ -67,6 +67,118 @@ Never use `alert()` or other native OS dialogs for user-facing messages. Use `mo
 
 This project aims to eventually replace [Comfy-Org/desktop](https://github.com/Comfy-Org/desktop). Refer to that repo for prior art on features, conventions, and assets. Icons/logos in `assets/` are sourced from `desktop/assets/UI/`.
 
+## Install Methods
+
+Three source modules provide different installation strategies, each targeting different user needs.
+
+### 1. Portable (`sources/portable.js`) — Windows only
+
+Downloads Comfy-Org's official `.7z` portable release, which bundles Python embedded + pre-installed wheels + ComfyUI source in a single archive. Download → extract → run.
+
+- **Platforms:** Windows (NVIDIA, AMD)
+- **Pros:** Zero network dependency after initial download; uses official builds
+- **Cons:** Windows only; monolithic archive means re-downloading everything for updates
+- **Status:** Implemented
+
+### 2. Standalone (`sources/standalone.js`) — Cross-platform
+
+Our own pre-built environment archives. Each archive contains a relocatable Python runtime (from [python-build-standalone](https://github.com/indygreg/python-build-standalone)) with all GPU-specific wheels (PyTorch, etc.) pre-installed. ComfyUI source is cloned via git separately. The result is a single download + extract for the environment, plus a git clone — no pip/uv/network-dependent package installation at install time.
+
+- **Platforms:** Windows (NVIDIA, AMD, Intel), macOS (Apple Silicon), Linux (NVIDIA, AMD, Intel)
+- **Pros:** Cross-platform portable install; no pip failures; environment and source are independent; source can be updated via git without re-downloading the environment
+- **Cons:** Requires us to build and host environment archives; larger hosting footprint
+
+#### Architecture
+
+```
+standalone-install/
+├── python/                    # Relocatable Python from python-build-standalone
+│   ├── bin/ or python.exe     # Platform-specific Python binary
+│   └── lib/site-packages/     # Pre-installed wheels (torch, etc.)
+├── ComfyUI/                   # Cloned from GitHub
+│   ├── main.py
+│   └── ...
+└── .comfyui-launcher          # Marker file
+```
+
+#### Environment Archive Build Pipeline (CI)
+
+Each archive is built per platform+GPU combination and hosted on GitHub Releases or a CDN.
+
+Build steps (to be implemented as GitHub Actions):
+1. Download python-build-standalone release for the target platform
+2. Create a virtual environment or install directly into the standalone Python's site-packages
+3. `pip install` (or `uv pip install`) the correct GPU-specific PyTorch wheels + ComfyUI requirements
+4. Strip unnecessary files to reduce size (e.g., `torch/lib/dnnl.lib`, test directories, `__pycache__`)
+5. Package as `.tar.zst` (Linux/macOS) or `.7z` (Windows) for best compression
+6. Upload as release artifacts
+
+#### Target Archive Matrix
+
+| Archive ID | OS | GPU | Python | PyTorch Index |
+|---|---|---|---|---|
+| `win-nvidia-cu130` | Windows x64 | NVIDIA (CUDA 13.0) | 3.12 | `cu130` |
+| `win-nvidia-cu128` | Windows x64 | NVIDIA (CUDA 12.8) | 3.12 | `cu128` |
+| `win-nvidia-cu126` | Windows x64 | NVIDIA (CUDA 12.6) | 3.12 | `cu126` |
+| `win-intel-xpu` | Windows x64 | Intel Arc (XPU) | 3.12 | `xpu` |
+| `win-amd` | Windows x64 | AMD (CPU baseline) | 3.12 | `cpu` |
+| `win-cpu` | Windows x64 | CPU fallback | 3.12 | `cpu` |
+| `mac-mps` | macOS arm64 | Apple Silicon (MPS) | 3.12 | default (MPS built-in) |
+| `linux-nvidia-cu130` | Linux x64 | NVIDIA (CUDA 13.0) | 3.12 | `cu130` |
+| `linux-nvidia-cu128` | Linux x64 | NVIDIA (CUDA 12.8) | 3.12 | `cu128` |
+| `linux-nvidia-cu126` | Linux x64 | NVIDIA (CUDA 12.6) | 3.12 | `cu126` |
+| `linux-intel-xpu` | Linux x64 | Intel Arc (XPU) | 3.12 | `xpu` |
+| `linux-amd` | Linux x64 | AMD (ROCm 6.2.4) | 3.12 | `rocm6.2.4` |
+| `linux-cpu` | Linux x64 | CPU fallback | 3.12 | `cpu` |
+
+#### Launcher-Side Install Flow
+
+1. `detectGPU()` + `process.platform` → select the correct archive ID
+2. Download the environment archive (with progress reporting)
+3. Extract to install directory
+4. `git clone --depth 1` ComfyUI into the `ComfyUI/` subdirectory
+5. Write `.comfyui-launcher` marker file
+
+#### Launch Command
+
+```
+python/bin/python -s ComfyUI/main.py [launchArgs]
+```
+
+The `-s` flag prevents system site-packages from interfering. The standalone Python's own site-packages contain all dependencies.
+
+#### Resolved Decisions
+
+- **Hosting:** GitHub Releases on the ComfyUI-Launcher repo (2GB per asset limit; archives should fit)
+- **Archive format:** `.7z` on Windows (best compression for executables via LZMA2), `.tar.gz` on Linux/macOS
+- **Python-build-standalone variant:** `install_only` (smaller, includes pip via ensurepip, no build tools)
+- **Git requirement:** `pygit2` is included in the environment; the launcher can use it for cloning without requiring system git
+- **Size optimization:** Strip `.dist-info`, `__pycache__`, test directories, and large unused torch libs (dnnl.lib, libprotoc.lib, libprotobuf.lib)
+- **CI workflow:** `.github/workflows/build-standalone-env.yml` — manually dispatched, builds all 7 platform+GPU variants in parallel, uploads to a tagged GitHub Release
+
+#### Open Questions
+
+- **Versioning:** How to version/tag archives so the launcher knows which version is installed and when updates are available
+- **Archive sizes:** Need to verify that CUDA-heavy archives (win-nvidia, linux-nvidia) fit within the 2GB GitHub Release asset limit after compression. If not, split into environment + wheels, or use a CDN.
+- **Windows AMD:** ROCm on Windows is experimental. Currently building with CPU wheels; users can upgrade to ROCm nightly post-install. Revisit when official ROCm Windows wheels stabilize.
+
+### 3. Git (`sources/git.js`) — Cross-platform, network-dependent
+
+Clones ComfyUI from a Git repository and uses `uv` to install a Python environment + dependencies from the network. Intended for users with reliable network connections who want fine-grained control over branches, commits, and dependencies.
+
+- **Platforms:** All (wherever Python + git are available, or where `uv` can manage them)
+- **Pros:** Always up-to-date; user picks exact branch/commit; lightweight initial download for the launcher itself
+- **Cons:** Network-dependent for both install and updates; pip/uv failures possible in restricted network environments
+- **Status:** Partial (form fields + GitHub API polling implemented; `install()` and `getLaunchCommand()` not yet implemented)
+
+#### Planned Install Flow
+
+1. Bundle `uv` binary per platform in `assets/uv/`
+2. `uv venv --python 3.12 --python-preference only-managed` — downloads Python and creates venv
+3. `uv pip install -r requirements.compiled` — installs GPU-specific pre-compiled requirements
+4. `git clone` the selected repo/branch/commit
+5. Write `.comfyui-launcher` marker file
+
 ## Known Debt
 
 (None currently tracked.)
