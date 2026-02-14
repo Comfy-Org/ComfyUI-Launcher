@@ -7,7 +7,22 @@ window.Launcher.detail = {
     const { esc, showView } = window.Launcher;
     this._current = inst;
 
-    document.getElementById("detail-title").textContent = inst.name;
+    const titleEl = document.getElementById("detail-title");
+    titleEl.textContent = inst.name;
+    titleEl.contentEditable = true;
+    titleEl.spellcheck = false;
+    titleEl.onblur = () => {
+      const newName = titleEl.textContent.trim();
+      if (newName && newName !== inst.name) {
+        inst.name = newName;
+        window.api.updateInstallation(inst.id, { name: newName });
+      } else {
+        titleEl.textContent = inst.name;
+      }
+    };
+    titleEl.onkeydown = (e) => {
+      if (e.key === "Enter") { e.preventDefault(); titleEl.blur(); }
+    };
     const container = document.getElementById("detail-sections");
     container.innerHTML = "";
 

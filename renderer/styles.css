@@ -48,13 +48,6 @@ body {
   overflow: hidden;
 }
 
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-h1 { font-size: 18px; font-weight: 600; color: var(--accent); }
 .icon-btn {
   background: none;
   border: none;
@@ -195,6 +188,8 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   margin-bottom: 16px;
 }
 .toolbar h2 { font-size: 15px; font-weight: 600; color: var(--text-muted); }
+h2[contenteditable] { cursor: text; border-bottom: 1px dashed var(--border); outline: none; }
+h2[contenteditable]:focus { border-bottom-color: var(--accent); }
 .toolbar-actions { display: flex; gap: 8px; }
 
 .detected-hardware {
