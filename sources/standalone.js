@@ -141,7 +141,7 @@ module.exports = {
     await downloadAndExtract(installation.downloadUrl, installation.installPath, cacheKey, tools);
 
     tools.sendProgress("clone", { percent: -1, status: "Cloning ComfyUI repository…" });
-    await cloneComfyUI(installation.installPath);
+    await cloneComfyUI(getPythonPath(installation.installPath), installation.installPath);
 
     tools.sendProgress("done", { percent: 100, status: "Complete" });
   },
