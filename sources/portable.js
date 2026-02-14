@@ -20,7 +20,7 @@ function findPortableRoot(installPath) {
 
 module.exports = {
   id: "portable",
-  label: "Portable Release (.7z)",
+  label: "Portable Release",
 
   fields: [
     { id: "release", label: "Release", type: "select" },
