@@ -2,6 +2,40 @@
 
 An Electron app for managing multiple ComfyUI installations.
 
+## Development
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18+)
+
+### Setup
+
+```bash
+git clone https://github.com/Kosinkadink/ComfyUI-Launcher.git
+cd ComfyUI-Launcher
+npm install
+```
+
+### Run in development
+
+```bash
+npm start
+```
+
+### Build for distribution
+
+```bash
+# Current platform
+npm run dist
+
+# Platform-specific
+npm run dist:win      # Windows (NSIS installer)
+npm run dist:mac      # macOS (DMG)
+npm run dist:linux    # Linux (AppImage)
+```
+
+Build output is written to the `dist/` directory.
+
 ## Data Locations
 
 | Purpose | Path |
