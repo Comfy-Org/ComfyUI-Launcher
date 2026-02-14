@@ -1,21 +1,7 @@
 const { untrackAction } = require("../lib/actions");
+const { parseUrl } = require("../lib/util");
 
 const DEFAULT_URL = "https://cloud.comfy.org/";
-
-function parseUrl(raw) {
-  const trimmed = (raw || "").trim();
-  if (!trimmed) return null;
-  try {
-    const url = new URL(trimmed.includes("://") ? trimmed : `http://${trimmed}`);
-    return {
-      href: url.href.replace(/\/+$/, ""),
-      hostname: url.hostname,
-      port: parseInt(url.port, 10) || (url.protocol === "https:" ? 443 : 80),
-    };
-  } catch {
-    return null;
-  }
-}
 
 module.exports = {
   id: "cloud",

@@ -2,13 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { fetchJSON } = require("../lib/fetch");
 const { deleteAction, untrackAction } = require("../lib/actions");
-
-function formatTime(secs) {
-  if (secs < 0 || !isFinite(secs)) return "—";
-  const s = Math.round(secs);
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}m ${s % 60}s`;
-}
+const { downloadAndExtract } = require("../lib/installer");
 
 function findPortableRoot(installPath) {
   // Content may be directly in installPath (tracked existing)
@@ -108,37 +102,10 @@ module.exports = {
     ];
   },
 
-  async install(installation, { sendProgress, download, cache, extract }) {
-    const filename = `${installation.version}_${installation.asset}`;
-    const cachePath = cache.getCachePath(filename);
-
-    if (cache.isCached(filename)) {
-      sendProgress("download", { percent: 100, status: "Using cached download" });
-      cache.touch(filename);
-    } else {
-      sendProgress("download", { percent: 0, status: "Starting download…" });
-      await download(installation.downloadUrl, cachePath, (p) => {
-        const speed = `${p.speedMBs.toFixed(1)} MB/s`;
-        const elapsed = formatTime(p.elapsedSecs);
-        const eta = p.etaSecs >= 0 ? formatTime(p.etaSecs) : "—";
-        sendProgress("download", {
-          percent: p.percent,
-          status: `Downloading… ${p.receivedMB} / ${p.totalMB} MB  ·  ${speed}  ·  ${elapsed} elapsed  ·  ${eta} remaining`,
-        });
-      });
-      cache.evict();
-    }
-
-    sendProgress("extract", { percent: 0, status: "Extracting…" });
-    await extract(cachePath, installation.installPath, (p) => {
-      const elapsed = formatTime(p.elapsedSecs);
-      const eta = p.etaSecs >= 0 ? formatTime(p.etaSecs) : "—";
-      sendProgress("extract", {
-        percent: p.percent,
-        status: `Extracting… ${p.percent}%  ·  ${elapsed} elapsed  ·  ${eta} remaining`,
-      });
-    });
-    sendProgress("done", { percent: 100, status: "Complete" });
+  async install(installation, tools) {
+    const cacheKey = `${installation.version}_${installation.asset}`;
+    await downloadAndExtract(installation.downloadUrl, installation.installPath, cacheKey, tools);
+    tools.sendProgress("done", { percent: 100, status: "Complete" });
   },
 
   probeInstallation(dirPath) {

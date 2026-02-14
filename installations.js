@@ -51,4 +51,15 @@ async function get(id) {
   return (await load()).find((i) => i.id === id) || null;
 }
 
-module.exports = { list, add, remove, update, get };
+async function reorder(orderedIds) {
+  const installations = await load();
+  const byId = Object.fromEntries(installations.map((i) => [i.id, i]));
+  const reordered = orderedIds.map((id) => byId[id]).filter(Boolean);
+  // Append any installations not in the provided list (safety net)
+  for (const inst of installations) {
+    if (!orderedIds.includes(inst.id)) reordered.push(inst);
+  }
+  await save(reordered);
+}
+
+module.exports = { list, add, remove, update, get, reorder };

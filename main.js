@@ -14,9 +14,9 @@ let comfyProcess = null;
 
 function createLauncherWindow() {
   launcherWindow = new BrowserWindow({
-    width: 600,
+    width: 750,
     height: 500,
-    minWidth: 500,
+    minWidth: 550,
     minHeight: 400,
     icon: APP_ICON,
     webPreferences: {

@@ -155,10 +155,30 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   justify-content: space-between;
   align-items: center;
 }
+.instance-card.dragging { opacity: 0.4; }
+.instance-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.drag-handle {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px 8px 2px;
+  cursor: grab;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.drag-handle:hover { opacity: 0.7; }
+.drag-handle:active { cursor: grabbing; }
+.drag-handle span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 1px;
+}
 .instance-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .instance-name { font-size: 15px; font-weight: 600; }
 .instance-meta { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.status-failed { color: var(--danger); font-weight: 600; }
+.status-danger { color: var(--danger); font-weight: 600; }
 .instance-actions { display: flex; gap: 8px; }
 
 .empty-state {

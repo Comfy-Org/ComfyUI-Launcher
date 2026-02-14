@@ -1,6 +1,8 @@
 window.Launcher = window.Launcher || {};
 
 window.Launcher.list = {
+  _dragSrcEl: null,
+
   async render() {
     const { esc, showView } = window.Launcher;
     const el = document.getElementById("instance-list");
@@ -16,19 +18,26 @@ window.Launcher.list = {
     for (const inst of installations) {
       const card = document.createElement("div");
       card.className = "instance-card";
-      const statusTag = inst.status === "failed" ? ' · <span class="status-failed">Install Failed</span>' : "";
+      card.dataset.id = inst.id;
+      const statusTag = inst.statusTag ? ` · <span class="status-${inst.statusTag.style}">${esc(inst.statusTag.label)}</span>` : "";
       const launchMeta = inst.listPreview
         ? esc(inst.listPreview)
         : inst.launchMode
           ? `${esc(inst.launchMode)}${inst.launchArgs ? " · " + esc(inst.launchArgs) : ""}`
           : "";
       card.innerHTML = `
+        <div class="drag-handle" title="Drag to reorder"><span></span><span></span><span></span></div>
         <div class="instance-info">
           <div class="instance-name">${esc(inst.name)}</div>
           <div class="instance-meta">${esc(inst.sourceLabel)}${inst.version ? " · " + esc(inst.version) : ""}${statusTag}</div>
           ${launchMeta ? `<div class="instance-meta">${launchMeta}</div>` : ""}
         </div>
         <div class="instance-actions"></div>`;
+
+      const handle = card.querySelector(".drag-handle");
+      handle.addEventListener("mousedown", () => { card.draggable = true; });
+      handle.addEventListener("mouseup", () => { card.draggable = false; });
+      card.addEventListener("dragend", () => { card.draggable = false; });
 
       const actionsEl = card.querySelector(".instance-actions");
       const actions = await window.api.getListActions(inst.id);
@@ -72,6 +81,42 @@ window.Launcher.list = {
       viewBtn.textContent = "View";
       viewBtn.onclick = () => window.Launcher.detail.show(inst);
       actionsEl.appendChild(viewBtn);
+
+      card.addEventListener("dragstart", (e) => {
+        this._dragSrcEl = card;
+        card.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      card.addEventListener("dragend", () => {
+        card.classList.remove("dragging");
+        this._dragSrcEl = null;
+        el.querySelectorAll(".instance-card").forEach((c) => c.classList.remove("drag-over"));
+      });
+      card.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (this._dragSrcEl && this._dragSrcEl !== card) {
+          card.classList.add("drag-over");
+        }
+      });
+      card.addEventListener("dragleave", () => {
+        card.classList.remove("drag-over");
+      });
+      card.addEventListener("drop", (e) => {
+        e.preventDefault();
+        card.classList.remove("drag-over");
+        if (!this._dragSrcEl || this._dragSrcEl === card) return;
+        const cards = [...el.querySelectorAll(".instance-card")];
+        const fromIdx = cards.indexOf(this._dragSrcEl);
+        const toIdx = cards.indexOf(card);
+        if (fromIdx < toIdx) {
+          el.insertBefore(this._dragSrcEl, card.nextSibling);
+        } else {
+          el.insertBefore(this._dragSrcEl, card);
+        }
+        const orderedIds = [...el.querySelectorAll(".instance-card")].map((c) => c.dataset.id);
+        window.api.reorderInstallations(orderedIds);
+      });
 
       el.appendChild(card);
     }

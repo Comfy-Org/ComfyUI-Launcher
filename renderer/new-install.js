@@ -15,9 +15,8 @@ window.Launcher.newInstall = {
       pathInput.value = await window.api.getDefaultInstallDir();
       this._detectedGPU = await window.api.detectGPU();
       const gpuEl = document.getElementById("detected-gpu");
-      const gpuLabels = { nvidia: "NVIDIA", amd: "AMD", intel: "Intel", mps: "Apple Silicon" };
       gpuEl.textContent = this._detectedGPU
-        ? `Detected GPU: ${gpuLabels[this._detectedGPU] || this._detectedGPU}`
+        ? `Detected GPU: ${this._detectedGPU.label}`
         : "No supported GPU detected";
       window.Launcher.showView("new");
       this._initSources();
@@ -64,7 +63,7 @@ window.Launcher.newInstall = {
 
     // Hide install path for sources that don't need it
     const pathField = document.getElementById("inst-path").closest(".field");
-    pathField.style.display = source.skipInstall ? "none" : "";
+    pathField.style.display = source.hideInstallPath ? "none" : "";
 
     source.fields.forEach((f) => container.appendChild(this._createFieldEl(f)));
 

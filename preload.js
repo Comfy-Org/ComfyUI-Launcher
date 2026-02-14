@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("api", {
   openPath: (targetPath) => ipcRenderer.invoke("open-path", targetPath),
   getInstallations: () => ipcRenderer.invoke("get-installations"),
   addInstallation: (data) => ipcRenderer.invoke("add-installation", data),
+  reorderInstallations: (orderedIds) => ipcRenderer.invoke("reorder-installations", orderedIds),
   probeInstallation: (dirPath) => ipcRenderer.invoke("probe-installation", dirPath),
   trackInstallation: (data) => ipcRenderer.invoke("track-installation", data),
   installInstance: (installationId) =>

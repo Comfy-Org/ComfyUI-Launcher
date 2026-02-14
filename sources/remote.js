@@ -1,19 +1,5 @@
 const { deleteAction, untrackAction } = require("../lib/actions");
-
-function parseUrl(raw) {
-  const trimmed = (raw || "").trim();
-  if (!trimmed) return null;
-  try {
-    const url = new URL(trimmed.includes("://") ? trimmed : `http://${trimmed}`);
-    return {
-      href: url.href.replace(/\/+$/, ""),
-      hostname: url.hostname,
-      port: parseInt(url.port, 10) || (url.protocol === "https:" ? 443 : 80),
-    };
-  } catch {
-    return null;
-  }
-}
+const { parseUrl } = require("../lib/util");
 
 module.exports = {
   id: "remote",

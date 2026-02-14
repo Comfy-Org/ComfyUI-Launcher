@@ -1,8 +1,9 @@
 const fs = require("fs");
 const path = require("path");
-const { execFile } = require("child_process");
 const { fetchJSON } = require("../lib/fetch");
 const { deleteAction, untrackAction } = require("../lib/actions");
+const { cloneComfyUI } = require("../lib/git");
+const { downloadAndExtract } = require("../lib/installer");
 
 const RELEASE_REPO = "Kosinkadink/ComfyUI-Launcher-Environments";
 
@@ -28,13 +29,6 @@ const PLATFORM_PREFIX = {
   linux: "linux-",
 };
 
-function formatTime(secs) {
-  if (secs < 0 || !isFinite(secs)) return "—";
-  const s = Math.round(secs);
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}m ${s % 60}s`;
-}
-
 function parseVariantId(filename) {
   const match = filename.match(/^comfyui-standalone-(.+)\.(7z|tar\.gz)$/);
   return match ? match[1] : null;
@@ -54,33 +48,6 @@ function recommendVariant(variantId, gpu) {
   if (gpu === "mps") return variantId.includes("-mps");
   if (gpu === "intel") return variantId.endsWith("-intel-xpu");
   return false;
-}
-
-function cloneComfyUI(installPath) {
-  const pythonPath = getPythonPath(installPath);
-
-  return new Promise((resolve, reject) => {
-    // Try pygit2 first
-    execFile(
-      pythonPath,
-      ["-c", "import pygit2; pygit2.clone_repository('https://github.com/Comfy-Org/ComfyUI.git', 'ComfyUI')"],
-      { cwd: installPath },
-      (error) => {
-        if (!error) return resolve();
-
-        // Fall back to system git
-        execFile(
-          "git",
-          ["clone", "--depth", "1", "https://github.com/Comfy-Org/ComfyUI.git", "ComfyUI"],
-          { cwd: installPath },
-          (gitError, _stdout, gitStderr) => {
-            if (gitError) reject(new Error(`ComfyUI clone failed. Neither pygit2 nor system git succeeded.\n${gitStderr || gitError.message}`));
-            else resolve();
-          },
-        );
-      },
-    );
-  });
 }
 
 module.exports = {
@@ -169,41 +136,14 @@ module.exports = {
     ];
   },
 
-  async install(installation, { sendProgress, download, cache, extract }) {
-    const filename = `${installation.version}_comfyui-standalone-${installation.variant}`;
-    const cachePath = cache.getCachePath(filename);
+  async install(installation, tools) {
+    const cacheKey = `${installation.version}_comfyui-standalone-${installation.variant}`;
+    await downloadAndExtract(installation.downloadUrl, installation.installPath, cacheKey, tools);
 
-    if (cache.isCached(filename)) {
-      sendProgress("download", { percent: 100, status: "Using cached download" });
-      cache.touch(filename);
-    } else {
-      sendProgress("download", { percent: 0, status: "Starting download…" });
-      await download(installation.downloadUrl, cachePath, (p) => {
-        const speed = `${p.speedMBs.toFixed(1)} MB/s`;
-        const elapsed = formatTime(p.elapsedSecs);
-        const eta = p.etaSecs >= 0 ? formatTime(p.etaSecs) : "—";
-        sendProgress("download", {
-          percent: p.percent,
-          status: `Downloading… ${p.receivedMB} / ${p.totalMB} MB  ·  ${speed}  ·  ${elapsed} elapsed  ·  ${eta} remaining`,
-        });
-      });
-      cache.evict();
-    }
-
-    sendProgress("extract", { percent: 0, status: "Extracting…" });
-    await extract(cachePath, installation.installPath, (p) => {
-      const elapsed = formatTime(p.elapsedSecs);
-      const eta = p.etaSecs >= 0 ? formatTime(p.etaSecs) : "—";
-      sendProgress("extract", {
-        percent: p.percent,
-        status: `Extracting… ${p.percent}%  ·  ${elapsed} elapsed  ·  ${eta} remaining`,
-      });
-    });
-
-    sendProgress("clone", { percent: -1, status: "Cloning ComfyUI repository…" });
+    tools.sendProgress("clone", { percent: -1, status: "Cloning ComfyUI repository…" });
     await cloneComfyUI(installation.installPath);
 
-    sendProgress("done", { percent: 100, status: "Complete" });
+    tools.sendProgress("done", { percent: 100, status: "Complete" });
   },
 
   probeInstallation(dirPath) {
