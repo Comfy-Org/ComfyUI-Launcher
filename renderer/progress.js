@@ -3,7 +3,7 @@ window.Launcher = window.Launcher || {};
 window.Launcher.progress = {
   _unsubscribe: null,
 
-  show({ installationId, title, apiCall, cancellable }) {
+  show({ installationId, title, apiCall, cancellable, returnTo }) {
     document.getElementById("progress-title").textContent = title || "Working…";
     const container = document.getElementById("progress-content");
     const cancelBtn = document.getElementById("btn-progress-cancel");
@@ -19,8 +19,133 @@ window.Launcher.progress = {
 
     window.Launcher.showView("progress");
 
+    let steps = null;
+    let activePhase = null;
+
+    const renderSteps = () => {
+      const terminalContent = document.getElementById("progress-terminal")?.textContent || "";
+      container.innerHTML = "";
+
+      const stepsContainer = document.createElement("div");
+      stepsContainer.className = "progress-steps";
+
+      steps.forEach((step, i) => {
+        const stepEl = document.createElement("div");
+        stepEl.className = "progress-step";
+        stepEl.dataset.phase = step.phase;
+
+        const header = document.createElement("div");
+        header.className = "progress-step-header";
+
+        const indicator = document.createElement("span");
+        indicator.className = "progress-step-indicator";
+        indicator.textContent = String(i + 1);
+
+        const label = document.createElement("span");
+        label.className = "progress-step-label";
+        label.textContent = step.label;
+
+        header.appendChild(indicator);
+        header.appendChild(label);
+        stepEl.appendChild(header);
+
+        const detail = document.createElement("div");
+        detail.className = "progress-step-detail";
+        detail.style.display = "none";
+
+        const status = document.createElement("div");
+        status.className = "progress-step-status";
+
+        const barTrack = document.createElement("div");
+        barTrack.className = "progress-bar-track";
+        const barFill = document.createElement("div");
+        barFill.className = "progress-bar-fill";
+        barTrack.appendChild(barFill);
+
+        detail.appendChild(status);
+        detail.appendChild(barTrack);
+        stepEl.appendChild(detail);
+        stepsContainer.appendChild(stepEl);
+      });
+
+      container.appendChild(stepsContainer);
+
+      const terminal = document.createElement("div");
+      terminal.className = "terminal-output";
+      terminal.id = "progress-terminal";
+      terminal.textContent = terminalContent;
+      container.appendChild(terminal);
+    };
+
+    const updateSteps = (data) => {
+      const stepIndex = steps.findIndex((s) => s.phase === data.phase);
+      if (stepIndex === -1) return;
+
+      activePhase = data.phase;
+
+      steps.forEach((step, i) => {
+        const stepEl = container.querySelector(`.progress-step[data-phase="${step.phase}"]`);
+        if (!stepEl) return;
+
+        const indicator = stepEl.querySelector(".progress-step-indicator");
+        const detail = stepEl.querySelector(".progress-step-detail");
+        const status = stepEl.querySelector(".progress-step-status");
+        const barFill = stepEl.querySelector(".progress-bar-fill");
+
+        if (i < stepIndex) {
+          stepEl.className = "progress-step done";
+          indicator.textContent = "✓";
+          detail.style.display = "none";
+        } else if (i === stepIndex) {
+          stepEl.className = "progress-step active";
+          indicator.textContent = String(i + 1);
+          detail.style.display = "";
+          status.textContent = data.status || data.phase;
+          if (data.percent >= 0) {
+            barFill.style.width = `${data.percent}%`;
+            barFill.classList.remove("indeterminate");
+          } else {
+            barFill.style.width = "100%";
+            barFill.classList.add("indeterminate");
+          }
+        } else {
+          stepEl.className = "progress-step";
+          indicator.textContent = String(i + 1);
+          detail.style.display = "none";
+        }
+      });
+    };
+
+    const markAllDone = () => {
+      steps.forEach((step) => {
+        const stepEl = container.querySelector(`.progress-step[data-phase="${step.phase}"]`);
+        if (!stepEl) return;
+        stepEl.className = "progress-step done";
+        stepEl.querySelector(".progress-step-indicator").textContent = "✓";
+        stepEl.querySelector(".progress-step-detail").style.display = "none";
+      });
+    };
+
     this._unsubscribe = window.api.onInstallProgress((data) => {
       if (data.installationId !== installationId) return;
+
+      if (data.phase === "steps") {
+        steps = data.steps;
+        activePhase = null;
+        renderSteps();
+        return;
+      }
+
+      if (data.phase === "done" && steps) {
+        markAllDone();
+        return;
+      }
+
+      if (steps) {
+        updateSteps(data);
+        return;
+      }
+
       const statusEl = document.getElementById("progress-status");
       const fillEl = document.getElementById("progress-fill");
 
@@ -47,8 +172,19 @@ window.Launcher.progress = {
 
     const showError = (msg) => {
       this._cleanup();
-      const statusEl = document.getElementById("progress-status");
-      if (statusEl) statusEl.textContent = `Error: ${msg}`;
+      if (steps) {
+        // In stepped mode, mark the active step as failed
+        const activeEl = container.querySelector(".progress-step.active");
+        if (activeEl) {
+          const status = activeEl.querySelector(".progress-step-status");
+          if (status) status.textContent = `Error: ${msg}`;
+          const barTrack = activeEl.querySelector(".progress-bar-track");
+          if (barTrack) barTrack.style.display = "none";
+        }
+      } else {
+        const statusEl = document.getElementById("progress-status");
+        if (statusEl) statusEl.textContent = `Error: ${msg}`;
+      }
       const backBtn = document.getElementById("btn-progress-cancel");
       backBtn.textContent = "← Back";
       backBtn.className = "";
@@ -57,15 +193,21 @@ window.Launcher.progress = {
         backBtn.style.display = "none";
         backBtn.textContent = "Cancel";
         backBtn.className = "danger";
-        window.Launcher.showView("list");
-        window.Launcher.list.render();
+        if (returnTo === "detail" && window.Launcher.detail._current) {
+          window.Launcher.detail.show(window.Launcher.detail._current);
+        } else {
+          window.Launcher.showView("list");
+          window.Launcher.list.render();
+        }
       };
     };
 
     return apiCall().then((result) => {
       this._cleanup();
       if (result.ok) {
-        if (result.mode === "console") {
+        if (result.navigate === "detail" && window.Launcher.detail._current) {
+          window.Launcher.detail.show(window.Launcher.detail._current);
+        } else if (result.mode === "console") {
           const initialOutput = document.getElementById("progress-terminal")?.textContent || "";
           window.Launcher.console.show({ installationId, port: result.port, url: result.url, initialOutput });
         } else {

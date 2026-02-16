@@ -3,6 +3,8 @@ const path = require("path");
 const { fetchJSON } = require("../lib/fetch");
 const { deleteAction, untrackAction } = require("../lib/actions");
 const { downloadAndExtract } = require("../lib/installer");
+const { deleteDir } = require("../lib/delete");
+const { parseArgs } = require("../lib/util");
 
 const RELEASE_REPO = "Kosinkadink/ComfyUI-Launcher-Environments";
 const ENVS_DIR = "envs";
@@ -55,28 +57,77 @@ function findSitePackages(envRoot) {
   return null;
 }
 
-function createEnv(installPath, envName) {
+async function collectFiles(dir) {
+  const entries = [];
+  const stack = [dir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const items = await fs.promises.readdir(current, { withFileTypes: true });
+    for (const item of items) {
+      const full = path.join(current, item.name);
+      if (item.isDirectory()) {
+        stack.push(full);
+      } else {
+        entries.push(path.relative(dir, full));
+      }
+    }
+  }
+  return entries;
+}
+
+async function copyDirWithProgress(src, dest, onProgress) {
+  const files = await collectFiles(src);
+  const total = files.length;
+  let copied = 0;
+  const step = Math.max(1, Math.floor(total / 100));
+  const concurrency = 50;
+  const createdDirs = new Set();
+
+  const ensureDir = async (dir) => {
+    if (createdDirs.has(dir)) return;
+    createdDirs.add(dir);
+    await fs.promises.mkdir(dir, { recursive: true });
+  };
+
+  let i = 0;
+  while (i < files.length) {
+    const batch = files.slice(i, i + concurrency);
+    await Promise.all(batch.map(async (rel) => {
+      const destPath = path.join(dest, rel);
+      await ensureDir(path.dirname(destPath));
+      await fs.promises.copyFile(path.join(src, rel), destPath);
+      copied++;
+      if (onProgress && (copied % step === 0 || copied === total)) {
+        onProgress(copied, total);
+      }
+    }));
+    i += concurrency;
+  }
+}
+
+async function createEnv(installPath, envName, onProgress) {
   const { execFile } = require("child_process");
   const uvPath = getUvPath(installPath);
   const masterPython = getMasterPythonPath(installPath);
   const envPath = path.join(installPath, ENVS_DIR, envName);
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     execFile(uvPath, ["venv", "--python", masterPython, envPath], { cwd: installPath }, (err, stdout, stderr) => {
       if (err) return reject(new Error(`Failed to create environment "${envName}": ${stderr || err.message}`));
-
-      const masterSitePackages = findSitePackages(path.join(installPath, "standalone-env"));
-      const envSitePackages = findSitePackages(envPath);
-      if (!masterSitePackages || !envSitePackages || !fs.existsSync(masterSitePackages)) {
-        return reject(new Error(`Could not locate site-packages for environment "${envName}".`));
-      }
-      try {
-        fs.cpSync(masterSitePackages, envSitePackages, { recursive: true });
-      } catch (copyErr) {
-        return reject(new Error(`Failed to copy packages to "${envName}": ${copyErr.message}`));
-      }
-      resolve(envPath);
+      resolve();
     });
   });
+
+  try {
+    const masterSitePackages = findSitePackages(path.join(installPath, "standalone-env"));
+    const envSitePackages = findSitePackages(envPath);
+    if (!masterSitePackages || !envSitePackages || !fs.existsSync(masterSitePackages)) {
+      throw new Error(`Could not locate site-packages for environment "${envName}".`);
+    }
+    await copyDirWithProgress(masterSitePackages, envSitePackages, onProgress);
+  } catch (err) {
+    await fs.promises.rm(envPath, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
 }
 
 function getMasterPythonPath(installPath) {
@@ -134,6 +185,12 @@ module.exports = {
 
   defaultLaunchArgs: "--disable-auto-launch",
 
+  installSteps: [
+    { phase: "download", label: "Download" },
+    { phase: "extract", label: "Extract" },
+    { phase: "setup", label: "Set up environment" },
+  ],
+
   getDefaults() {
     return { launchArgs: this.defaultLaunchArgs, launchMode: "window" };
   },
@@ -157,7 +214,7 @@ module.exports = {
     const mainPy = path.join(installation.installPath, "ComfyUI", "main.py");
     if (!fs.existsSync(mainPy)) return null;
     const userArgs = (installation.launchArgs || this.defaultLaunchArgs).trim();
-    const parsed = userArgs.length > 0 ? userArgs.split(/\s+/) : [];
+    const parsed = userArgs.length > 0 ? parseArgs(userArgs) : [];
     const portIdx = parsed.indexOf("--port");
     const port = portIdx >= 0 && parsed[portIdx + 1] ? parseInt(parsed[portIdx + 1], 10) || 8188 : 8188;
     return {
@@ -186,10 +243,10 @@ module.exports = {
       label: name,
       active: name === activeEnv,
       actions: [
-        { id: "env-activate", label: "Set Active", style: "default", enabled: name !== activeEnv, data: { env: name } },
-        { id: "env-reset", label: "Reset", style: "danger", enabled: true, data: { env: name },
-          confirm: { title: "Reset Environment", message: `Reset "${name}" to the master environment state? All installed packages will be lost.` } },
+        ...(name !== activeEnv ? [{ id: "env-activate", label: "Set Active", style: "default", data: { env: name } }] : []),
         { id: "env-delete", label: "Delete", style: "danger", enabled: name !== activeEnv, data: { env: name },
+          showProgress: true, progressTitle: `Deleting Environment "${name}"…`,
+          disabledMessage: "Cannot delete the active environment. Set another environment as active first.",
           confirm: { title: "Delete Environment", message: `Delete environment "${name}"? This cannot be undone.` } },
       ],
     }));
@@ -214,7 +271,9 @@ module.exports = {
           : "No virtual environments created yet.",
         items: envItems,
         actions: [
-          { id: "env-create", label: "New Environment", style: "default", enabled: installed },
+          { id: "env-create", label: "New Environment", style: "default", enabled: installed,
+            showProgress: true, progressTitle: 'Creating Environment "{env}"…',
+            prompt: { title: "New Environment", message: "Enter a name for the new environment.", placeholder: "my-env", field: "env", confirmLabel: "Create", required: "Please enter an environment name." } },
         ],
       },
       {
@@ -249,8 +308,11 @@ module.exports = {
   },
 
   async postInstall(installation, { sendProgress }) {
-    sendProgress("setup", { percent: -1, status: "Creating default Python environment…" });
-    await createEnv(installation.installPath, DEFAULT_ENV);
+    sendProgress("setup", { percent: 0, status: "Creating default Python environment…" });
+    await createEnv(installation.installPath, DEFAULT_ENV, (copied, total) => {
+      const percent = Math.round((copied / total) * 100);
+      sendProgress("setup", { percent, status: `Copying packages… ${copied} / ${total} files` });
+    });
   },
 
   probeInstallation(dirPath) {
@@ -267,18 +329,41 @@ module.exports = {
     };
   },
 
-  async handleAction(actionId, installation, actionData) {
+  async handleAction(actionId, installation, actionData, { update, sendProgress }) {
     if (actionId === "env-create") {
-      return { ok: false, message: "Environment creation is not yet implemented." };
+      const envName = actionData?.env;
+      if (!envName) return { ok: false, message: "No environment name provided." };
+      if (!/^[a-zA-Z0-9_-]+$/.test(envName)) return { ok: false, message: "Environment name may only contain letters, numbers, hyphens, and underscores." };
+      const envPath = path.join(installation.installPath, ENVS_DIR, envName);
+      if (fs.existsSync(envPath)) return { ok: false, message: `Environment "${envName}" already exists.` };
+      sendProgress("setup", { percent: 0, status: "Creating virtual environment…" });
+      await createEnv(installation.installPath, envName, (copied, total) => {
+        const percent = Math.round((copied / total) * 100);
+        sendProgress("setup", { percent, status: `Copying packages… ${copied} / ${total} files` });
+      });
+      return { ok: true, navigate: "detail" };
     }
     if (actionId === "env-activate") {
-      return { ok: false, message: "Environment activation is not yet implemented." };
-    }
-    if (actionId === "env-reset") {
-      return { ok: false, message: "Environment reset is not yet implemented." };
+      const envName = actionData?.env;
+      if (!envName) return { ok: false, message: "No environment specified." };
+      await update({ activeEnv: envName });
+      return { ok: true, navigate: "detail" };
     }
     if (actionId === "env-delete") {
-      return { ok: false, message: "Environment deletion is not yet implemented." };
+      const envName = actionData?.env;
+      if (!envName) return { ok: false, message: "No environment specified." };
+      if (envName === (installation.activeEnv || DEFAULT_ENV)) return { ok: false, message: "Cannot delete the active environment." };
+      const envPath = path.join(installation.installPath, ENVS_DIR, envName);
+      if (fs.existsSync(envPath)) {
+        sendProgress("delete", { percent: 0, status: "Counting files…" });
+        await deleteDir(envPath, (p) => {
+          sendProgress("delete", {
+            percent: p.percent,
+            status: `Deleting… ${p.deleted} / ${p.total} items`,
+          });
+        });
+      }
+      return { ok: true, navigate: "detail" };
     }
     return { ok: false, message: `Action "${actionId}" not yet implemented.` };
   },

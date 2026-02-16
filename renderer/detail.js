@@ -63,8 +63,18 @@ window.Launcher.detail = {
               const btn = document.createElement("button");
               btn.textContent = a.label;
               if (a.style === "danger") btn.className = "danger";
-              btn.disabled = a.enabled === false;
-              btn.onclick = () => this._runAction(a);
+              if (a.enabled === false && !a.disabledMessage) {
+                btn.disabled = true;
+              } else if (a.enabled === false && a.disabledMessage) {
+                btn.classList.add("looks-disabled");
+              }
+              btn.onclick = () => {
+                if (a.enabled === false && a.disabledMessage) {
+                  window.Launcher.modal.alert({ title: a.label, message: a.disabledMessage });
+                  return;
+                }
+                this._runAction(a);
+              };
               bar.appendChild(btn);
             });
             row.appendChild(bar);
@@ -127,8 +137,18 @@ window.Launcher.detail = {
           btn.textContent = a.label;
           if (a.style === "primary") btn.className = "primary";
           if (a.style === "danger") btn.className = "danger";
-          btn.disabled = a.enabled === false;
-          btn.onclick = () => this._runAction(a);
+          if (a.enabled === false && !a.disabledMessage) {
+            btn.disabled = true;
+          } else if (a.enabled === false && a.disabledMessage) {
+            btn.classList.add("looks-disabled");
+          }
+          btn.onclick = () => {
+            if (a.enabled === false && a.disabledMessage) {
+              window.Launcher.modal.alert({ title: a.label, message: a.disabledMessage });
+              return;
+            }
+            this._runAction(a);
+          };
           bar.appendChild(btn);
         });
         sec.appendChild(bar);
@@ -144,6 +164,18 @@ window.Launcher.detail = {
     if (!this._current) return;
     const { showView, list, modal } = window.Launcher;
 
+    if (action.prompt) {
+      const value = await modal.prompt({
+        title: action.prompt.title || action.label,
+        message: action.prompt.message || "",
+        placeholder: action.prompt.placeholder || "",
+        confirmLabel: action.prompt.confirmLabel || action.label,
+        required: action.prompt.required,
+      });
+      if (!value) return;
+      action = { ...action, data: { ...action.data, [action.prompt.field]: value } };
+    }
+
     if (action.confirm) {
       const confirmed = await modal.confirm({
         title: action.confirm.title || "Confirm",
@@ -158,9 +190,10 @@ window.Launcher.detail = {
       const instId = this._current.id;
       window.Launcher.progress.show({
         installationId: instId,
-        title: action.progressTitle || `${action.label}…`,
+        title: (action.progressTitle || `${action.label}…`).replace(/\{(\w+)\}/g, (_, k) => action.data?.[k] || k),
         apiCall: () => window.api.runAction(instId, action.id, action.data),
         cancellable: !!action.cancellable,
+        returnTo: "detail",
       });
       return;
     }
@@ -169,6 +202,11 @@ window.Launcher.detail = {
     if (result.navigate === "list") {
       showView("list");
       list.render();
+    } else if (result.navigate === "detail") {
+      const view = document.getElementById("view-detail");
+      const scrollY = view ? view.scrollTop : 0;
+      await this.show(this._current);
+      if (view) view.scrollTop = scrollY;
     } else if (result.message) {
       await modal.alert({ title: action.label, message: result.message });
     }

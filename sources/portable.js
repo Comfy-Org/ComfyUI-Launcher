@@ -3,6 +3,7 @@ const path = require("path");
 const { fetchJSON } = require("../lib/fetch");
 const { deleteAction, untrackAction } = require("../lib/actions");
 const { downloadAndExtract } = require("../lib/installer");
+const { parseArgs } = require("../lib/util");
 
 function findPortableRoot(installPath) {
   // Content may be directly in installPath (tracked existing)
@@ -29,6 +30,11 @@ module.exports = {
 
   defaultLaunchArgs: "--windows-standalone-build --disable-auto-launch",
 
+  installSteps: [
+    { phase: "download", label: "Download" },
+    { phase: "extract", label: "Extract" },
+  ],
+
   getDefaults() {
     return { launchArgs: this.defaultLaunchArgs, launchMode: "window" };
   },
@@ -47,7 +53,7 @@ module.exports = {
     const root = findPortableRoot(installation.installPath);
     if (!root) return null;
     const userArgs = (installation.launchArgs || this.defaultLaunchArgs).trim();
-    const parsed = userArgs.length > 0 ? userArgs.split(/\s+/) : [];
+    const parsed = userArgs.length > 0 ? parseArgs(userArgs) : [];
     const portIdx = parsed.indexOf("--port");
     const port = portIdx >= 0 && parsed[portIdx + 1] ? parseInt(parsed[portIdx + 1], 10) || 8188 : 8188;
     return {
