@@ -217,7 +217,7 @@ module.exports = {
 
   get fields() {
     return [
-      { id: "release", label: t("standalone.release"), type: "select" },
+      { id: "release", label: t("common.release"), type: "select" },
       { id: "variant", label: t("standalone.variant"), type: "select" },
     ];
   },
@@ -226,14 +226,14 @@ module.exports = {
 
   get installSteps() {
     return [
-      { phase: "download", label: t("standalone.download") },
-      { phase: "extract", label: t("standalone.extract") },
+      { phase: "download", label: t("common.download") },
+      { phase: "extract", label: t("common.extract") },
       { phase: "setup", label: t("standalone.setupEnv") },
     ];
   },
 
   getDefaults() {
-    return { launchArgs: this.defaultLaunchArgs, launchMode: "window", browserPartition: "unique" };
+    return { launchArgs: this.defaultLaunchArgs, launchMode: "window" };
   },
 
   buildInstallation(selections) {
@@ -272,7 +272,7 @@ module.exports = {
     const installed = installation.status === "installed";
     return [
       { id: "launch", label: t("actions.launch"), style: "primary", enabled: installed,
-        showProgress: true, progressTitle: t("standalone.startingComfyUI"), cancellable: true },
+        showProgress: true, progressTitle: t("common.startingComfyUI"), cancellable: true },
     ];
   },
 
@@ -296,15 +296,15 @@ module.exports = {
 
     return [
       {
-        title: t("standalone.installInfo"),
+        title: t("common.installInfo"),
         fields: [
-          { label: t("standalone.installMethod"), value: installation.sourceLabel },
+          { label: t("common.installMethod"), value: installation.sourceLabel },
           { label: t("standalone.comfyui"), value: installation.version },
-          { label: t("standalone.release"), value: installation.releaseTag || "—" },
+          { label: t("common.release"), value: installation.releaseTag || "—" },
           { label: t("standalone.variant"), value: installation.variant ? getVariantLabel(installation.variant) : "—" },
           { label: t("standalone.python"), value: installation.pythonVersion || "—" },
-          { label: t("standalone.location"), value: installation.installPath || "—" },
-          { label: t("standalone.installed"), value: new Date(installation.createdAt).toLocaleDateString() },
+          { label: t("common.location"), value: installation.installPath || "—" },
+          { label: t("common.installed"), value: new Date(installation.createdAt).toLocaleDateString() },
         ],
       },
       {
@@ -320,18 +320,18 @@ module.exports = {
         ],
       },
       {
-        title: t("standalone.launchSettings"),
+        title: t("common.launchSettings"),
         fields: [
-          { id: "launchArgs", label: t("standalone.startupArgs"), value: installation.launchArgs ?? this.defaultLaunchArgs, editable: true },
-          { id: "launchMode", label: t("standalone.launchMode"), value: installation.launchMode || "window", editable: true,
+          { id: "launchArgs", label: t("common.startupArgs"), value: installation.launchArgs ?? this.defaultLaunchArgs, editable: true },
+          { id: "launchMode", label: t("common.launchMode"), value: installation.launchMode || "window", editable: true,
             editType: "select", options: [
-              { value: "window", label: t("standalone.launchModeWindow") },
-              { value: "console", label: t("standalone.launchModeConsole") },
+              { value: "window", label: t("common.launchModeWindow") },
+              { value: "console", label: t("common.launchModeConsole") },
             ] },
-          { id: "browserPartition", label: t("standalone.browserPartition"), value: installation.browserPartition || "shared", editable: true,
+          { id: "browserPartition", label: t("common.browserPartition"), value: installation.browserPartition || "shared", editable: true,
             editType: "select", options: [
-              { value: "shared", label: t("standalone.partitionShared") },
-              { value: "unique", label: t("standalone.partitionUnique") },
+              { value: "shared", label: t("common.partitionShared") },
+              { value: "unique", label: t("common.partitionUnique") },
             ] },
         ],
       },
@@ -339,9 +339,9 @@ module.exports = {
         title: "Actions",
         actions: [
           { id: "launch", label: t("actions.launch"), style: "primary", enabled: installed,
-            showProgress: true, progressTitle: t("standalone.startingComfyUI"), cancellable: true },
+            showProgress: true, progressTitle: t("common.startingComfyUI"), cancellable: true },
           { id: "open-folder", label: t("actions.openDirectory"), style: "default", enabled: !!installation.installPath },
-          { id: "check-update", label: t("actions.checkForUpdate"), style: "default", enabled: false },
+          { id: "check-update", label: t("actions.checkForUpdate"), style: "default", enabled: false, disabledMessage: t("actions.featureNotImplemented") },
           deleteAction(installation),
           untrackAction(),
         ],

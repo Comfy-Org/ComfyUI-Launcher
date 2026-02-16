@@ -6,7 +6,23 @@
     "browse": "Browse…",
     "cancel": "Cancel",
     "name": "Name",
-    "namePlaceholder": "e.g. ComfyUI Main"
+    "namePlaceholder": "e.g. ComfyUI Main",
+    "installInfo": "Installation Info",
+    "installMethod": "Install Method",
+    "release": "Release",
+    "location": "Location",
+    "installed": "Installed",
+    "launchSettings": "Launch Settings",
+    "startupArgs": "Startup Arguments",
+    "launchMode": "Launch Mode",
+    "launchModeWindow": "App window",
+    "launchModeConsole": "Console only",
+    "browserPartition": "Browser Cache",
+    "partitionShared": "Shared",
+    "partitionUnique": "Unique to this install",
+    "startingComfyUI": "Starting ComfyUI…",
+    "download": "Download",
+    "extract": "Extract"
   },
 
   "list": {
@@ -114,6 +130,7 @@
     "launch": "Launch",
     "openDirectory": "Open Directory",
     "checkForUpdate": "Check for Update",
+    "featureNotImplemented": "This feature is not yet implemented.",
     "delete": "Delete Installation",
     "deleteConfirmTitle": "Delete Installation",
     "deleteConfirmMessage": "This will permanently delete the installation and all its files. This cannot be undone.",
@@ -124,14 +141,9 @@
 
   "standalone": {
     "label": "Standalone",
-    "installInfo": "Installation Info",
-    "installMethod": "Install Method",
     "comfyui": "ComfyUI",
-    "release": "Release",
     "variant": "Environment Variant",
     "python": "Python",
-    "location": "Location",
-    "installed": "Installed",
     "pythonEnvs": "Python Environments",
     "activeEnv": "Active: {env}",
     "noEnvs": "No virtual environments created yet.",
@@ -148,18 +160,14 @@
     "cannotDeleteActive": "Cannot delete the active environment. Set another environment as active first.",
     "deleteEnvConfirmTitle": "Delete Environment",
     "deleteEnvConfirmMessage": "Delete environment \"{env}\"? This cannot be undone.",
-    "launchSettings": "Launch Settings",
-    "startupArgs": "Startup Arguments",
-    "launchMode": "Launch Mode",
-    "launchModeWindow": "App window",
-    "launchModeConsole": "Console only",
-    "browserPartition": "Browser Cache",
-    "partitionShared": "Shared",
-    "partitionUnique": "Unique to this install",
-    "startingComfyUI": "Starting ComfyUI…",
-    "download": "Download",
-    "extract": "Extract",
     "setupEnv": "Set up environment"
+  },
+
+  "portable": {
+    "label": "Portable Release",
+    "package": "Portable Package",
+    "version": "Version",
+    "packageLabel": "Package"
   },
 
   "installer": {

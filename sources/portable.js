@@ -4,6 +4,7 @@ const { fetchJSON } = require("../lib/fetch");
 const { deleteAction, untrackAction } = require("../lib/actions");
 const { downloadAndExtract } = require("../lib/installer");
 const { parseArgs } = require("../lib/util");
+const { t } = require("../lib/i18n");
 
 function findPortableRoot(installPath) {
   // Content may be directly in installPath (tracked existing)
@@ -24,19 +25,19 @@ module.exports = {
   label: "Portable Release",
 
   fields: [
-    { id: "release", label: "Release", type: "select" },
-    { id: "asset", label: "Portable Package", type: "select" },
+    { id: "release", label: t("common.release"), type: "select" },
+    { id: "asset", label: t("portable.package"), type: "select" },
   ],
 
   defaultLaunchArgs: "--windows-standalone-build --disable-auto-launch",
 
   installSteps: [
-    { phase: "download", label: "Download" },
-    { phase: "extract", label: "Extract" },
+    { phase: "download", label: t("common.download") },
+    { phase: "extract", label: t("common.extract") },
   ],
 
   getDefaults() {
-    return { launchArgs: this.defaultLaunchArgs, launchMode: "window", browserPartition: "unique" };
+    return { launchArgs: this.defaultLaunchArgs, launchMode: "window" };
   },
 
   buildInstallation(selections) {
@@ -68,46 +69,46 @@ module.exports = {
   getListActions(installation) {
     const installed = installation.status === "installed";
     return [
-      { id: "launch", label: "Launch", style: "primary", enabled: installed,
-        showProgress: true, progressTitle: "Starting ComfyUI…", cancellable: true },
+      { id: "launch", label: t("actions.launch"), style: "primary", enabled: installed,
+        showProgress: true, progressTitle: t("common.startingComfyUI"), cancellable: true },
     ];
   },
 
   getDetailSections(installation) {
     return [
       {
-        title: "Installation Info",
+        title: t("common.installInfo"),
         fields: [
-          { label: "Install Method", value: installation.sourceLabel },
-          { label: "Version", value: installation.version },
-          { label: "Package", value: installation.asset || "—" },
-          { label: "Location", value: installation.installPath || "—" },
-          { label: "Installed", value: new Date(installation.createdAt).toLocaleDateString() },
+          { label: t("common.installMethod"), value: installation.sourceLabel },
+          { label: t("portable.version"), value: installation.version },
+          { label: t("portable.packageLabel"), value: installation.asset || "—" },
+          { label: t("common.location"), value: installation.installPath || "—" },
+          { label: t("common.installed"), value: new Date(installation.createdAt).toLocaleDateString() },
         ],
       },
       {
-        title: "Launch Settings",
+        title: t("common.launchSettings"),
         fields: [
-          { id: "launchArgs", label: "Startup Arguments", value: installation.launchArgs ?? this.defaultLaunchArgs, editable: true },
-          { id: "launchMode", label: "Launch Mode", value: installation.launchMode || "window", editable: true,
+          { id: "launchArgs", label: t("common.startupArgs"), value: installation.launchArgs ?? this.defaultLaunchArgs, editable: true },
+          { id: "launchMode", label: t("common.launchMode"), value: installation.launchMode || "window", editable: true,
             editType: "select", options: [
-              { value: "window", label: "App window" },
-              { value: "console", label: "Console only" },
+              { value: "window", label: t("common.launchModeWindow") },
+              { value: "console", label: t("common.launchModeConsole") },
             ] },
-          { id: "browserPartition", label: "Browser Cache", value: installation.browserPartition || "shared", editable: true,
+          { id: "browserPartition", label: t("common.browserPartition"), value: installation.browserPartition || "shared", editable: true,
             editType: "select", options: [
-              { value: "shared", label: "Shared" },
-              { value: "unique", label: "Unique to this install" },
+              { value: "shared", label: t("common.partitionShared") },
+              { value: "unique", label: t("common.partitionUnique") },
             ] },
         ],
       },
       {
         title: "Actions",
         actions: [
-          { id: "launch", label: "Launch", style: "primary", enabled: installation.status === "installed",
-            showProgress: true, progressTitle: "Starting ComfyUI…", cancellable: true },
-          { id: "open-folder", label: "Open Directory", style: "default", enabled: !!installation.installPath },
-          { id: "check-update", label: "Check for Update", style: "default", enabled: false },
+          { id: "launch", label: t("actions.launch"), style: "primary", enabled: installation.status === "installed",
+            showProgress: true, progressTitle: t("common.startingComfyUI"), cancellable: true },
+          { id: "open-folder", label: t("actions.openDirectory"), style: "default", enabled: !!installation.installPath },
+          { id: "check-update", label: t("actions.checkForUpdate"), style: "default", enabled: false, disabledMessage: t("actions.featureNotImplemented") },
           deleteAction(installation),
           untrackAction(),
         ],
