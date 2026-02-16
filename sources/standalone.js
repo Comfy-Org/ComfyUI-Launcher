@@ -10,6 +10,7 @@ const RELEASE_REPO = "Kosinkadink/ComfyUI-Launcher-Environments";
 const ENVS_DIR = "envs";
 const DEFAULT_ENV = "default";
 const ENV_METHOD = "copy";
+const MANIFEST_FILE = "manifest.json";
 
 const VARIANT_LABELS = {
   "nvidia": "NVIDIA",
@@ -169,11 +170,19 @@ function getEnvPythonPath(installPath, envName) {
   return path.join(envDir, "bin", "python3");
 }
 
+function resolveActiveEnv(installation) {
+  const preferred = installation.activeEnv || DEFAULT_ENV;
+  const envs = listEnvs(installation.installPath);
+  if (envs.includes(preferred)) return preferred;
+  return envs.length > 0 ? envs[0] : null;
+}
+
 function getActivePythonPath(installation) {
-  const activeEnv = installation.activeEnv || DEFAULT_ENV;
-  const envPython = getEnvPythonPath(installation.installPath, activeEnv);
+  const env = resolveActiveEnv(installation);
+  if (!env) return null;
+  const envPython = getEnvPythonPath(installation.installPath, env);
   if (fs.existsSync(envPython)) return envPython;
-  return getMasterPythonPath(installation.installPath);
+  return null;
 }
 
 function listEnvs(installPath) {
@@ -235,7 +244,7 @@ module.exports = {
 
   getLaunchCommand(installation) {
     const pythonPath = getActivePythonPath(installation);
-    if (!fs.existsSync(pythonPath)) return null;
+    if (!pythonPath || !fs.existsSync(pythonPath)) return null;
     const mainPy = path.join(installation.installPath, "ComfyUI", "main.py");
     if (!fs.existsSync(mainPy)) return null;
     const userArgs = (installation.launchArgs || this.defaultLaunchArgs).trim();
@@ -260,8 +269,8 @@ module.exports = {
 
   getDetailSections(installation) {
     const installed = installation.status === "installed";
-    const activeEnv = installation.activeEnv || DEFAULT_ENV;
     const envs = installed && installation.installPath ? listEnvs(installation.installPath) : [];
+    const activeEnv = resolveActiveEnv(installation) || DEFAULT_ENV;
     const hasEnvs = envs.length > 0;
 
     const envItems = envs.map((name) => ({
@@ -364,9 +373,24 @@ module.exports = {
     const mainExists = fs.existsSync(path.join(dirPath, "ComfyUI", "main.py"));
     if (!envExists || !mainExists) return null;
     const hasGit = fs.existsSync(path.join(dirPath, "ComfyUI", ".git"));
+
+    let version = "unknown";
+    let releaseTag = "";
+    let variant = "";
+    let pythonVersion = "";
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(dirPath, MANIFEST_FILE), "utf8"));
+      version = data.comfyui_ref || version;
+      releaseTag = data.version || releaseTag;
+      variant = data.id || variant;
+      pythonVersion = data.python_version || pythonVersion;
+    } catch {}
+
     return {
-      version: "unknown",
-      variant: "",
+      version,
+      releaseTag,
+      variant,
+      pythonVersion,
       hasGit,
       launchArgs: this.defaultLaunchArgs,
       launchMode: "window",
