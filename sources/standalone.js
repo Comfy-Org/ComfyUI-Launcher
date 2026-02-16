@@ -4,7 +4,7 @@ const { fetchJSON } = require("../lib/fetch");
 const { deleteAction, untrackAction } = require("../lib/actions");
 const { downloadAndExtract, downloadAndExtractMulti } = require("../lib/installer");
 const { deleteDir } = require("../lib/delete");
-const { parseArgs } = require("../lib/util");
+const { parseArgs, formatTime } = require("../lib/util");
 const { t } = require("../lib/i18n");
 
 const RELEASE_REPO = "Kosinkadink/ComfyUI-Launcher-Environments";
@@ -85,6 +85,7 @@ async function copyDirWithProgress(src, dest, onProgress) {
   const step = Math.max(1, Math.floor(total / 100));
   const concurrency = 50;
   const dirPromises = new Map();
+  const startTime = Date.now();
 
   const ensureDir = (dir) => {
     if (dirPromises.has(dir)) return dirPromises.get(dir);
@@ -102,7 +103,9 @@ async function copyDirWithProgress(src, dest, onProgress) {
       await fs.promises.copyFile(path.join(src, rel), destPath);
       copied++;
       if (onProgress && (copied % step === 0 || copied === total)) {
-        onProgress(copied, total);
+        const elapsedSecs = (Date.now() - startTime) / 1000;
+        const etaSecs = copied > 0 ? elapsedSecs * ((total - copied) / copied) : -1;
+        onProgress(copied, total, elapsedSecs, etaSecs);
       }
     }));
     i += concurrency;
@@ -365,9 +368,11 @@ module.exports = {
       } catch {}
     }
     sendProgress("setup", { percent: 0, status: "Creating default Python environment…" });
-    await createEnv(installation.installPath, DEFAULT_ENV, (copied, total) => {
+    await createEnv(installation.installPath, DEFAULT_ENV, (copied, total, elapsedSecs, etaSecs) => {
       const percent = Math.round((copied / total) * 100);
-      sendProgress("setup", { percent, status: `Copying packages… ${copied} / ${total} files` });
+      const elapsed = formatTime(elapsedSecs);
+      const eta = etaSecs >= 0 ? formatTime(etaSecs) : "—";
+      sendProgress("setup", { percent, status: `Copying packages… ${copied} / ${total} files  ·  ${elapsed} elapsed  ·  ${eta} remaining` });
     });
     const envMethods = { ...installation.envMethods, [DEFAULT_ENV]: ENV_METHOD };
     await update({ envMethods });
@@ -410,9 +415,11 @@ module.exports = {
       const envPath = path.join(installation.installPath, ENVS_DIR, envName);
       if (fs.existsSync(envPath)) return { ok: false, message: `Environment "${envName}" already exists.` };
       sendProgress("setup", { percent: 0, status: "Creating virtual environment…" });
-      await createEnv(installation.installPath, envName, (copied, total) => {
+      await createEnv(installation.installPath, envName, (copied, total, elapsedSecs, etaSecs) => {
         const percent = Math.round((copied / total) * 100);
-        sendProgress("setup", { percent, status: `Copying packages… ${copied} / ${total} files` });
+        const elapsed = formatTime(elapsedSecs);
+        const eta = etaSecs >= 0 ? formatTime(etaSecs) : "—";
+        sendProgress("setup", { percent, status: `Copying packages… ${copied} / ${total} files  ·  ${elapsed} elapsed  ·  ${eta} remaining` });
       });
       const envMethods = { ...installation.envMethods, [envName]: ENV_METHOD };
       await update({ envMethods });
@@ -432,9 +439,11 @@ module.exports = {
       if (fs.existsSync(envPath)) {
         sendProgress("delete", { percent: 0, status: "Counting files…" });
         await deleteDir(envPath, (p) => {
+          const elapsed = formatTime(p.elapsedSecs);
+          const eta = p.etaSecs >= 0 ? formatTime(p.etaSecs) : "—";
           sendProgress("delete", {
             percent: p.percent,
-            status: `Deleting… ${p.deleted} / ${p.total} items`,
+            status: `Deleting… ${p.deleted} / ${p.total} items  ·  ${elapsed} elapsed  ·  ${eta} remaining`,
           });
         });
       }

@@ -26,13 +26,13 @@
   <div id="view-new" class="view">
     <div class="toolbar">
       <h2 data-i18n="newInstall.title">New Installation</h2>
-      <button id="btn-new-back" class="back-btn" data-i18n="newInstall.back">Back</button>
+      <button id="btn-new-back" class="back-btn" data-i18n="common.back">Back</button>
     </div>
     <div class="view-scroll">
       <div id="detected-gpu" class="detected-hardware"></div>
 
       <div class="field">
-        <label for="inst-name" data-i18n="newInstall.name">Name</label>
+        <label for="inst-name" data-i18n="common.name">Name</label>
         <input type="text" id="inst-name" placeholder="e.g. ComfyUI Main">
       </div>
 
@@ -47,7 +47,7 @@
         <label for="inst-path" data-i18n="newInstall.installLocation">Install Location</label>
         <div class="path-input">
           <input type="text" id="inst-path" placeholder="Loading…" readonly>
-          <button id="btn-browse" type="button" data-i18n="newInstall.browse">Browse…</button>
+          <button id="btn-browse" type="button" data-i18n="common.browse">Browse…</button>
         </div>
       </div>
     </div>
@@ -61,7 +61,7 @@
     <div class="toolbar">
       <h2 id="progress-title" data-i18n="progress.working">Working…</h2>
       <div class="toolbar-actions">
-        <button class="danger" id="btn-progress-cancel" style="display:none" data-i18n="progress.cancel">Cancel</button>
+        <button class="danger" id="btn-progress-cancel" style="display:none" data-i18n="common.cancel">Cancel</button>
       </div>
     </div>
     <div class="view-scroll" id="progress-content"></div>
@@ -71,7 +71,7 @@
   <div id="view-detail" class="view">
     <div class="toolbar">
       <h2 id="detail-title"></h2>
-      <button id="btn-detail-back" class="back-btn" data-i18n="detail.back">Back</button>
+      <button id="btn-detail-back" class="back-btn" data-i18n="common.back">Back</button>
     </div>
     <div class="view-scroll" id="detail-sections"></div>
     <div id="detail-bottom-actions"></div>
@@ -81,14 +81,14 @@
   <div id="view-track" class="view">
     <div class="toolbar">
       <h2 data-i18n="track.title">Track Existing Installation</h2>
-      <button id="btn-track-back" class="back-btn" data-i18n="track.back">Back</button>
+      <button id="btn-track-back" class="back-btn" data-i18n="common.back">Back</button>
     </div>
     <div class="view-scroll">
       <div class="field">
         <label for="track-path" data-i18n="track.installDir">Installation Directory</label>
         <div class="path-input">
           <input type="text" id="track-path" placeholder="Select a directory…" readonly>
-          <button id="btn-track-browse" type="button" data-i18n="track.browse">Browse…</button>
+          <button id="btn-track-browse" type="button" data-i18n="common.browse">Browse…</button>
         </div>
       </div>
 
@@ -98,7 +98,7 @@
       </div>
 
       <div class="field">
-        <label for="track-name" data-i18n="track.name">Name</label>
+        <label for="track-name" data-i18n="common.name">Name</label>
         <input type="text" id="track-name" placeholder="e.g. ComfyUI Main">
       </div>
 
@@ -125,7 +125,7 @@
   <div id="view-settings" class="view">
     <div class="toolbar">
       <h2 data-i18n="settings.title">Settings</h2>
-      <button id="btn-settings-back" class="back-btn" data-i18n="settings.back">Back</button>
+      <button id="btn-settings-back" class="back-btn" data-i18n="common.back">Back</button>
     </div>
     <div class="view-scroll" id="settings-sections"></div>
   </div>

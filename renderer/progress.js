@@ -206,12 +206,12 @@ window.Launcher.progress = {
         if (statusEl) statusEl.textContent = window.t("progress.error", { message: msg });
       }
       const backBtn = document.getElementById("btn-progress-cancel");
-      backBtn.textContent = window.t("progress.back");
+      backBtn.textContent = window.t("common.back");
       backBtn.className = "back-btn";
       backBtn.style.display = "";
       backBtn.onclick = () => {
         backBtn.style.display = "none";
-        backBtn.textContent = window.t("progress.cancel");
+        backBtn.textContent = window.t("common.cancel");
         backBtn.className = "danger";
         if (returnTo === "detail" && window.Launcher.detail._current) {
           window.Launcher.detail.show(window.Launcher.detail._current);

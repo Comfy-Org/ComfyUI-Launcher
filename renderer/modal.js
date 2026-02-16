@@ -37,7 +37,7 @@ window.Launcher.modal = {
         <div class="modal-title">${window.Launcher.esc(title)}</div>
         <div class="modal-message">${window.Launcher.esc(message)}</div>
         <div class="modal-actions">
-          <button class="modal-cancel">${window.Launcher.esc(window.t("modal.cancel"))}</button>
+          <button class="modal-cancel">${window.Launcher.esc(window.t("common.cancel"))}</button>
           <button class="${confirmStyle} modal-confirm">${window.Launcher.esc(confirmLabel)}</button>
         </div>`;
 
@@ -70,7 +70,7 @@ window.Launcher.modal = {
         <div class="modal-input-wrap"><input type="text" class="modal-input" placeholder="${window.Launcher.esc(placeholder)}"></div>
         <div class="modal-error"></div>
         <div class="modal-actions">
-          <button class="modal-cancel">${window.Launcher.esc(window.t("modal.cancel"))}</button>
+          <button class="modal-cancel">${window.Launcher.esc(window.t("common.cancel"))}</button>
           <button class="primary modal-confirm">${window.Launcher.esc(confirmLabel)}</button>
         </div>`;
 

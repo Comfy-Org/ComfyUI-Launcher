@@ -1,23 +1,28 @@
 {
   "_label": "English",
 
+  "common": {
+    "back": "Back",
+    "browse": "Browse…",
+    "cancel": "Cancel",
+    "name": "Name",
+    "namePlaceholder": "e.g. ComfyUI Main"
+  },
+
   "list": {
     "title": "Installations",
     "trackExisting": "Track Existing",
     "newInstall": "New Install",
     "empty": "No installations yet.\nClick **+ New Install** to get started.",
     "view": "View",
+    "new": "New",
     "dragToReorder": "Drag to reorder"
   },
 
   "newInstall": {
     "title": "New Installation",
-    "back": "Back",
-    "name": "Name",
-    "namePlaceholder": "e.g. ComfyUI Main",
     "installMethod": "Install Method",
     "installLocation": "Install Location",
-    "browse": "Browse…",
     "addInstallation": "Add Installation",
     "loading": "Loading…",
     "detectingGpu": "Detecting GPU…",
@@ -27,31 +32,23 @@
     "installing": "Installing…"
   },
 
-  "detail": {
-    "back": "Back"
-  },
+  "detail": {},
 
   "track": {
     "title": "Track Existing Installation",
-    "back": "Back",
     "installDir": "Installation Directory",
     "selectDir": "Select a directory…",
-    "browse": "Browse…",
     "detectedType": "Detected Type",
     "browseDirFirst": "Browse to a directory first",
     "detecting": "Detecting…",
     "noDetected": "No known installation detected",
-    "name": "Name",
-    "namePlaceholder": "e.g. ComfyUI Main",
     "trackInstallation": "Track Installation",
     "cannotTrack": "Cannot Track"
   },
 
   "progress": {
     "working": "Working…",
-    "cancel": "Cancel",
     "starting": "Starting…",
-    "back": "Back",
     "error": "Error: {message}"
   },
 
@@ -61,13 +58,11 @@
     "stop": "Stop",
     "disconnect": "Disconnect",
     "connectedTo": "Connected to {url}",
-    "processExited": "\n\n--- Process exited ---\n",
-    "back": "Back"
+    "processExited": "\n\n--- Process exited ---\n"
   },
 
   "settings": {
     "title": "Settings",
-    "back": "Back",
     "general": "General",
     "theme": "Theme",
     "themeSystem": "Match system",
@@ -104,7 +99,6 @@
 
   "modal": {
     "ok": "OK",
-    "cancel": "Cancel",
     "confirm": "Confirm",
     "areYouSure": "Are you sure?",
     "required": "This field is required."
@@ -170,6 +164,14 @@
     "startingDownload": "Starting download…",
     "downloading": "Downloading… {progress}",
     "extracting": "Extracting… {progress}"
+  },
+
+  "launch": {
+    "connecting": "Connecting to {url}…",
+    "connectingTime": "Connecting to {url}… ({secs}s)",
+    "starting": "Starting ComfyUI process…",
+    "waiting": "Waiting for ComfyUI to be ready…",
+    "waitingTime": "Waiting for ComfyUI to be ready… ({secs}s)"
   },
 
   "errors": {

@@ -175,6 +175,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .instance-name { font-size: 15px; font-weight: 600; }
 .instance-meta { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-danger { color: var(--danger); font-weight: 600; }
+.status-new { color: var(--accent); font-weight: 600; }
 .instance-actions { display: flex; gap: 8px; }
 
 .empty-state {

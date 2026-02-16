@@ -44,7 +44,7 @@ window.Launcher.settings = {
           input.readOnly = true;
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.textContent = window.t("newInstall.browse");
+          btn.textContent = window.t("common.browse");
           btn.onclick = async () => {
             const dir = await window.api.browseFolder(input.value);
             if (dir) {

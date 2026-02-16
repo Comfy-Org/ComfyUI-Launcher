@@ -20,6 +20,7 @@ window.Launcher.list = {
       card.className = "instance-card";
       card.dataset.id = inst.id;
       const statusTag = inst.statusTag ? ` · <span class="status-${inst.statusTag.style}">${esc(inst.statusTag.label)}</span>` : "";
+      const newTag = inst.seen === false ? ` · <span class="status-new">${esc(window.t("list.new"))}</span>` : "";
       const launchMeta = inst.listPreview
         ? esc(inst.listPreview)
         : inst.launchMode
@@ -29,7 +30,7 @@ window.Launcher.list = {
         <div class="drag-handle" title="${window.t("list.dragToReorder")}"><span></span><span></span><span></span></div>
         <div class="instance-info">
           <div class="instance-name">${esc(inst.name)}</div>
-          <div class="instance-meta">${esc(inst.sourceLabel)}${inst.version ? " · " + esc(inst.version) : ""}${statusTag}</div>
+          <div class="instance-meta">${esc(inst.sourceLabel)}${inst.version ? " · " + esc(inst.version) : ""}${statusTag}${newTag}</div>
           ${launchMeta ? `<div class="instance-meta">${launchMeta}</div>` : ""}
         </div>
         <div class="instance-actions"></div>`;

@@ -7,6 +7,11 @@ window.Launcher.detail = {
     const { esc, showView } = window.Launcher;
     this._current = inst;
 
+    if (!inst.seen) {
+      inst.seen = true;
+      window.api.updateInstallation(inst.id, { seen: true });
+    }
+
     const titleEl = document.getElementById("detail-title");
     titleEl.textContent = inst.name;
     titleEl.contentEditable = true;

@@ -31,7 +31,7 @@ window.Launcher.console = {
       terminal.textContent += window.t("console.processExited");
       terminal.scrollTop = terminal.scrollHeight;
       const stopBtn = document.getElementById("btn-console-stop");
-      stopBtn.textContent = window.t("console.back");
+      stopBtn.textContent = window.t("common.back");
       stopBtn.className = "back-btn";
       stopBtn.onclick = () => {
         window.Launcher.showView("list");
