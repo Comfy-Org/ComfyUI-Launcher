@@ -59,6 +59,7 @@ jobs:
             dist/*.exe
             dist/*.dmg
             dist/*.AppImage
+            dist/*.deb
             dist/*.yml
             dist/*.blockmap
           if-no-files-found: ignore
