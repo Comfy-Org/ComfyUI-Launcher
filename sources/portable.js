@@ -36,7 +36,7 @@ module.exports = {
   ],
 
   getDefaults() {
-    return { launchArgs: this.defaultLaunchArgs, launchMode: "window" };
+    return { launchArgs: this.defaultLaunchArgs, launchMode: "window", browserPartition: "unique" };
   },
 
   buildInstallation(selections) {
@@ -46,6 +46,7 @@ module.exports = {
       downloadUrl: selections.asset?.value || "",
       launchArgs: this.defaultLaunchArgs,
       launchMode: "window",
+      browserPartition: "unique",
     };
   },
 
@@ -93,6 +94,11 @@ module.exports = {
               { value: "window", label: "App window" },
               { value: "console", label: "Console only" },
             ] },
+          { id: "browserPartition", label: "Browser Cache", value: installation.browserPartition || "shared", editable: true,
+            editType: "select", options: [
+              { value: "shared", label: "Shared" },
+              { value: "unique", label: "Unique to this install" },
+            ] },
         ],
       },
       {
@@ -115,7 +121,7 @@ module.exports = {
   },
 
   probeInstallation(dirPath) {
-    if (findPortableRoot(dirPath)) return { version: "unknown", asset: "", launchArgs: this.defaultLaunchArgs, launchMode: "window" };
+    if (findPortableRoot(dirPath)) return { version: "unknown", asset: "", launchArgs: this.defaultLaunchArgs, launchMode: "window", browserPartition: "unique" };
     return null;
   },
 

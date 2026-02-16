@@ -14,7 +14,7 @@ module.exports = {
   ],
 
   getDefaults() {
-    return { launchMode: "window" };
+    return { launchMode: "window", browserPartition: "shared" };
   },
 
   buildInstallation(selections) {
@@ -24,6 +24,7 @@ module.exports = {
       version: "cloud",
       remoteUrl: parsed ? parsed.href : url,
       launchMode: "window",
+      browserPartition: "shared",
     };
   },
 
@@ -57,6 +58,16 @@ module.exports = {
           { label: "Install Method", value: installation.sourceLabel },
           { id: "remoteUrl", label: "URL", value: installation.remoteUrl || "—", editable: true },
           { label: "Added", value: new Date(installation.createdAt).toLocaleDateString() },
+        ],
+      },
+      {
+        title: "Launch Settings",
+        fields: [
+          { id: "browserPartition", label: "Browser Cache", value: installation.browserPartition || "shared", editable: true,
+            editType: "select", options: [
+              { value: "shared", label: "Shared" },
+              { value: "unique", label: "Unique to this install" },
+            ] },
         ],
       },
       {

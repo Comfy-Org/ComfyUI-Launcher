@@ -72,6 +72,16 @@ module.exports = {
         ],
       },
       {
+        title: "Launch Settings",
+        fields: [
+          { id: "browserPartition", label: "Browser Cache", value: installation.browserPartition || "shared", editable: true,
+            editType: "select", options: [
+              { value: "shared", label: "Shared" },
+              { value: "unique", label: "Unique to this install" },
+            ] },
+        ],
+      },
+      {
         title: "Actions",
         actions: [
           { id: "launch", label: "Launch", style: "primary", enabled: false },

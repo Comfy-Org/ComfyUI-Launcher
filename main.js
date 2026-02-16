@@ -151,6 +151,9 @@ function onLaunch({ port, url, process: proc, installation, mode }) {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      partition: installation.browserPartition === "unique"
+        ? `persist:${installation.id}`
+        : "persist:shared",
     },
   });
   comfyWindow.setMenuBarVisibility(false);

@@ -233,7 +233,7 @@ module.exports = {
   },
 
   getDefaults() {
-    return { launchArgs: this.defaultLaunchArgs, launchMode: "window" };
+    return { launchArgs: this.defaultLaunchArgs, launchMode: "window", browserPartition: "unique" };
   },
 
   buildInstallation(selections) {
@@ -247,6 +247,7 @@ module.exports = {
       pythonVersion: manifest?.python_version || "",
       launchArgs: this.defaultLaunchArgs,
       launchMode: "window",
+      browserPartition: "unique",
     };
   },
 
@@ -326,6 +327,11 @@ module.exports = {
             editType: "select", options: [
               { value: "window", label: t("standalone.launchModeWindow") },
               { value: "console", label: t("standalone.launchModeConsole") },
+            ] },
+          { id: "browserPartition", label: t("standalone.browserPartition"), value: installation.browserPartition || "shared", editable: true,
+            editType: "select", options: [
+              { value: "shared", label: t("standalone.partitionShared") },
+              { value: "unique", label: t("standalone.partitionUnique") },
             ] },
         ],
       },
