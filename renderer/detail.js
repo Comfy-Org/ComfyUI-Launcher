@@ -158,6 +158,7 @@ window.Launcher.detail = {
     });
 
     showView("detail");
+    document.getElementById("view-detail").scrollTop = 0;
   },
 
   async _runAction(action) {

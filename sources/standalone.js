@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { fetchJSON } = require("../lib/fetch");
 const { deleteAction, untrackAction } = require("../lib/actions");
-const { downloadAndExtract } = require("../lib/installer");
+const { downloadAndExtract, downloadAndExtractMulti } = require("../lib/installer");
 const { deleteDir } = require("../lib/delete");
 const { parseArgs } = require("../lib/util");
 
@@ -224,7 +224,8 @@ module.exports = {
       version: manifest?.comfyui_ref || selections.release?.value || "unknown",
       releaseTag: selections.release?.value || "unknown",
       variant: selections.variant?.data?.variantId || "",
-      downloadUrl: selections.variant?.value || "",
+      downloadUrl: selections.variant?.data?.downloadUrl || "",
+      downloadFiles: selections.variant?.data?.downloadFiles || [],
       pythonVersion: manifest?.python_version || "",
       launchArgs: this.defaultLaunchArgs,
       launchMode: "window",
@@ -325,9 +326,15 @@ module.exports = {
   },
 
   async install(installation, tools) {
-    const filename = installation.downloadUrl.split("/").pop();
-    const cacheKey = `${installation.releaseTag}_${filename}`;
-    await downloadAndExtract(installation.downloadUrl, installation.installPath, cacheKey, tools);
+    const files = installation.downloadFiles;
+    if (files && files.length > 0) {
+      const cacheDir = `${installation.releaseTag}_${installation.variant}`;
+      await downloadAndExtractMulti(files, installation.installPath, cacheDir, tools);
+    } else if (installation.downloadUrl) {
+      const filename = installation.downloadUrl.split("/").pop();
+      const cacheKey = `${installation.releaseTag}_${filename}`;
+      await downloadAndExtract(installation.downloadUrl, installation.installPath, cacheKey, tools);
+    }
   },
 
   async postInstall(installation, { sendProgress }) {
@@ -337,8 +344,7 @@ module.exports = {
       try {
         const entries = fs.readdirSync(binDir);
         for (const entry of entries) {
-          const fullPath = path.join(binDir, entry);
-          try { fs.chmodSync(fullPath, 0o755); } catch {}
+          try { fs.chmodSync(path.join(binDir, entry), 0o755); } catch {}
         }
       } catch {}
     }
@@ -434,13 +440,16 @@ module.exports = {
       return manifests
         .filter((m) => m.id.startsWith(prefix))
         .map((m) => {
-          const asset = release.assets.find((a) => a.name === m.filename);
-          const sizeMB = asset ? (asset.size / 1048576).toFixed(0) : "?";
-          const downloadUrl = asset ? asset.browser_download_url : "";
+          const filenames = m.files || (m.filename ? [m.filename] : []);
+          const assets = filenames.map((f) => release.assets.find((a) => a.name === f)).filter(Boolean);
+          const totalSize = assets.reduce((sum, a) => sum + a.size, 0);
+          const sizeMB = totalSize > 0 ? (totalSize / 1048576).toFixed(0) : "?";
+          const downloadFiles = assets.map((a) => ({ url: a.browser_download_url, filename: a.name }));
+          const downloadUrl = downloadFiles.length === 1 ? downloadFiles[0].url : "";
           return {
-            value: downloadUrl,
+            value: downloadFiles.length > 0 ? m.id : "",
             label: `${getVariantLabel(m.id)}  —  ComfyUI ${m.comfyui_ref}  ·  Python ${m.python_version}  ·  ${sizeMB} MB`,
-            data: { variantId: m.id, manifest: m },
+            data: { variantId: m.id, manifest: m, downloadFiles, downloadUrl },
             recommended: recommendVariant(m.id, gpu),
           };
         })

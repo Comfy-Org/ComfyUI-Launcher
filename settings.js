@@ -6,7 +6,7 @@ const dataPath = path.join(app.getPath("userData"), "settings.json");
 
 const defaults = {
   cacheDir: path.join(app.getPath("userData"), "download-cache"),
-  maxCachedFiles: 5,
+  maxCachedFiles: 8,
   onComfyClose: "launcher",
 };
 
