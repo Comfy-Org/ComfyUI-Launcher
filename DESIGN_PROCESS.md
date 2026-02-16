@@ -153,7 +153,7 @@ The `-s` flag prevents system site-packages from interfering. The standalone Pyt
 - **Archive format:** `.7z` on Windows (best compression for executables via LZMA2), `.tar.gz` on Linux/macOS
 - **Python-build-standalone variant:** `install_only` (smaller, includes pip via ensurepip, no build tools)
 - **Git requirement:** `pygit2` is included in the environment; the launcher can use it for cloning without requiring system git
-- **Size optimization:** Strip `.dist-info`, `__pycache__`, test directories, and large unused torch libs (dnnl.lib, libprotoc.lib, libprotobuf.lib)
+- **Size optimization:** Strip `__pycache__`, test directories, and large unused torch libs (dnnl.lib, libprotoc.lib, libprotobuf.lib). Do NOT strip `.dist-info` — these are needed by `importlib.metadata` for package dependency checks at runtime.
 - **CI workflow:** `.github/workflows/build-standalone-env.yml` — manually dispatched, builds all 7 platform+GPU variants in parallel, uploads to a tagged GitHub Release
 
 #### Open Questions

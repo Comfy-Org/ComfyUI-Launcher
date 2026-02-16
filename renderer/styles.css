@@ -239,6 +239,40 @@ h2[contenteditable]:focus { border-bottom-color: var(--accent); }
   padding: 6px 8px;
   font-size: 13px;
 }
+.detail-section-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.detail-item-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.detail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+}
+.detail-item + .detail-item {
+  border-top: 1px solid var(--border);
+}
+.detail-item.active .detail-item-label {
+  font-weight: 600;
+}
+.detail-item-label {
+  font-size: 14px;
+}
+.detail-item-actions {
+  display: flex;
+  gap: 6px;
+}
+.detail-item-actions button {
+  font-size: 12px;
+  padding: 3px 10px;
+}
 .detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* Settings */

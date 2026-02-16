@@ -106,7 +106,6 @@ module.exports = {
   async install(installation, tools) {
     const cacheKey = `${installation.version}_${installation.asset}`;
     await downloadAndExtract(installation.downloadUrl, installation.installPath, cacheKey, tools);
-    tools.sendProgress("done", { percent: 100, status: "Complete" });
   },
 
   probeInstallation(dirPath) {

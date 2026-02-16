@@ -40,8 +40,8 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("update-installation", installationId, data),
   getDetailSections: (installationId) =>
     ipcRenderer.invoke("get-detail-sections", installationId),
-  runAction: (installationId, actionId) =>
-    ipcRenderer.invoke("run-action", installationId, actionId),
+  runAction: (installationId, actionId, actionData) =>
+    ipcRenderer.invoke("run-action", installationId, actionId, actionData),
   getSettingsSections: () => ipcRenderer.invoke("get-settings-sections"),
   setSetting: (key, value) => ipcRenderer.invoke("set-setting", key, value),
   getSetting: (key) => ipcRenderer.invoke("get-setting", key),

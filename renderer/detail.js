@@ -39,6 +39,41 @@ window.Launcher.detail = {
         sec.appendChild(title);
       }
 
+      if (section.description) {
+        const desc = document.createElement("div");
+        desc.className = "detail-section-desc";
+        desc.textContent = section.description;
+        sec.appendChild(desc);
+      }
+
+      if (section.items) {
+        const list = document.createElement("div");
+        list.className = "detail-item-list";
+        section.items.forEach((item) => {
+          const row = document.createElement("div");
+          row.className = "detail-item" + (item.active ? " active" : "");
+          const label = document.createElement("div");
+          label.className = "detail-item-label";
+          label.textContent = item.label + (item.active ? " (active)" : "");
+          row.appendChild(label);
+          if (item.actions) {
+            const bar = document.createElement("div");
+            bar.className = "detail-item-actions";
+            item.actions.forEach((a) => {
+              const btn = document.createElement("button");
+              btn.textContent = a.label;
+              if (a.style === "danger") btn.className = "danger";
+              btn.disabled = a.enabled === false;
+              btn.onclick = () => this._runAction(a);
+              bar.appendChild(btn);
+            });
+            row.appendChild(bar);
+          }
+          list.appendChild(row);
+        });
+        sec.appendChild(list);
+      }
+
       if (section.fields) {
         const fields = document.createElement("div");
         fields.className = "detail-fields";
@@ -124,13 +159,13 @@ window.Launcher.detail = {
       window.Launcher.progress.show({
         installationId: instId,
         title: action.progressTitle || `${action.label}…`,
-        apiCall: () => window.api.runAction(instId, action.id),
+        apiCall: () => window.api.runAction(instId, action.id, action.data),
         cancellable: !!action.cancellable,
       });
       return;
     }
 
-    const result = await window.api.runAction(this._current.id, action.id);
+    const result = await window.api.runAction(this._current.id, action.id, action.data);
     if (result.navigate === "list") {
       showView("list");
       list.render();

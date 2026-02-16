@@ -7,19 +7,26 @@ window.Launcher.newInstall = {
   _detectedGPU: null,
 
   init() {
+    // Start GPU detection and install dir lookup early so they're ready when needed
+    this._gpuPromise = window.api.detectGPU().then((gpu) => { this._detectedGPU = gpu; return gpu; }).catch(() => null);
+    this._installDirPromise = window.api.getDefaultInstallDir().catch(() => "");
+
     document.getElementById("btn-new").onclick = async () => {
       document.getElementById("inst-name").value = "";
       this._selections = {};
       document.getElementById("btn-save").disabled = true;
-      const pathInput = document.getElementById("inst-path");
-      pathInput.value = await window.api.getDefaultInstallDir();
-      this._detectedGPU = await window.api.detectGPU();
-      const gpuEl = document.getElementById("detected-gpu");
-      gpuEl.textContent = this._detectedGPU
-        ? `Detected GPU: ${this._detectedGPU.label}`
-        : "No supported GPU detected";
       window.Launcher.showView("new");
       this._initSources();
+
+      const pathInput = document.getElementById("inst-path");
+      pathInput.value = await this._installDirPromise;
+
+      const gpuEl = document.getElementById("detected-gpu");
+      gpuEl.textContent = "Detecting GPU…";
+      const gpu = await this._gpuPromise;
+      gpuEl.textContent = gpu
+        ? `Detected GPU: ${gpu.label}`
+        : "No supported GPU detected";
     };
 
     document.getElementById("btn-browse").onclick = async () => {
