@@ -5,7 +5,7 @@
   "repository": "github:Kosinkadink/ComfyUI-Launcher",
   "main": "main.js",
   "scripts": {
-    "postinstall": "node -e \"if(process.platform==='linux'){try{require('fs').chmodSync(require('7zip-bin').path7za,0o755)}catch{}}\"",
+    "postinstall": "node -e \"if(process.platform!=='win32'){try{require('fs').chmodSync(require('7zip-bin').path7za,0o755)}catch{}}\"",
     "start": "electron .",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",

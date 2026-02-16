@@ -106,6 +106,27 @@ async function copyDirWithProgress(src, dest, onProgress) {
   }
 }
 
+async function codesignBinaries(dir) {
+  if (process.platform !== "darwin") return;
+  const { execFile } = require("child_process");
+  const stack = [dir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let items;
+    try { items = fs.readdirSync(current, { withFileTypes: true }); } catch { continue; }
+    for (const item of items) {
+      const full = path.join(current, item.name);
+      if (item.isDirectory()) {
+        stack.push(full);
+      } else if (item.name.endsWith(".dylib") || item.name.endsWith(".so")) {
+        await new Promise((resolve) => {
+          execFile("codesign", ["--force", "--sign", "-", full], (err) => resolve());
+        });
+      }
+    }
+  }
+}
+
 async function createEnv(installPath, envName, onProgress) {
   const { execFile } = require("child_process");
   const uvPath = getUvPath(installPath);
@@ -125,6 +146,7 @@ async function createEnv(installPath, envName, onProgress) {
       throw new Error(`Could not locate site-packages for environment "${envName}".`);
     }
     await copyDirWithProgress(masterSitePackages, envSitePackages, onProgress);
+    await codesignBinaries(envSitePackages);
   } catch (err) {
     await fs.promises.rm(envPath, { recursive: true, force: true }).catch(() => {});
     throw err;
@@ -309,6 +331,17 @@ module.exports = {
   },
 
   async postInstall(installation, { sendProgress }) {
+    // Ensure binaries have execute permission on non-Windows platforms
+    if (process.platform !== "win32") {
+      const binDir = path.join(installation.installPath, "standalone-env", "bin");
+      try {
+        const entries = fs.readdirSync(binDir);
+        for (const entry of entries) {
+          const fullPath = path.join(binDir, entry);
+          try { fs.chmodSync(fullPath, 0o755); } catch {}
+        }
+      } catch {}
+    }
     sendProgress("setup", { percent: 0, status: "Creating default Python environment…" });
     await createEnv(installation.installPath, DEFAULT_ENV, (copied, total) => {
       const percent = Math.round((copied / total) * 100);
