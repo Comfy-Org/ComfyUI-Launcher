@@ -49,6 +49,10 @@ window.Launcher.list = {
         if (a.style === "danger") btn.className = "danger";
         btn.disabled = a.enabled === false;
         btn.onclick = async () => {
+          if (inst.seen === false) {
+            inst.seen = true;
+            window.api.updateInstallation(inst.id, { seen: true });
+          }
           if (a.confirm) {
             const confirmed = await window.Launcher.modal.confirm({
               title: a.confirm.title || "Confirm",
