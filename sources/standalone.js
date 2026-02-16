@@ -2,13 +2,13 @@ const fs = require("fs");
 const path = require("path");
 const { fetchJSON } = require("../lib/fetch");
 const { deleteAction, untrackAction } = require("../lib/actions");
-const { downloadAndExtract, downloadAndExtractMulti } = require("../lib/installer");
 const { deleteDir } = require("../lib/delete");
-const { parseArgs } = require("../lib/util");
+const { parseArgs, formatTime } = require("../lib/util");
 
 const RELEASE_REPO = "Kosinkadink/ComfyUI-Launcher-Environments";
 const ENVS_DIR = "envs";
 const DEFAULT_ENV = "default";
+const ENV_METHOD = "copy";
 
 const VARIANT_LABELS = {
   "nvidia": "NVIDIA",
@@ -224,8 +224,7 @@ module.exports = {
       version: manifest?.comfyui_ref || selections.release?.value || "unknown",
       releaseTag: selections.release?.value || "unknown",
       variant: selections.variant?.data?.variantId || "",
-      downloadUrl: selections.variant?.data?.downloadUrl || "",
-      downloadFiles: selections.variant?.data?.downloadFiles || [],
+      downloadUrls: selections.variant?.data?.downloadUrls || [],
       pythonVersion: manifest?.python_version || "",
       launchArgs: this.defaultLaunchArgs,
       launchMode: "window",
@@ -325,26 +324,55 @@ module.exports = {
     ];
   },
 
-  async install(installation, tools) {
-    const files = installation.downloadFiles;
-    if (files && files.length > 0) {
-      const cacheDir = `${installation.releaseTag}_${installation.variant}`;
-      await downloadAndExtractMulti(files, installation.installPath, cacheDir, tools);
-    } else if (installation.downloadUrl) {
-      const filename = installation.downloadUrl.split("/").pop();
-      const cacheKey = `${installation.releaseTag}_${filename}`;
-      await downloadAndExtract(installation.downloadUrl, installation.installPath, cacheKey, tools);
+  async install(installation, { sendProgress, download, cache, extract }) {
+    const urls = installation.downloadUrls || [];
+    if (urls.length === 0) throw new Error("No download URLs available.");
+
+    const cacheFolder = `${installation.releaseTag}_${installation.variant}`;
+    const filenames = urls.map((url) => url.split("/").pop());
+
+    if (cache.isCached(cacheFolder)) {
+      sendProgress("download", { percent: 100, status: "Using cached download" });
+      cache.touch(cacheFolder);
+    } else {
+      for (let i = 0; i < urls.length; i++) {
+        const partLabel = urls.length > 1 ? ` (part ${i + 1}/${urls.length})` : "";
+        sendProgress("download", { percent: 0, status: `Starting download…${partLabel}` });
+        const cachePath = cache.getCachePath(cacheFolder, filenames[i]);
+        await download(urls[i], cachePath, (p) => {
+          const speed = `${p.speedMBs.toFixed(1)} MB/s`;
+          const elapsed = formatTime(p.elapsedSecs);
+          const eta = p.etaSecs >= 0 ? formatTime(p.etaSecs) : "—";
+          sendProgress("download", {
+            percent: p.percent,
+            status: `Downloading${partLabel}… ${p.receivedMB} / ${p.totalMB} MB  ·  ${speed}  ·  ${elapsed} elapsed  ·  ${eta} remaining`,
+          });
+        });
+      }
+      cache.evict();
     }
+
+    sendProgress("extract", { percent: 0, status: "Extracting…" });
+    const primaryPath = cache.getCachePath(cacheFolder, filenames[0]);
+    await extract(primaryPath, installation.installPath, (p) => {
+      const elapsed = formatTime(p.elapsedSecs);
+      const eta = p.etaSecs >= 0 ? formatTime(p.etaSecs) : "—";
+      sendProgress("extract", {
+        percent: p.percent,
+        status: `Extracting… ${p.percent}%  ·  ${elapsed} elapsed  ·  ${eta} remaining`,
+      });
+    });
   },
 
-  async postInstall(installation, { sendProgress }) {
+  async postInstall(installation, { sendProgress, update }) {
     // Ensure binaries have execute permission on non-Windows platforms
     if (process.platform !== "win32") {
       const binDir = path.join(installation.installPath, "standalone-env", "bin");
       try {
         const entries = fs.readdirSync(binDir);
         for (const entry of entries) {
-          try { fs.chmodSync(path.join(binDir, entry), 0o755); } catch {}
+          const fullPath = path.join(binDir, entry);
+          try { fs.chmodSync(fullPath, 0o755); } catch {}
         }
       } catch {}
     }
@@ -353,6 +381,8 @@ module.exports = {
       const percent = Math.round((copied / total) * 100);
       sendProgress("setup", { percent, status: `Copying packages… ${copied} / ${total} files` });
     });
+    const envMethods = { ...installation.envMethods, [DEFAULT_ENV]: ENV_METHOD };
+    await update({ envMethods });
   },
 
   probeInstallation(dirPath) {
@@ -381,6 +411,8 @@ module.exports = {
         const percent = Math.round((copied / total) * 100);
         sendProgress("setup", { percent, status: `Copying packages… ${copied} / ${total} files` });
       });
+      const envMethods = { ...installation.envMethods, [envName]: ENV_METHOD };
+      await update({ envMethods });
       return { ok: true, navigate: "detail" };
     }
     if (actionId === "env-activate") {
@@ -403,6 +435,9 @@ module.exports = {
           });
         });
       }
+      const envMethods = { ...installation.envMethods };
+      delete envMethods[envName];
+      await update({ envMethods });
       return { ok: true, navigate: "detail" };
     }
     return { ok: false, message: `Action "${actionId}" not yet implemented.` };
@@ -440,20 +475,20 @@ module.exports = {
       return manifests
         .filter((m) => m.id.startsWith(prefix))
         .map((m) => {
-          const filenames = m.files || (m.filename ? [m.filename] : []);
-          const assets = filenames.map((f) => release.assets.find((a) => a.name === f)).filter(Boolean);
-          const totalSize = assets.reduce((sum, a) => sum + a.size, 0);
-          const sizeMB = totalSize > 0 ? (totalSize / 1048576).toFixed(0) : "?";
-          const downloadFiles = assets.map((a) => ({ url: a.browser_download_url, filename: a.name }));
-          const downloadUrl = downloadFiles.length === 1 ? downloadFiles[0].url : "";
+          const files = m.files || [];
+          const assets = files.map((f) => release.assets.find((a) => a.name === f)).filter(Boolean);
+          if (assets.length === 0) return null;
+          const totalBytes = assets.reduce((sum, a) => sum + a.size, 0);
+          const sizeMB = (totalBytes / 1048576).toFixed(0);
+          const downloadUrls = assets.map((a) => a.browser_download_url);
           return {
-            value: downloadFiles.length > 0 ? m.id : "",
+            value: downloadUrls[0],
             label: `${getVariantLabel(m.id)}  —  ComfyUI ${m.comfyui_ref}  ·  Python ${m.python_version}  ·  ${sizeMB} MB`,
-            data: { variantId: m.id, manifest: m, downloadFiles, downloadUrl },
+            data: { variantId: m.id, manifest: m, downloadUrls },
             recommended: recommendVariant(m.id, gpu),
           };
         })
-        .filter((opt) => opt.value);
+        .filter(Boolean);
     }
 
     return [];
