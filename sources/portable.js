@@ -22,19 +22,23 @@ function findPortableRoot(installPath) {
 
 module.exports = {
   id: "portable",
-  label: "Portable Release",
+  get label() { return t("portable.label"); },
 
-  fields: [
-    { id: "release", label: t("common.release"), type: "select" },
-    { id: "asset", label: t("portable.package"), type: "select" },
-  ],
+  get fields() {
+    return [
+      { id: "release", label: t("common.release"), type: "select" },
+      { id: "asset", label: t("portable.package"), type: "select" },
+    ];
+  },
 
   defaultLaunchArgs: "--windows-standalone-build --disable-auto-launch",
 
-  installSteps: [
-    { phase: "download", label: t("common.download") },
-    { phase: "extract", label: t("common.extract") },
-  ],
+  get installSteps() {
+    return [
+      { phase: "download", label: t("common.download") },
+      { phase: "extract", label: t("common.extract") },
+    ];
+  },
 
   getDefaults() {
     return { launchArgs: this.defaultLaunchArgs, launchMode: "window" };
