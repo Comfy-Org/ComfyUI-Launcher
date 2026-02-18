@@ -1,8 +1,8 @@
-const { app } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const paths = require("./lib/paths");
 
-const dataPath = path.join(app.getPath("userData"), "installations.json");
+const dataPath = path.join(paths.dataDir(), "installations.json");
 
 async function load() {
   try {

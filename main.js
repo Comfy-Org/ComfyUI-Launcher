@@ -235,6 +235,9 @@ function onLaunch({ port, url, process: proc, installation, mode }) {
 }
 
 app.whenReady().then(() => {
+  const { migrateXdgPaths } = require("./lib/paths");
+  migrateXdgPaths();
+
   const locale = settings.get("language") || app.getLocale().split("-")[0];
   i18n.init(locale);
   ipc.register({ onLaunch, onStop: stopComfyUI, onComfyExited: onComfyExited, onComfyRestarted: onComfyRestarted });

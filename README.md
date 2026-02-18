@@ -88,10 +88,16 @@ The workflow sets the app version from the tag automatically. Once the builds fi
 
 ## Data Locations
 
-| Purpose | Path |
-|---------|------|
-| App config & data | `%APPDATA%\comfyui-launcher` (Win) · `~/Library/Application Support/comfyui-launcher` (macOS) · `~/.config/comfyui-launcher` (Linux) |
-| Installations list | `<app data>/installations.json` — tracks all managed ComfyUI instances |
-| Settings | `<app data>/settings.json` — user preferences (cache dir, max cached downloads, etc.) |
-| Download cache | `<app data>/download-cache` — cached `.7z` portable releases (max configurable in Settings, default 5) |
-| Default install dir | `Documents\ComfyUI` (Win) · `~/ComfyUI` (macOS/Linux) |
+On **Windows** and **macOS**, all app data lives under the standard Electron `userData` path (`%APPDATA%\comfyui-launcher` / `~/Library/Application Support/comfyui-launcher`).
+
+On **Linux**, the app follows the [XDG Base Directory Specification](https://wiki.archlinux.org/title/XDG_Base_Directory):
+
+| Purpose | Linux Path |
+|---------|------------|
+| Config (`settings.json`) | `$XDG_CONFIG_HOME/comfyui-launcher` (default `~/.config/comfyui-launcher`) |
+| Data (`installations.json`) | `$XDG_DATA_HOME/comfyui-launcher` (default `~/.local/share/comfyui-launcher`) |
+| Cache (`download-cache/`) | `$XDG_CACHE_HOME/comfyui-launcher` (default `~/.cache/comfyui-launcher`) |
+| State (`port-locks/`) | `$XDG_STATE_HOME/comfyui-launcher` (default `~/.local/state/comfyui-launcher`) |
+| Default install dir | `~/ComfyUI-Installs` |
+
+Existing files at the old `~/.config/comfyui-launcher` location are automatically migrated on first launch.
