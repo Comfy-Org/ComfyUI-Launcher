@@ -782,4 +782,48 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   background-size: 200% 100%;
 }
 
+/* Models directory cards */
+.dir-card-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.dir-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dir-card-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.dir-card-path {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dir-card-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.dir-card-tag.tag-primary {
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+}
+.dir-card-tag.tag-default {
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+.dir-card-actions { display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px; }
+
 

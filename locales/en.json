@@ -23,7 +23,9 @@
     "directoriesDesc": "Directories shared across all installations. The first directory is the primary (default for ComfyUI).",
     "addDir": "Add Directory",
     "removeDir": "Remove",
-    "primary": "primary"
+    "primary": "primary",
+    "default": "default",
+    "makePrimary": "Make Primary"
   },
 
   "common": {

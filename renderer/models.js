@@ -6,7 +6,13 @@ window.Launcher.models = {
     const container = document.getElementById("models-sections");
     container.innerHTML = "";
 
-    const sections = await window.api.getModelsSections();
+    const result = await window.api.getModelsSections();
+    const { systemDefault, sections } = result;
+
+    function normalizePath(p) {
+      return (p || "").replace(/[\\/]+$/, "").toLowerCase();
+    }
+    const normalizedDefault = normalizePath(systemDefault);
 
     sections.forEach((section) => {
       const sec = document.createElement("div");
@@ -32,53 +38,101 @@ window.Launcher.models = {
 
         if (f.type === "pathList") {
           const list = document.createElement("div");
-          list.className = "path-list";
+          list.className = "dir-card-list";
 
           function renderPaths(paths) {
             list.innerHTML = "";
             paths.forEach((p, i) => {
-              const row = document.createElement("div");
-              row.className = "path-input";
-              const input = document.createElement("input");
-              input.type = "text";
-              input.value = p;
-              input.readOnly = true;
-              row.appendChild(input);
-              const browseBtn = document.createElement("button");
-              browseBtn.type = "button";
-              browseBtn.textContent = window.t("common.browse");
-              browseBtn.onclick = async () => {
-                const dir = await window.api.browseFolder(p);
-                if (dir) {
-                  paths[i] = dir;
-                  await window.api.setSetting(f.id, [...paths]);
-                  renderPaths(paths);
-                }
-              };
-              row.appendChild(browseBtn);
+              const isDefault = normalizePath(p) === normalizedDefault;
+              const isPrimary = i === 0;
+
+              const card = document.createElement("div");
+              card.className = "dir-card";
+
+              // Left side: path + tag pills
+              const info = document.createElement("div");
+              info.className = "dir-card-info";
+              const pathEl = document.createElement("span");
+              pathEl.className = "dir-card-path";
+              pathEl.textContent = p;
+              pathEl.title = p;
+              info.appendChild(pathEl);
+
+              if (isPrimary) {
+                const tag = document.createElement("span");
+                tag.className = "dir-card-tag tag-primary";
+                tag.textContent = window.t("models.primary");
+                info.appendChild(tag);
+              }
+              if (isDefault) {
+                const tag = document.createElement("span");
+                tag.className = "dir-card-tag tag-default";
+                tag.textContent = window.t("models.default");
+                info.appendChild(tag);
+              }
+
+              card.appendChild(info);
+
+              // Right side: action buttons
+              const actions = document.createElement("div");
+              actions.className = "dir-card-actions";
+
+              // Open
               const openBtn = document.createElement("button");
               openBtn.type = "button";
               openBtn.textContent = window.t("settings.open");
               openBtn.onclick = () => window.api.openPath(p);
-              row.appendChild(openBtn);
-              const removeBtn = document.createElement("button");
-              removeBtn.type = "button";
-              removeBtn.className = "danger";
-              removeBtn.textContent = window.t("models.removeDir");
-              removeBtn.onclick = async () => {
-                paths.splice(i, 1);
-                await window.api.setSetting(f.id, [...paths]);
-                renderPaths(paths);
-              };
-              row.appendChild(removeBtn);
-              if (i === 0) {
-                const tag = document.createElement("span");
-                tag.className = "path-primary-tag";
-                tag.textContent = window.t("models.primary");
-                row.appendChild(tag);
+              actions.appendChild(openBtn);
+
+              // Browse (not for system default)
+              if (!isDefault) {
+                const browseBtn = document.createElement("button");
+                browseBtn.type = "button";
+                browseBtn.textContent = window.t("common.browse");
+                browseBtn.onclick = async () => {
+                  const dir = await window.api.browseFolder(p);
+                  if (dir) {
+                    paths[i] = dir;
+                    await window.api.setSetting(f.id, [...paths]);
+                    renderPaths(paths);
+                  }
+                };
+                actions.appendChild(browseBtn);
               }
-              list.appendChild(row);
+
+              // Remove (not for system default)
+              if (!isDefault) {
+                const removeBtn = document.createElement("button");
+                removeBtn.type = "button";
+                removeBtn.className = "danger";
+                removeBtn.textContent = window.t("models.removeDir");
+                removeBtn.onclick = async () => {
+                  paths.splice(i, 1);
+                  await window.api.setSetting(f.id, [...paths]);
+                  renderPaths(paths);
+                };
+                actions.appendChild(removeBtn);
+              }
+
+              // Make Primary (not for index 0)
+              if (!isPrimary) {
+                const primaryBtn = document.createElement("button");
+                primaryBtn.type = "button";
+                primaryBtn.className = "accent";
+                primaryBtn.textContent = window.t("models.makePrimary");
+                primaryBtn.onclick = async () => {
+                  paths.splice(i, 1);
+                  paths.unshift(p);
+                  await window.api.setSetting(f.id, [...paths]);
+                  renderPaths(paths);
+                };
+                actions.appendChild(primaryBtn);
+              }
+
+              card.appendChild(actions);
+              list.appendChild(card);
             });
+
             const addBtn = document.createElement("button");
             addBtn.type = "button";
             addBtn.textContent = window.t("models.addDir");
