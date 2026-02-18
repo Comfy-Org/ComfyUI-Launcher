@@ -1,6 +1,31 @@
 {
   "_label": "English",
 
+  "sidebar": {
+    "installations": "Installations",
+    "running": "Running"
+  },
+
+  "running": {
+    "empty": "Nothing running or in progress.",
+    "instances": "Running Instances",
+    "errors": "Errors",
+    "crashed": "Crashed",
+    "exitCode": "Exit code {code}",
+    "dismiss": "Dismiss",
+    "inProgress": "In Progress",
+    "showWindow": "Show Window"
+  },
+
+  "models": {
+    "title": "Models",
+    "directories": "Shared Directories",
+    "directoriesDesc": "Directories shared across all installations. The first directory is the primary (default for ComfyUI).",
+    "addDir": "Add Directory",
+    "removeDir": "Remove",
+    "primary": "primary"
+  },
+
   "common": {
     "back": "Back",
     "browse": "Browse…",
@@ -35,6 +60,9 @@
     "empty": "No installations yet.\nClick **+ New Install** to get started.",
     "view": "View",
     "new": "New",
+    "running": "Running",
+    "console": "Console",
+    "viewProgress": "View Progress",
     "dragToReorder": "Drag to reorder"
   },
 
@@ -77,7 +105,8 @@
     "stop": "Stop",
     "disconnect": "Disconnect",
     "connectedTo": "Connected to {url}",
-    "processExited": "\n\n--- Process exited ---\n"
+    "processExited": "\n\n--- Process exited ---\n",
+    "processCrashed": "\n\n--- Process crashed (exit code {code}) ---\n"
   },
 
   "settings": {
@@ -87,11 +116,18 @@
     "themeSystem": "Match system",
     "themeDark": "Dark",
     "themeLight": "Light",
-    "onComfyClose": "When ComfyUI window is closed",
-    "closeTray": "Minimize to system tray",
-    "closeLauncher": "Stop and return to launcher",
-    "closeQuit": "Quit the app",
+    "onLauncherClose": "When launcher is closed",
+    "closeTray": "Minimize to tray (keep instances running)",
+    "closeQuit": "Stop all instances and quit",
+    "closeQuitTitle": "Quit Launcher",
+    "closeQuitMessage": "ComfyUI instances are still running. Quitting will stop all of them.",
+    "closeQuitConfirm": "Quit",
     "autoUpdate": "Check for updates on startup",
+    "models": "Shared Models",
+    "modelsDirs": "Model Directories",
+    "modelsDirsAdd": "Add Directory",
+    "modelsDirsRemove": "Remove",
+    "modelsDirsPrimary": "primary",
     "downloads": "Downloads",
     "cacheDir": "Cache Directory",
     "maxCachedFiles": "Max Cached Downloads",
@@ -124,8 +160,7 @@
   },
 
   "tray": {
-    "showComfyUI": "Show ComfyUI",
-    "stopReturn": "Stop and Return to Launcher",
+    "showLauncher": "Show Launcher",
     "quit": "Quit"
   },
 

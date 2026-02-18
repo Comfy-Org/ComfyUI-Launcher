@@ -1,38 +1,43 @@
 window.Launcher = window.Launcher || {};
 
 window.Launcher.progress = {
-  _unsubscribe: null,
+  // Per-operation state: installationId -> { unsubProgress, unsubOutput, ... }
+  _operations: new Map(),
+  // Which installationId currently owns the progress DOM
+  _currentId: null,
 
-  show({ installationId, title, apiCall, cancellable, returnTo }) {
-    document.getElementById("progress-title").textContent = title || window.t("progress.working");
+  _isShowing(installationId) {
+    if (this._currentId !== installationId) return false;
+    const view = document.getElementById("view-progress");
+    return view && view.classList.contains("active");
+  },
+
+  /** Switch the progress view to display a specific operation (used by Running tab). */
+  showOperation(installationId, { from } = {}) {
+    const op = this._operations.get(installationId);
+    if (!op) return;
+    this._currentId = installationId;
+    if (from) op.from = from;
+    this._renderBreadcrumb(op);
+    this._renderFromState(op, installationId);
+    window.Launcher.showView("progress");
+  },
+
+  /** Render the progress view entirely from the operation's stored state. */
+  _renderFromState(op, installationId) {
     const container = document.getElementById("progress-content");
     const cancelBtn = document.getElementById("btn-progress-cancel");
-    cancelBtn.style.display = cancellable ? "" : "none";
-    cancelBtn.onclick = cancellable ? () => window.api.cancelLaunch() : null;
+    container.innerHTML = "";
 
-    container.innerHTML = `
-      <div class="progress-status" id="progress-status">${window.t("progress.starting")}</div>
-      <div class="progress-bar-track">
-        <div class="progress-bar-fill" id="progress-fill"></div>
-      </div>
-      <div class="terminal-output" id="progress-terminal"></div>`;
-
-    window.Launcher.showView("progress");
-
-    let steps = null;
-    let activePhase = null;
-    const lastStatus = {};
-
-    const renderSteps = () => {
-      const terminalContent = document.getElementById("progress-terminal")?.textContent || "";
-      container.innerHTML = "";
-
+    if (op.steps) {
+      // Stepped mode
       const stepsContainer = document.createElement("div");
       stepsContainer.className = "progress-steps";
 
-      steps.forEach((step, i) => {
+      const activeIndex = op.activePhase ? op.steps.findIndex((s) => s.phase === op.activePhase) : -1;
+
+      op.steps.forEach((step, i) => {
         const stepEl = document.createElement("div");
-        stepEl.className = "progress-step";
         stepEl.dataset.phase = step.phase;
 
         const header = document.createElement("div");
@@ -40,7 +45,6 @@ window.Launcher.progress = {
 
         const indicator = document.createElement("span");
         indicator.className = "progress-step-indicator";
-        indicator.textContent = String(i + 1);
 
         const label = document.createElement("span");
         label.className = "progress-step-label";
@@ -52,7 +56,6 @@ window.Launcher.progress = {
 
         const detail = document.createElement("div");
         detail.className = "progress-step-detail";
-        detail.style.display = "none";
 
         const status = document.createElement("div");
         status.className = "progress-step-status";
@@ -72,26 +75,159 @@ window.Launcher.progress = {
         summary.style.display = "none";
         stepEl.appendChild(summary);
 
+        if (op.done || i < activeIndex) {
+          // Done step
+          stepEl.className = "progress-step done";
+          indicator.textContent = "✓";
+          detail.style.display = "none";
+          if (op.lastStatus[step.phase]) {
+            summary.textContent = op.lastStatus[step.phase];
+            summary.style.display = "";
+          }
+        } else if (i === activeIndex) {
+          // Active step
+          stepEl.className = "progress-step active";
+          indicator.textContent = String(i + 1);
+          detail.style.display = "";
+
+          if (op.error) {
+            status.textContent = window.t("progress.error", { message: op.error });
+            barTrack.style.display = "none";
+          } else {
+            status.textContent = op.lastStatus[step.phase] || step.phase;
+            if (op.activePercent >= 0) {
+              barFill.style.width = `${op.activePercent}%`;
+              barFill.classList.remove("indeterminate");
+            } else {
+              barFill.style.width = "100%";
+              barFill.classList.add("indeterminate");
+            }
+          }
+        } else {
+          // Pending step
+          stepEl.className = "progress-step";
+          indicator.textContent = String(i + 1);
+          detail.style.display = "none";
+        }
+
         stepsContainer.appendChild(stepEl);
       });
 
       container.appendChild(stepsContainer);
+    } else {
+      // Flat mode
+      const statusEl = document.createElement("div");
+      statusEl.className = "progress-status";
+      statusEl.id = "progress-status";
+      if (op.error) {
+        statusEl.textContent = window.t("progress.error", { message: op.error });
+      } else {
+        statusEl.textContent = op.flatStatus;
+      }
+      container.appendChild(statusEl);
 
-      const terminal = document.createElement("div");
-      terminal.className = "terminal-output";
-      terminal.id = "progress-terminal";
-      terminal.textContent = terminalContent;
-      container.appendChild(terminal);
+      const barTrack = document.createElement("div");
+      barTrack.className = "progress-bar-track";
+      const barFill = document.createElement("div");
+      barFill.className = "progress-bar-fill";
+      barFill.id = "progress-fill";
+      if (op.flatPercent >= 0) {
+        barFill.style.width = `${op.flatPercent}%`;
+      } else {
+        barFill.style.width = "100%";
+        barFill.classList.add("indeterminate");
+      }
+      barTrack.appendChild(barFill);
+      container.appendChild(barTrack);
+    }
+
+    // Terminal
+    const terminal = document.createElement("div");
+    terminal.className = "terminal-output";
+    terminal.id = "progress-terminal";
+    terminal.textContent = op.terminalOutput;
+    terminal.scrollTop = terminal.scrollHeight;
+    container.appendChild(terminal);
+
+    // Cancel button
+    if (op.finished) {
+      cancelBtn.style.display = "none";
+    } else {
+      cancelBtn.style.display = "";
+      cancelBtn.textContent = window.t("common.cancel");
+      cancelBtn.className = "danger";
+      cancelBtn.onclick = () => {
+        window.api.cancelLaunch();
+        window.api.stopComfyUI(installationId);
+      };
+    }
+  },
+
+  show({ installationId, title, apiCall, returnTo, from }) {
+    // Clean up any previous operation for THIS installationId only
+    this._cleanupOperation(installationId);
+    this._currentId = installationId;
+
+    // Initialize a fresh session buffer for this operation
+    window.Launcher.sessions.start(installationId);
+    const container = document.getElementById("progress-content");
+    const cancelBtn = document.getElementById("btn-progress-cancel");
+    cancelBtn.style.display = "";
+    cancelBtn.textContent = window.t("common.cancel");
+    cancelBtn.className = "danger";
+    cancelBtn.onclick = () => {
+      window.api.cancelLaunch();
+      window.api.stopComfyUI(installationId);
+    };
+
+    container.innerHTML = `
+      <div class="progress-status" id="progress-status">${window.t("progress.starting")}</div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+      <div class="terminal-output" id="progress-terminal"></div>`;
+
+    window.Launcher.setActiveSession(installationId, title || window.t("progress.working"));
+    window.Launcher.showView("progress");
+
+    // Store operation metadata and state
+    const op = {
+      title: title || window.t("progress.working"),
+      from: from || null,
+      returnTo,
+      steps: null,
+      activePhase: null,
+      activePercent: -1,
+      lastStatus: {},
+      flatStatus: window.t("progress.starting"),
+      flatPercent: -1,
+      terminalOutput: "",
+      done: false,
+      error: null,
+      finished: false,
+    };
+    this._operations.set(installationId, op);
+    this._renderBreadcrumb(op);
+
+    const renderSteps = () => {
+      if (!this._isShowing(installationId)) return;
+      this._renderFromState(op, installationId);
     };
 
     const updateSteps = (data) => {
-      const stepIndex = steps.findIndex((s) => s.phase === data.phase);
+      // Always update state
+      const stepIndex = op.steps.findIndex((s) => s.phase === data.phase);
       if (stepIndex === -1) return;
 
-      activePhase = data.phase;
-      lastStatus[data.phase] = data.status || data.phase;
+      op.activePhase = data.phase;
+      op.lastStatus[data.phase] = data.status || data.phase;
+      op.activePercent = data.percent;
 
-      steps.forEach((step, i) => {
+      // Only update DOM if showing
+      if (!this._isShowing(installationId)) return;
+      const stepElements = container.querySelectorAll(".progress-step");
+
+      op.steps.forEach((step, i) => {
         const stepEl = container.querySelector(`.progress-step[data-phase="${step.phase}"]`);
         if (!stepEl) return;
 
@@ -105,8 +241,8 @@ window.Launcher.progress = {
           stepEl.className = "progress-step done";
           indicator.textContent = "✓";
           detail.style.display = "none";
-          if (lastStatus[step.phase]) {
-            summary.textContent = lastStatus[step.phase];
+          if (op.lastStatus[step.phase]) {
+            summary.textContent = op.lastStatus[step.phase];
             summary.style.display = "";
           }
         } else if (i === stepIndex) {
@@ -132,40 +268,54 @@ window.Launcher.progress = {
     };
 
     const markAllDone = () => {
-      steps.forEach((step) => {
+      // Always update state
+      op.done = true;
+
+      // Only update DOM if showing
+      if (!this._isShowing(installationId)) return;
+      op.steps.forEach((step) => {
         const stepEl = container.querySelector(`.progress-step[data-phase="${step.phase}"]`);
         if (!stepEl) return;
         stepEl.className = "progress-step done";
         stepEl.querySelector(".progress-step-indicator").textContent = "✓";
         stepEl.querySelector(".progress-step-detail").style.display = "none";
         const summary = stepEl.querySelector(".progress-step-summary");
-        if (lastStatus[step.phase]) {
-          summary.textContent = lastStatus[step.phase];
+        if (op.lastStatus[step.phase]) {
+          summary.textContent = op.lastStatus[step.phase];
           summary.style.display = "";
         }
       });
     };
 
-    this._unsubscribe = window.api.onInstallProgress((data) => {
+    op.unsubProgress = window.api.onInstallProgress((data) => {
       if (data.installationId !== installationId) return;
 
       if (data.phase === "steps") {
-        steps = data.steps;
-        activePhase = null;
+        op.steps = data.steps;
+        op.activePhase = null;
+        op.activePercent = -1;
         renderSteps();
         return;
       }
 
-      if (data.phase === "done" && steps) {
+      if (data.phase === "done" && op.steps) {
         markAllDone();
         return;
       }
 
-      if (steps) {
+      if (op.steps) {
         updateSteps(data);
         return;
       }
 
+      // Flat mode - always update state
+      op.flatStatus = data.status || data.phase;
+      if (data.percent !== undefined) {
+        op.flatPercent = data.percent;
+      }
+
+      // Only update DOM if showing
+      if (!this._isShowing(installationId)) return;
       const statusEl = document.getElementById("progress-status");
       const fillEl = document.getElementById("progress-fill");
 
@@ -181,19 +331,29 @@ window.Launcher.progress = {
       }
     });
 
-    this._unsubComfy = window.api.onComfyOutput((data) => {
+    op.unsubOutput = window.api.onComfyOutput((data) => {
       if (data.installationId !== installationId) return;
+      // Always update state
+      op.terminalOutput += data.text;
+
+      // Only update DOM if showing
+      if (!this._isShowing(installationId)) return;
       const term = document.getElementById("progress-terminal");
       if (term) {
+        const atBottom = term.scrollHeight - term.scrollTop - term.clientHeight < 30;
         term.textContent += data.text;
-        term.scrollTop = term.scrollHeight;
+        if (atBottom) term.scrollTop = term.scrollHeight;
       }
     });
 
     const showError = (msg) => {
-      this._cleanup();
-      if (steps) {
-        // In stepped mode, mark the active step as failed
+      // Update state before cleanup removes the op
+      op.error = msg;
+      op.finished = true;
+      this._cleanupOperation(installationId);
+      window.Launcher.clearActiveSession(installationId);
+      if (!this._isShowing(installationId)) return;
+      if (op.steps) {
         const activeEl = container.querySelector(".progress-step.active");
         if (activeEl) {
           const status = activeEl.querySelector(".progress-step-status");
@@ -205,37 +365,35 @@ window.Launcher.progress = {
         const statusEl = document.getElementById("progress-status");
         if (statusEl) statusEl.textContent = window.t("progress.error", { message: msg });
       }
-      const backBtn = document.getElementById("btn-progress-cancel");
-      backBtn.textContent = window.t("common.back");
-      backBtn.className = "back-btn";
-      backBtn.style.display = "";
-      backBtn.onclick = () => {
-        backBtn.style.display = "none";
-        backBtn.textContent = window.t("common.cancel");
-        backBtn.className = "danger";
-        if (returnTo === "detail" && window.Launcher.detail._current) {
-          window.Launcher.detail.show(window.Launcher.detail._current);
-        } else {
-          window.Launcher.showView("list");
-          window.Launcher.list.render();
-        }
-      };
+      document.getElementById("btn-progress-cancel").style.display = "none";
     };
 
     const handleResult = (result) => {
-      this._cleanup();
+      op.finished = true;
+      this._cleanupOperation(installationId);
       if (result.ok) {
         if (result.navigate === "detail" && window.Launcher.detail._current) {
-          window.Launcher.detail.show(window.Launcher.detail._current);
+          window.Launcher.clearActiveSession(installationId);
+          if (this._isShowing(installationId)) {
+            window.Launcher.detail.show(window.Launcher.detail._current);
+          }
         } else if (result.mode === "console") {
-          const initialOutput = document.getElementById("progress-terminal")?.textContent || "";
-          window.Launcher.console.show({ installationId, port: result.port, url: result.url, initialOutput });
+          window.Launcher.clearActiveSession(installationId);
+          if (this._isShowing(installationId)) {
+            window.Launcher.console.show(installationId, { from: op.from });
+          }
         } else {
-          window.Launcher.showView("list");
-          window.Launcher.list.render();
+          window.Launcher.clearActiveSession(installationId);
+          if (this._isShowing(installationId)) {
+            window.Launcher.showView("list");
+            window.Launcher.list.render();
+          }
         }
       } else if (result.portConflict) {
-        showPortConflict(result);
+        window.Launcher.clearActiveSession(installationId);
+        if (this._isShowing(installationId)) {
+          showPortConflict(result);
+        }
       } else {
         showError(result.message);
       }
@@ -245,46 +403,26 @@ window.Launcher.progress = {
       const statusEl = document.getElementById("progress-status");
       if (statusEl) statusEl.textContent = result.message;
 
-      const backBtn = document.getElementById("btn-progress-cancel");
-      backBtn.textContent = window.t("common.back");
-      backBtn.className = "back-btn";
-      backBtn.style.display = "";
-      backBtn.onclick = () => {
-        backBtn.style.display = "none";
-        backBtn.textContent = window.t("common.cancel");
-        backBtn.className = "danger";
-        if (returnTo === "detail" && window.Launcher.detail._current) {
-          window.Launcher.detail.show(window.Launcher.detail._current);
-        } else {
-          window.Launcher.showView("list");
-          window.Launcher.list.render();
-        }
-      };
+      document.getElementById("btn-progress-cancel").style.display = "none";
 
-      // Add conflict resolution buttons
       const actionsArea = document.createElement("div");
       actionsArea.className = "progress-conflict-actions";
 
-      // "Use port X" button — if a next port was found
       if (result.portConflict.nextPort) {
         const usePortBtn = document.createElement("button");
         usePortBtn.className = "primary";
         usePortBtn.textContent = window.t("errors.portConflictUsePort", { port: result.portConflict.nextPort });
         usePortBtn.onclick = () => {
           actionsArea.remove();
-          backBtn.style.display = "none";
-          backBtn.textContent = window.t("common.cancel");
-          backBtn.className = "danger";
           const portOverride = result.portConflict.nextPort;
           this.show({
-            installationId, title, cancellable, returnTo,
+            installationId, title, returnTo, from: op.from,
             apiCall: () => window.api.runAction(installationId, "launch", { portOverride }),
           });
         };
         actionsArea.appendChild(usePortBtn);
       }
 
-      // "Stop process and retry" button — only for ComfyUI processes
       if (result.portConflict.isComfy) {
         const killBtn = document.createElement("button");
         killBtn.className = "danger";
@@ -302,10 +440,7 @@ window.Launcher.progress = {
           const killResult = await window.api.killPortProcess(result.portConflict.port);
           if (killResult.ok) {
             actionsArea.remove();
-            backBtn.style.display = "none";
-            backBtn.textContent = window.t("common.cancel");
-            backBtn.className = "danger";
-            this.show({ installationId, title, apiCall, cancellable, returnTo });
+            this.show({ installationId, title, apiCall, returnTo, from: op.from });
           } else {
             killBtn.disabled = false;
             killBtn.textContent = window.t("errors.portConflictKill");
@@ -331,17 +466,21 @@ window.Launcher.progress = {
     });
   },
 
-  _cleanup() {
-    if (this._unsubscribe) {
-      this._unsubscribe();
-      this._unsubscribe = null;
-    }
-    if (this._unsubComfy) {
-      this._unsubComfy();
-      this._unsubComfy = null;
-    }
-    const cancelBtn = document.getElementById("btn-progress-cancel");
-    cancelBtn.style.display = "none";
-    cancelBtn.onclick = null;
+  _renderBreadcrumb(op) {
+    const titleEl = document.getElementById("progress-title");
+    const parent = op.from === "running"
+      ? { label: window.t("sidebar.running"), action: () => window.Launcher.running.show() }
+      : { label: window.t("sidebar.installations"), action: () => { window.Launcher.showView("list"); window.Launcher.list.render(); } };
+    window.Launcher.renderBreadcrumb(titleEl, [parent, { label: op.title }]);
+  },
+
+  _cleanupOperation(installationId) {
+    const op = this._operations.get(installationId);
+    if (!op) return;
+    if (op.unsubProgress) op.unsubProgress();
+    if (op.unsubOutput) op.unsubOutput();
+    // Don't delete - keep state for showOperation() to re-render from
+    op.unsubProgress = null;
+    op.unsubOutput = null;
   },
 };

@@ -79,6 +79,71 @@ window.Launcher.settings = {
           toggle.checked = !!f.value;
           toggle.onchange = () => window.api.setSetting(f.id, toggle.checked);
           field.appendChild(toggle);
+        } else if (f.type === "pathList") {
+          const list = document.createElement("div");
+          list.className = "path-list";
+
+          function renderPaths(paths) {
+            list.innerHTML = "";
+            paths.forEach((p, i) => {
+              const row = document.createElement("div");
+              row.className = "path-input";
+              const input = document.createElement("input");
+              input.type = "text";
+              input.value = p;
+              input.readOnly = true;
+              row.appendChild(input);
+              const browseBtn = document.createElement("button");
+              browseBtn.type = "button";
+              browseBtn.textContent = window.t("common.browse");
+              browseBtn.onclick = async () => {
+                const dir = await window.api.browseFolder(p);
+                if (dir) {
+                  paths[i] = dir;
+                  await window.api.setSetting(f.id, [...paths]);
+                  renderPaths(paths);
+                }
+              };
+              row.appendChild(browseBtn);
+              const openBtn = document.createElement("button");
+              openBtn.type = "button";
+              openBtn.textContent = window.t("settings.open");
+              openBtn.onclick = () => window.api.openPath(p);
+              row.appendChild(openBtn);
+              const removeBtn = document.createElement("button");
+              removeBtn.type = "button";
+              removeBtn.className = "danger";
+              removeBtn.textContent = window.t("settings.modelsDirsRemove");
+              removeBtn.onclick = async () => {
+                paths.splice(i, 1);
+                await window.api.setSetting(f.id, [...paths]);
+                renderPaths(paths);
+              };
+              row.appendChild(removeBtn);
+              if (i === 0) {
+                const tag = document.createElement("span");
+                tag.className = "path-primary-tag";
+                tag.textContent = window.t("settings.modelsDirsPrimary");
+                row.appendChild(tag);
+              }
+              list.appendChild(row);
+            });
+            const addBtn = document.createElement("button");
+            addBtn.type = "button";
+            addBtn.textContent = window.t("settings.modelsDirsAdd");
+            addBtn.onclick = async () => {
+              const dir = await window.api.browseFolder();
+              if (dir) {
+                paths.push(dir);
+                await window.api.setSetting(f.id, [...paths]);
+                renderPaths(paths);
+              }
+            };
+            list.appendChild(addBtn);
+          }
+
+          renderPaths([...(f.value || [])]);
+          field.appendChild(list);
         } else if (f.type === "number") {
           const input = document.createElement("input");
           input.type = "number";
@@ -122,11 +187,5 @@ window.Launcher.settings = {
     showView("settings");
   },
 
-  init() {
-    document.getElementById("btn-settings-back").onclick = () => {
-      const prev = window.Launcher._previousView || "list";
-      window.Launcher.showView(prev);
-      if (prev === "list") window.Launcher.list.render();
-    };
-  },
+  init() {},
 };

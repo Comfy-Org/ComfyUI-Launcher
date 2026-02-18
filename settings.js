@@ -7,7 +7,8 @@ const dataPath = path.join(paths.configDir(), "settings.json");
 const defaults = {
   cacheDir: path.join(paths.cacheDir(), "download-cache"),
   maxCachedFiles: 8,
-  onComfyClose: "launcher",
+  onLauncherClose: "tray",
+  modelsDirs: [path.join(app.getPath("home"), "ComfyUI-Models")],
 };
 
 function load() {

@@ -35,7 +35,19 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("comfy-exited", handler);
     return () => ipcRenderer.removeListener("comfy-exited", handler);
   },
-  stopComfyUI: () => ipcRenderer.invoke("stop-comfyui"),
+  stopComfyUI: (installationId) => ipcRenderer.invoke("stop-comfyui", installationId),
+  focusComfyWindow: (installationId) => ipcRenderer.invoke("focus-comfy-window", installationId),
+  getRunningInstances: () => ipcRenderer.invoke("get-running-instances"),
+  onInstanceStarted: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("instance-started", handler);
+    return () => ipcRenderer.removeListener("instance-started", handler);
+  },
+  onInstanceStopped: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on("instance-stopped", handler);
+    return () => ipcRenderer.removeListener("instance-stopped", handler);
+  },
   cancelLaunch: () => ipcRenderer.invoke("cancel-launch"),
   killPortProcess: (port) => ipcRenderer.invoke("kill-port-process", port),
   getListActions: (installationId) =>
@@ -47,6 +59,7 @@ contextBridge.exposeInMainWorld("api", {
   runAction: (installationId, actionId, actionData) =>
     ipcRenderer.invoke("run-action", installationId, actionId, actionData),
   getSettingsSections: () => ipcRenderer.invoke("get-settings-sections"),
+  getModelsSections: () => ipcRenderer.invoke("get-models-sections"),
   setSetting: (key, value) => ipcRenderer.invoke("set-setting", key, value),
   getSetting: (key) => ipcRenderer.invoke("get-setting", key),
   getResolvedTheme: () => ipcRenderer.invoke("get-resolved-theme"),
@@ -54,6 +67,12 @@ contextBridge.exposeInMainWorld("api", {
     const handler = (_event, theme) => callback(theme);
     ipcRenderer.on("theme-changed", handler);
     return () => ipcRenderer.removeListener("theme-changed", handler);
+  },
+  quitApp: () => ipcRenderer.invoke("quit-app"),
+  onConfirmQuit: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("confirm-quit", handler);
+    return () => ipcRenderer.removeListener("confirm-quit", handler);
   },
   checkForUpdate: () => ipcRenderer.invoke("check-for-update"),
   downloadUpdate: () => ipcRenderer.invoke("download-update"),

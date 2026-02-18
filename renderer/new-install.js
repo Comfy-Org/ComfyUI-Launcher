@@ -15,6 +15,11 @@ window.Launcher.newInstall = {
       document.getElementById("inst-name").value = "";
       this._selections = {};
       document.getElementById("btn-save").disabled = true;
+      const goBack = () => { window.Launcher.showView("list"); window.Launcher.list.render(); };
+      window.Launcher.renderBreadcrumb(document.getElementById("new-install-title"), [
+        { label: window.t("sidebar.installations"), action: goBack },
+        { label: window.t("newInstall.title") },
+      ]);
       window.Launcher.showView("new");
       this._initSources();
 
@@ -33,10 +38,6 @@ window.Launcher.newInstall = {
       const pathInput = document.getElementById("inst-path");
       const chosen = await window.api.browseFolder(pathInput.value);
       if (chosen) pathInput.value = chosen;
-    };
-
-    document.getElementById("btn-new-back").onclick = () => {
-      window.Launcher.showView("list");
     };
 
     document.getElementById("btn-save").onclick = () => this._save();

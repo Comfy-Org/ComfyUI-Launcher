@@ -13,20 +13,26 @@ window.Launcher.detail = {
     }
 
     const titleEl = document.getElementById("detail-title");
-    titleEl.textContent = inst.name;
-    titleEl.contentEditable = true;
-    titleEl.spellcheck = false;
-    titleEl.onblur = () => {
-      const newName = titleEl.textContent.trim();
+    const goBack = () => { window.Launcher.showView("list"); window.Launcher.list.render(); };
+    window.Launcher.renderBreadcrumb(titleEl, [
+      { label: window.t("sidebar.installations"), action: goBack },
+      { label: inst.name },
+    ]);
+    // Make the last breadcrumb segment editable for renaming
+    const nameSpan = titleEl.querySelector(".breadcrumb-current");
+    nameSpan.contentEditable = true;
+    nameSpan.spellcheck = false;
+    nameSpan.onblur = () => {
+      const newName = nameSpan.textContent.trim();
       if (newName && newName !== inst.name) {
         inst.name = newName;
         window.api.updateInstallation(inst.id, { name: newName });
       } else {
-        titleEl.textContent = inst.name;
+        nameSpan.textContent = inst.name;
       }
     };
-    titleEl.onkeydown = (e) => {
-      if (e.key === "Enter") { e.preventDefault(); titleEl.blur(); }
+    nameSpan.onkeydown = (e) => {
+      if (e.key === "Enter") { e.preventDefault(); nameSpan.blur(); }
     };
     const container = document.getElementById("detail-sections");
     container.innerHTML = "";
@@ -308,10 +314,5 @@ window.Launcher.detail = {
     }
   },
 
-  init() {
-    document.getElementById("btn-detail-back").onclick = () => {
-      window.Launcher.showView("list");
-      window.Launcher.list.render();
-    };
-  },
+  init() {},
 };

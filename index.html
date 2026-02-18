@@ -20,14 +20,64 @@
       <path d="M5 12h14"/>
       <path d="M12 5v14"/>
     </symbol>
+    <symbol id="icon-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+      <path d="m3.3 7 8.7 5 8.7-5"/>
+      <path d="M12 22V12"/>
+    </symbol>
+    <symbol id="icon-folder-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
+    </symbol>
+    <symbol id="icon-loader" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2v4"/>
+      <path d="m16.2 7.8 2.9-2.9"/>
+      <path d="M18 12h4"/>
+      <path d="m16.2 16.2 2.9 2.9"/>
+      <path d="M12 18v4"/>
+      <path d="m4.9 19.1 2.9-2.9"/>
+      <path d="M2 12h4"/>
+      <path d="m4.9 4.9 2.9 2.9"/>
+    </symbol>
+    <symbol id="icon-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="6 3 20 12 6 21 6 3"/>
+    </symbol>
   </svg>
+
+  <div class="app-layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">ComfyUI Launcher</div>
+    <div class="sidebar-nav">
+      <button class="sidebar-item active" data-sidebar="list">
+        <svg width="18" height="18"><use href="#icon-box"/></svg>
+        <span data-i18n="sidebar.installations">Installations</span>
+      </button>
+      <button class="sidebar-item" data-sidebar="running">
+        <svg width="18" height="18"><use href="#icon-play"/></svg>
+        <span data-i18n="sidebar.running">Running</span>
+        <span class="sidebar-error-dot" style="display:none"></span>
+        <span class="sidebar-count" style="display:none">0</span>
+      </button>
+      <button class="sidebar-item" data-sidebar="models">
+        <svg width="18" height="18"><use href="#icon-folder-open"/></svg>
+        <span data-i18n="models.title">Models</span>
+      </button>
+      <button class="sidebar-item" data-sidebar="settings">
+        <svg width="18" height="18"><use href="#icon-settings"/></svg>
+        <span data-i18n="settings.title">Settings</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Content Area -->
+  <main class="content">
 
   <!-- Instance List View -->
   <div id="view-list" class="view active">
     <div class="toolbar">
-      <h2 data-i18n="list.title">Installations</h2>
+      <div class="breadcrumb"><span class="breadcrumb-current" data-i18n="list.title">Installations</span></div>
       <div class="toolbar-actions">
-        <button id="btn-settings" class="icon-btn" title="Settings"><svg width="18" height="18"><use href="#icon-settings"/></svg></button>
         <button id="btn-track" data-i18n="list.trackExisting">Track Existing</button>
         <button class="primary add-btn" id="btn-new"><svg width="14" height="14"><use href="#icon-plus"/></svg> <span data-i18n="list.newInstall">New Install</span></button>
       </div>
@@ -41,8 +91,7 @@
   <!-- New Install View -->
   <div id="view-new" class="view">
     <div class="toolbar">
-      <h2 data-i18n="newInstall.title">New Installation</h2>
-      <button id="btn-new-back" class="back-btn"><svg width="14" height="14"><use href="#icon-arrow-left"/></svg> <span data-i18n="common.back">Back</span></button>
+      <div id="new-install-title" class="breadcrumb"></div>
     </div>
     <div class="view-scroll">
       <div id="detected-gpu" class="detected-hardware"></div>
@@ -75,7 +124,7 @@
   <!-- Progress View -->
   <div id="view-progress" class="view">
     <div class="toolbar">
-      <h2 id="progress-title" data-i18n="progress.working">Working…</h2>
+      <div id="progress-title" class="breadcrumb"></div>
       <div class="toolbar-actions">
         <button class="danger" id="btn-progress-cancel" style="display:none" data-i18n="common.cancel">Cancel</button>
       </div>
@@ -86,8 +135,7 @@
   <!-- Instance Detail View -->
   <div id="view-detail" class="view">
     <div class="toolbar">
-      <h2 id="detail-title"></h2>
-      <button id="btn-detail-back" class="back-btn"><svg width="14" height="14"><use href="#icon-arrow-left"/></svg> <span data-i18n="common.back">Back</span></button>
+      <div id="detail-title" class="breadcrumb"></div>
     </div>
     <div class="view-scroll" id="detail-sections"></div>
     <div id="detail-bottom-actions"></div>
@@ -96,8 +144,7 @@
   <!-- Track Existing View -->
   <div id="view-track" class="view">
     <div class="toolbar">
-      <h2 data-i18n="track.title">Track Existing Installation</h2>
-      <button id="btn-track-back" class="back-btn"><svg width="14" height="14"><use href="#icon-arrow-left"/></svg> <span data-i18n="common.back">Back</span></button>
+      <div id="track-title" class="breadcrumb"></div>
     </div>
     <div class="view-scroll">
       <div class="field">
@@ -128,8 +175,9 @@
   <!-- Console View -->
   <div id="view-console" class="view">
     <div class="toolbar">
-      <h2 id="console-title" data-i18n="console.title">ComfyUI Console</h2>
+      <div id="console-title" class="breadcrumb"></div>
       <div class="toolbar-actions">
+        <button id="btn-console-show-window" class="primary" style="display:none" data-i18n="running.showWindow">Show Window</button>
         <button id="btn-console-browser" data-i18n="console.openInBrowser">Open in Browser</button>
         <button class="danger" id="btn-console-stop" data-i18n="console.stop">Stop</button>
       </div>
@@ -137,13 +185,31 @@
     <div class="terminal-output" id="console-terminal"></div>
   </div>
 
+  <!-- Models View -->
+  <div id="view-models" class="view">
+    <div class="toolbar">
+      <div class="breadcrumb"><span class="breadcrumb-current" data-i18n="models.title">Models</span></div>
+    </div>
+    <div class="view-scroll" id="models-sections"></div>
+  </div>
+
   <!-- Settings View -->
   <div id="view-settings" class="view">
     <div class="toolbar">
-      <h2 data-i18n="settings.title">Settings</h2>
-      <button id="btn-settings-back" class="back-btn"><svg width="14" height="14"><use href="#icon-arrow-left"/></svg> <span data-i18n="common.back">Back</span></button>
+      <div class="breadcrumb"><span class="breadcrumb-current" data-i18n="settings.title">Settings</span></div>
     </div>
     <div class="view-scroll" id="settings-sections"></div>
+  </div>
+
+  <!-- Running View -->
+  <div id="view-running" class="view">
+    <div class="toolbar">
+      <div class="breadcrumb"><span class="breadcrumb-current" data-i18n="sidebar.running">Running</span></div>
+    </div>
+    <div class="view-scroll" id="running-list"></div>
+  </div>
+
+  </main>
   </div>
 
   <script src="renderer/i18n.js"></script>
@@ -153,12 +219,14 @@
   <script src="renderer/detail.js"></script>
   <script src="renderer/new-install.js"></script>
   <script src="renderer/progress.js"></script>
+  <script src="renderer/sessions.js"></script>
   <script src="renderer/console.js"></script>
   <script src="renderer/settings.js"></script>
+  <script src="renderer/models.js"></script>
   <script src="renderer/track.js"></script>
+  <script src="renderer/running.js"></script>
   <script src="renderer/update-banner.js"></script>
   <script>
-    window.api.getLocaleMessages().then((msgs) => window.Launcher.i18n.init(msgs));
     window.api.getResolvedTheme().then((t) => window.Launcher.applyTheme(t));
     window.api.onThemeChanged((t) => window.Launcher.applyTheme(t));
     window.Launcher.detail.init();
@@ -166,8 +234,44 @@
     window.Launcher.settings.init();
     window.Launcher.track.init();
     window.Launcher.updateBanner.init();
-    document.getElementById("btn-settings").onclick = () => window.Launcher.settings.show();
-    window.Launcher.list.render();
+    window.Launcher.sessions.init();
+    window.Launcher.initRunningInstances();
+
+    // Sidebar navigation
+    document.querySelectorAll(".sidebar-item").forEach((btn) => {
+      btn.onclick = () => {
+        const view = btn.dataset.sidebar;
+        if (view === "settings") {
+          window.Launcher.settings.show();
+        } else if (view === "models") {
+          window.Launcher.models.show();
+        } else if (view === "running") {
+          window.Launcher.running.show();
+        } else if (view === "list") {
+          window.Launcher.showView("list");
+          window.Launcher.list.render();
+        } else {
+          window.Launcher.showView(view);
+        }
+      };
+    });
+
+    // Quit confirmation from main process
+    window.api.onConfirmQuit(async () => {
+      const confirmed = await window.Launcher.modal.confirm({
+        title: window.t("settings.closeQuitTitle"),
+        message: window.t("settings.closeQuitMessage"),
+        confirmLabel: window.t("settings.closeQuitConfirm"),
+        confirmStyle: "danger",
+      });
+      if (confirmed) window.api.quitApp();
+    });
+
+    // Wait for i18n before first render to avoid showing raw keys
+    window.api.getLocaleMessages().then((msgs) => {
+      window.Launcher.i18n.init(msgs);
+      window.Launcher.list.render();
+    });
   </script>
 </body>
 </html>

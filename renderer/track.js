@@ -7,6 +7,11 @@ window.Launcher.track = {
   init() {
     document.getElementById("btn-track").onclick = () => {
       this._reset();
+      const goBack = () => { window.Launcher.showView("list"); window.Launcher.list.render(); };
+      window.Launcher.renderBreadcrumb(document.getElementById("track-title"), [
+        { label: window.t("sidebar.installations"), action: goBack },
+        { label: window.t("track.title") },
+      ]);
       window.Launcher.showView("track");
     };
 
@@ -24,10 +29,6 @@ window.Launcher.track = {
       this._selectedProbe = this._probeResults[select.value] || null;
       this._renderDetail();
       this._updateSaveState();
-    };
-
-    document.getElementById("btn-track-back").onclick = () => {
-      window.Launcher.showView("list");
     };
 
     document.getElementById("btn-track-save").onclick = () => this._save();

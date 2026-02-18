@@ -18,7 +18,8 @@
   },
   "devDependencies": {
     "electron": "^40.4.1",
-    "electron-builder": "^26.7.0"
+    "electron-builder": "^26.7.0",
+    "tar": "^7.5.9"
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",
@@ -58,7 +59,10 @@
       "allowToChangeInstallationDirectory": true
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "assets/Comfy_Logo_x512.png",
       "category": "public.app-category.developer-tools"
     },
