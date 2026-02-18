@@ -1,14 +1,14 @@
-const { app } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const paths = require("./lib/paths");
 
-const dataPath = path.join(app.getPath("userData"), "settings.json");
+const dataPath = path.join(paths.configDir(), "settings.json");
 
 const defaults = {
-  cacheDir: path.join(app.getPath("userData"), "download-cache"),
+  cacheDir: path.join(paths.cacheDir(), "download-cache"),
   maxCachedFiles: 8,
   onLauncherClose: "tray",
-  modelsDirs: [path.join(app.getPath("home"), "ComfyUI-Models")],
+  modelsDirs: [path.join(paths.homeDir(), "ComfyUI-Models")],
 };
 
 function load() {

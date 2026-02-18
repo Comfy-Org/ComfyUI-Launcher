@@ -244,6 +244,9 @@ ipcMain.handle("focus-comfy-window", (_event, installationId) => {
 });
 
 app.whenReady().then(() => {
+  const { migrateXdgPaths } = require("./lib/paths");
+  migrateXdgPaths();
+
   const locale = settings.get("language") || app.getLocale().split("-")[0];
   i18n.init(locale);
   ipc.register({ onLaunch, onStop, onComfyExited: onComfyExited, onComfyRestarted: onComfyRestarted });
