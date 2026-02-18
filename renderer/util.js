@@ -6,6 +6,13 @@ window.Launcher.esc = function esc(s) {
   return el.innerHTML;
 };
 
+window.Launcher.linkify = function linkify(s) {
+  const escaped = window.Launcher.esc(s);
+  return escaped.replace(/https?:\/\/[^\s<]+/g, (url) => {
+    return `<a href="#" data-url="${url}">${url}</a>`;
+  });
+};
+
 window.Launcher.applyTheme = function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme || "dark");
 };

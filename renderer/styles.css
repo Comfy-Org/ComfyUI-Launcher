@@ -79,6 +79,22 @@ button.primary:hover { background: var(--accent-hover); border-color: var(--acce
 button.danger { color: var(--danger); border-color: var(--danger); }
 button.danger:hover { background: var(--danger); color: var(--bg); }
 button.looks-disabled { opacity: 0.4; }
+button.loading { opacity: 0.7; pointer-events: none; }
+button.loading::after {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  border: 2px solid var(--text-faint);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
 button.back-btn::before { content: "← "; }
 button.add-btn::before { content: "+ "; }
 
@@ -176,6 +192,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .instance-meta { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-danger { color: var(--danger); font-weight: 600; }
 .status-new { color: var(--accent); font-weight: 600; }
+.status-update { color: #e8a832; font-weight: 600; }
 .instance-actions { display: flex; gap: 8px; }
 
 .empty-state {
@@ -280,7 +297,7 @@ h2[contenteditable]:focus { border-bottom-color: var(--accent); }
   font-size: 12px;
   padding: 3px 10px;
 }
-.detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 #detail-bottom-actions { flex-shrink: 0; padding-top: 12px; }
 
 /* Settings */
@@ -452,6 +469,14 @@ h2[contenteditable]:focus { border-bottom-color: var(--accent); }
   color: var(--text-muted);
   margin-bottom: 20px;
   white-space: pre-line;
+  user-select: text;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.modal-message a {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
 }
 .modal-input-wrap {
   margin-bottom: 4px;

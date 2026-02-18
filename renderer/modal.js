@@ -1,6 +1,15 @@
 window.Launcher = window.Launcher || {};
 
 window.Launcher.modal = {
+  _wireLinks(box) {
+    box.querySelectorAll("a[data-url]").forEach((a) => {
+      a.onclick = (e) => {
+        e.preventDefault();
+        window.api.openExternal(a.dataset.url);
+      };
+    });
+  },
+
   alert({ title, message, buttonLabel = "OK" }) {
     return new Promise((resolve) => {
       const overlay = document.createElement("div");
@@ -10,11 +19,12 @@ window.Launcher.modal = {
       box.className = "modal-box";
       box.innerHTML = `
         <div class="modal-title">${window.Launcher.esc(title)}</div>
-        <div class="modal-message">${window.Launcher.esc(message)}</div>
+        <div class="modal-message">${window.Launcher.linkify(message)}</div>
         <div class="modal-actions">
           <button class="primary modal-ok">${window.Launcher.esc(buttonLabel)}</button>
         </div>`;
 
+      this._wireLinks(box);
       const close = () => { overlay.remove(); resolve(); };
 
       box.querySelector(".modal-ok").onclick = close;
@@ -35,12 +45,13 @@ window.Launcher.modal = {
       box.className = "modal-box";
       box.innerHTML = `
         <div class="modal-title">${window.Launcher.esc(title)}</div>
-        <div class="modal-message">${window.Launcher.esc(message)}</div>
+        <div class="modal-message">${window.Launcher.linkify(message)}</div>
         <div class="modal-actions">
           <button class="modal-cancel">${window.Launcher.esc(window.t("common.cancel"))}</button>
           <button class="${confirmStyle} modal-confirm">${window.Launcher.esc(confirmLabel)}</button>
         </div>`;
 
+      this._wireLinks(box);
       const close = (result) => {
         overlay.remove();
         resolve(result);

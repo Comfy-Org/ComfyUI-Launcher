@@ -64,7 +64,7 @@ window.Launcher.detail = {
             window.Launcher.modal.alert({ title: a.label, message: a.disabledMessage });
             return;
           }
-          this._runAction(a);
+          this._runAction(a, btn);
         };
         bar.appendChild(btn);
       });
@@ -72,139 +72,176 @@ window.Launcher.detail = {
     }
 
     mainSections.forEach((section) => {
-      const sec = document.createElement("div");
-      sec.className = "detail-section";
-
-      if (section.title) {
-        const title = document.createElement("div");
-        title.className = "detail-section-title";
-        title.textContent = section.title;
-        sec.appendChild(title);
-      }
-
-      if (section.description) {
-        const desc = document.createElement("div");
-        desc.className = "detail-section-desc";
-        desc.textContent = section.description;
-        sec.appendChild(desc);
-      }
-
-      if (section.items) {
-        const list = document.createElement("div");
-        list.className = "detail-item-list";
-        section.items.forEach((item) => {
-          const row = document.createElement("div");
-          row.className = "detail-item" + (item.active ? " active" : "");
-          const label = document.createElement("div");
-          label.className = "detail-item-label";
-          label.textContent = item.label + (item.active ? " (active)" : "");
-          row.appendChild(label);
-          if (item.actions) {
-            const bar = document.createElement("div");
-            bar.className = "detail-item-actions";
-            item.actions.forEach((a) => {
-              const btn = document.createElement("button");
-              btn.textContent = a.label;
-              if (a.style === "danger") btn.className = "danger";
-              if (a.enabled === false && !a.disabledMessage) {
-                btn.disabled = true;
-              } else if (a.enabled === false && a.disabledMessage) {
-                btn.classList.add("looks-disabled");
-              }
-              btn.onclick = () => {
-                if (a.enabled === false && a.disabledMessage) {
-                  window.Launcher.modal.alert({ title: a.label, message: a.disabledMessage });
-                  return;
-                }
-                this._runAction(a);
-              };
-              bar.appendChild(btn);
-            });
-            row.appendChild(bar);
-          }
-          list.appendChild(row);
-        });
-        sec.appendChild(list);
-      }
-
-      if (section.fields) {
-        const fields = document.createElement("div");
-        fields.className = "detail-fields";
-        section.fields.forEach((f) => {
-          const row = document.createElement("div");
-          const label = document.createElement("div");
-          label.className = "detail-field-label";
-          label.textContent = f.label;
-          row.appendChild(label);
-
-          if (f.editable && f.editType === "select") {
-            const select = document.createElement("select");
-            select.className = "detail-field-input";
-            f.options.forEach((opt) => {
-              const el = document.createElement("option");
-              el.value = opt.value;
-              el.textContent = opt.label;
-              if (opt.value === f.value) el.selected = true;
-              select.appendChild(el);
-            });
-            select.onchange = () => {
-              window.api.updateInstallation(inst.id, { [f.id]: select.value });
-            };
-            row.appendChild(select);
-          } else if (f.editable) {
-            const input = document.createElement("input");
-            input.type = "text";
-            input.className = "detail-field-input";
-            input.value = f.value || "";
-            input.onchange = () => {
-              window.api.updateInstallation(inst.id, { [f.id]: input.value });
-            };
-            row.appendChild(input);
-          } else {
-            const val = document.createElement("div");
-            val.className = "detail-field-value";
-            val.textContent = f.value;
-            row.appendChild(val);
-          }
-
-          fields.appendChild(row);
-        });
-        sec.appendChild(fields);
-      }
-
-      if (section.actions) {
-        const bar = document.createElement("div");
-        bar.className = "detail-actions";
-        section.actions.forEach((a) => {
-          const btn = document.createElement("button");
-          btn.textContent = a.label;
-          if (a.style === "primary") btn.className = "primary";
-          if (a.style === "danger") btn.className = "danger";
-          if (a.enabled === false && !a.disabledMessage) {
-            btn.disabled = true;
-          } else if (a.enabled === false && a.disabledMessage) {
-            btn.classList.add("looks-disabled");
-          }
-          btn.onclick = () => {
-            if (a.enabled === false && a.disabledMessage) {
-              window.Launcher.modal.alert({ title: a.label, message: a.disabledMessage });
-              return;
-            }
-            this._runAction(a);
-          };
-          bar.appendChild(btn);
-        });
-        sec.appendChild(bar);
-      }
-
-      container.appendChild(sec);
+      container.appendChild(this._renderSection(section, inst));
     });
 
     showView("detail");
     document.getElementById("detail-sections").scrollTop = 0;
   },
 
-  async _runAction(action) {
+  _renderSection(section, inst) {
+    const sec = document.createElement("div");
+    sec.className = "detail-section";
+    if (section.title) sec.dataset.sectionTitle = section.title;
+
+    if (section.title) {
+      const title = document.createElement("div");
+      title.className = "detail-section-title";
+      title.textContent = section.title;
+      sec.appendChild(title);
+    }
+
+    if (section.description) {
+      const desc = document.createElement("div");
+      desc.className = "detail-section-desc";
+      desc.textContent = section.description;
+      sec.appendChild(desc);
+    }
+
+    if (section.items) {
+      const list = document.createElement("div");
+      list.className = "detail-item-list";
+      section.items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "detail-item" + (item.active ? " active" : "");
+        const label = document.createElement("div");
+        label.className = "detail-item-label";
+        label.textContent = item.label + (item.active ? " (active)" : "");
+        row.appendChild(label);
+        if (item.actions) {
+          const bar = document.createElement("div");
+          bar.className = "detail-item-actions";
+          item.actions.forEach((a) => {
+            const btn = document.createElement("button");
+            btn.textContent = a.label;
+            if (a.style === "danger") btn.className = "danger";
+            if (a.enabled === false && !a.disabledMessage) {
+              btn.disabled = true;
+            } else if (a.enabled === false && a.disabledMessage) {
+              btn.classList.add("looks-disabled");
+            }
+            btn.onclick = () => {
+              if (a.enabled === false && a.disabledMessage) {
+                window.Launcher.modal.alert({ title: a.label, message: a.disabledMessage });
+                return;
+              }
+              this._runAction(a, btn);
+            };
+            bar.appendChild(btn);
+          });
+          row.appendChild(bar);
+        }
+        list.appendChild(row);
+      });
+      sec.appendChild(list);
+    }
+
+    if (section.fields) {
+      const fields = document.createElement("div");
+      fields.className = "detail-fields";
+      section.fields.forEach((f) => {
+        const row = document.createElement("div");
+        const label = document.createElement("div");
+        label.className = "detail-field-label";
+        label.textContent = f.label;
+        row.appendChild(label);
+
+        if (f.editable && f.editType === "select") {
+          const select = document.createElement("select");
+          select.className = "detail-field-input";
+          f.options.forEach((opt) => {
+            const el = document.createElement("option");
+            el.value = opt.value;
+            el.textContent = opt.label;
+            if (opt.value === f.value) el.selected = true;
+            select.appendChild(el);
+          });
+          select.onchange = async () => {
+            await window.api.updateInstallation(inst.id, { [f.id]: select.value });
+            inst[f.id] = select.value;
+            if (f.id === "updateTrack") {
+              this._refreshSection(section.title, inst);
+            }
+          };
+          row.appendChild(select);
+        } else if (f.editable) {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "detail-field-input";
+          input.value = f.value || "";
+          input.onchange = () => {
+            window.api.updateInstallation(inst.id, { [f.id]: input.value });
+          };
+          row.appendChild(input);
+        } else {
+          const val = document.createElement("div");
+          val.className = "detail-field-value";
+          val.textContent = f.value;
+          row.appendChild(val);
+        }
+
+        fields.appendChild(row);
+      });
+      sec.appendChild(fields);
+    }
+
+    if (section.actions) {
+      const bar = document.createElement("div");
+      bar.className = "detail-actions";
+      section.actions.forEach((a) => {
+        const btn = document.createElement("button");
+        btn.textContent = a.label;
+        if (a.style === "primary") btn.className = "primary";
+        if (a.style === "danger") btn.className = "danger";
+        if (a.enabled === false && !a.disabledMessage) {
+          btn.disabled = true;
+        } else if (a.enabled === false && a.disabledMessage) {
+          btn.classList.add("looks-disabled");
+        }
+        btn.onclick = () => {
+          if (a.enabled === false && a.disabledMessage) {
+            window.Launcher.modal.alert({ title: a.label, message: a.disabledMessage });
+            return;
+          }
+          this._runAction(a, btn);
+        };
+        bar.appendChild(btn);
+      });
+      sec.appendChild(bar);
+    }
+
+    return sec;
+  },
+
+  async _refreshSection(sectionTitle, inst) {
+    const container = document.getElementById("detail-sections");
+    const existing = container.querySelector(`[data-section-title="${sectionTitle}"]`);
+    if (!existing) return;
+    const sections = await window.api.getDetailSections(inst.id);
+    const updated = sections.find((s) => s.title === sectionTitle);
+    if (!updated) return;
+    const newEl = this._renderSection(updated, inst);
+    existing.replaceWith(newEl);
+  },
+
+  async _refreshAllSections(inst) {
+    // Re-fetch the installation so inst stays current after persisted changes
+    const all = await window.api.getInstallations();
+    const fresh = all.find((i) => i.id === inst.id);
+    if (fresh) Object.assign(inst, fresh);
+
+    const container = document.getElementById("detail-sections");
+    const sections = await window.api.getDetailSections(inst.id);
+    for (const section of sections) {
+      if (!section.title) continue;
+      const existing = container.querySelector(`[data-section-title="${section.title}"]`);
+      if (existing) {
+        existing.replaceWith(this._renderSection(section, inst));
+      }
+    }
+  },
+
+  async _runAction(action, btn) {
     if (!this._current) return;
     const { showView, list, modal } = window.Launcher;
 
@@ -242,15 +279,30 @@ window.Launcher.detail = {
       return;
     }
 
-    const result = await window.api.runAction(this._current.id, action.id, action.data);
+    // Show inline loading state on the button
+    let savedLabel;
+    if (btn) {
+      savedLabel = btn.textContent;
+      btn.disabled = true;
+      btn.classList.add("loading");
+    }
+
+    let result;
+    try {
+      result = await window.api.runAction(this._current.id, action.id, action.data);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove("loading");
+        btn.textContent = savedLabel;
+      }
+    }
+
     if (result.navigate === "list") {
       showView("list");
       list.render();
     } else if (result.navigate === "detail") {
-      const scrollEl = document.getElementById("detail-sections");
-      const scrollY = scrollEl ? scrollEl.scrollTop : 0;
-      await this.show(this._current);
-      if (scrollEl) scrollEl.scrollTop = scrollY;
+      await this._refreshAllSections(this._current);
     } else if (result.message) {
       await modal.alert({ title: action.label, message: result.message });
     }
