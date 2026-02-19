@@ -49,18 +49,22 @@ function createLauncherWindow() {
   });
 }
 
-function createTray() {
-  if (tray) return;
-
-  tray = new Tray(path.join(__dirname, "assets", "Comfy_Logo_x32.png"));
-  tray.setToolTip("ComfyUI Launcher");
-
+function updateTrayMenu() {
+  if (!tray) return;
   const contextMenu = Menu.buildFromTemplate([
     { label: i18n.t("tray.showLauncher"), click: () => showLauncher() },
     { type: "separator" },
     { label: i18n.t("tray.quit"), click: () => quitApp() },
   ]);
   tray.setContextMenu(contextMenu);
+}
+
+function createTray() {
+  if (tray) return;
+
+  tray = new Tray(path.join(__dirname, "assets", "Comfy_Logo_x32.png"));
+  tray.setToolTip("ComfyUI Launcher");
+  updateTrayMenu();
   tray.on("double-click", () => showLauncher());
 }
 
@@ -249,7 +253,7 @@ app.whenReady().then(() => {
 
   const locale = settings.get("language") || app.getLocale().split("-")[0];
   i18n.init(locale);
-  ipc.register({ onLaunch, onStop, onComfyExited: onComfyExited, onComfyRestarted: onComfyRestarted });
+  ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu });
   updater.register();
   createTray();
   createLauncherWindow();

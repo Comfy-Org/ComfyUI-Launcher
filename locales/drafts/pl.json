@@ -270,6 +270,8 @@
     "noLaunchSupport": "To źródło nie obsługuje jeszcze uruchamiania.",
     "noEnvFound": "Nie można uruchomić: nie znaleziono środowiska Python. Najpierw je utwórz.",
     "alreadyRunning": "ComfyUI jest już uruchomione. Zatrzymaj je przed ponownym uruchomieniem.",
+    "installDirEmpty": "Folder instalacji nie istnieje lub jest pusty. Usuń tę instalację i zainstaluj ponownie.",
+    "installNotReady": "Ta instalacja nie jest gotowa do uruchomienia. Może być w trakcie instalacji lub instalacja mogła się nie powieść.",
     "cannotAdd": "Nie można dodać",
     "dirNotExist": "Katalog nie istnieje: {path}",
     "cannotOpenDir": "Nie można otworzyć katalogu: {error}",

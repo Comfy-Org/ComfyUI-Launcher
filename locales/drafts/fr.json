@@ -270,6 +270,8 @@
     "noLaunchSupport": "Cette source ne prend pas encore en charge le lancement.",
     "noEnvFound": "Impossible de lancer : aucun environnement Python trouvé. Créez-en un d'abord.",
     "alreadyRunning": "ComfyUI est déjà en cours d'exécution. Arrêtez-le avant de relancer.",
+    "installDirEmpty": "Le dossier d'installation est manquant ou vide. Supprimez cette installation et réinstallez.",
+    "installNotReady": "Cette installation n'est pas prête à être lancée. L'installation est peut-être en cours ou a échoué.",
     "cannotAdd": "Impossible d'ajouter",
     "dirNotExist": "Le répertoire n'existe pas : {path}",
     "cannotOpenDir": "Impossible d'ouvrir le répertoire : {error}",

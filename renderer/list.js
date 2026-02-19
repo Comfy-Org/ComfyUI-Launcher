@@ -143,8 +143,16 @@ window.Launcher.list = {
           btn.textContent = a.label;
           if (a.style === "primary") btn.className = "primary";
           if (a.style === "danger") btn.className = "danger";
-          btn.disabled = a.enabled === false;
+          if (a.enabled === false && !a.disabledMessage) {
+            btn.disabled = true;
+          } else if (a.enabled === false && a.disabledMessage) {
+            btn.classList.add("looks-disabled");
+          }
           btn.onclick = async () => {
+            if (a.enabled === false && a.disabledMessage) {
+              await window.Launcher.modal.alert({ title: a.label, message: a.disabledMessage });
+              return;
+            }
             if (inst.seen === false) {
               inst.seen = true;
               window.api.updateInstallation(inst.id, { seen: true });

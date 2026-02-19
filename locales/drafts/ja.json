@@ -270,6 +270,8 @@
     "noLaunchSupport": "このソースはまだ起動をサポートしていません。",
     "noEnvFound": "起動できません: Python 環境が見つかりません。先に作成してください。",
     "alreadyRunning": "ComfyUI はすでに実行中です。再起動する前に停止してください。",
+    "installDirEmpty": "インストールフォルダが見つからないか空です。このインストールを削除して再インストールしてください。",
+    "installNotReady": "このインストールはまだ起動できません。インストール中またはインストールに失敗した可能性があります。",
     "cannotAdd": "追加できません",
     "dirNotExist": "ディレクトリが存在しません: {path}",
     "cannotOpenDir": "ディレクトリを開けませんでした: {error}",

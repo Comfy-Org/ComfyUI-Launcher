@@ -272,6 +272,7 @@ module.exports = {
     const installed = installation.status === "installed";
     return [
       { id: "launch", label: t("actions.launch"), style: "primary", enabled: installed,
+        ...(!installed && { disabledMessage: t("errors.installNotReady") }),
         showProgress: true, progressTitle: t("common.startingComfyUI"), cancellable: true },
     ];
   },
@@ -344,6 +345,7 @@ module.exports = {
         title: "Actions",
         actions: [
           { id: "launch", label: t("actions.launch"), style: "primary", enabled: installed,
+            ...(!installed && { disabledMessage: t("errors.installNotReady") }),
             showProgress: true, progressTitle: t("common.startingComfyUI"), cancellable: true },
           { id: "open-folder", label: t("actions.openDirectory"), style: "default", enabled: !!installation.installPath },
           { id: "check-update", label: t("actions.checkForUpdate"), style: "default", enabled: false, disabledMessage: t("actions.featureNotImplemented") },
