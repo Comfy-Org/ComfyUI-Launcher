@@ -288,7 +288,14 @@
     "restoreComparingNodes": "Comparing custom nodes…",
     "undoLastUpdate": "Undo Last Update",
     "undoLastUpdateTitle": "Undo Last Update",
-    "undoLastUpdateMessage": "Restore pip packages from the auto-snapshot taken before the last update ({snapshot}).\n\nThis will install the old package versions into the current environment. Custom node differences will be reported."
+    "undoLastUpdateMessage": "Restore pip packages from the auto-snapshot taken before the last update ({snapshot}).\n\nSoft restore installs the old package versions but does not remove packages added by the update. Clean restore creates a fresh environment with exactly the snapshot's packages.",
+    "compareSnapshot": "Compare…",
+    "compareSnapshotTitle": "Compare Snapshots",
+    "compareSnapshotMessage": "Select a snapshot to compare with.",
+    "compareWith": "Compare With",
+    "updateEnvRetry": "Environment setup failed, retrying…",
+    "updateEnvFailed": "Update applied but environment setup failed.",
+    "updateEnvPartial": "Update completed but environment was recreated without full package copy. Some packages may need to be reinstalled."
   },
 
   "portable": {

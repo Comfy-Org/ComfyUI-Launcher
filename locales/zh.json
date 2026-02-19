@@ -287,7 +287,14 @@
     "restoreComparingNodes": "正在比较自定义节点…",
     "undoLastUpdate": "撤销上次更新",
     "undoLastUpdateTitle": "撤销上次更新",
-    "undoLastUpdateMessage": "从上次更新前自动保存的快照 ({snapshot}) 恢复 pip 包。\n\n这将把旧版本的包安装到当前环境中。自定义节点的差异将被报告。"
+    "undoLastUpdateMessage": "从上次更新前自动保存的快照 ({snapshot}) 恢复 pip 包。\n\n软恢复会安装旧版本的包，但不会移除更新新增的包。干净恢复会创建一个全新的环境，仅包含快照中的包。",
+    "compareSnapshot": "比较…",
+    "compareSnapshotTitle": "比较快照",
+    "compareSnapshotMessage": "选择要比较的快照。",
+    "compareWith": "比较对象",
+    "updateEnvRetry": "环境设置失败，正在重试…",
+    "updateEnvFailed": "更新已应用，但环境设置失败。",
+    "updateEnvPartial": "更新完成，但环境重建时未完整复制包。某些包可能需要重新安装。"
   },
 
   "portable": {

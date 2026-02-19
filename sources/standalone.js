@@ -330,6 +330,51 @@ function sendRestoreSummary(sendOutput, snapshot, nodeDiff, packageCount) {
 }
 
 /**
+ * Perform a soft restore: install snapshot pip packages into an existing env,
+ * then compare custom nodes and send a summary.
+ */
+async function performSoftRestore(installPath, envName, snapshot, { sendProgress, sendOutput }) {
+  sendProgress("pip", { percent: -1, status: t("standalone.restoreInstallingPackages") });
+  const packages = buildRestorePackageList(snapshot.pipPackages, sendOutput);
+  if (packages.length > 0) {
+    const uvPath = getUvPath(installPath);
+    const pythonPath = getEnvPythonPath(installPath, envName);
+    try {
+      await pipInstallFromList(uvPath, pythonPath, packages);
+    } catch (err) {
+      if (sendOutput) sendOutput(`\n⚠ Package installation failed: ${err.message}\n`);
+      if (sendOutput) sendOutput(`The environment may be in a partially updated state. Consider using "Clean restore" to create a fresh environment.\n`);
+      throw err;
+    }
+  }
+
+  sendProgress("nodes", { percent: -1, status: t("standalone.restoreComparingNodes") });
+  const currentNodes = await scanCustomNodes(installPath).catch(() => []);
+  const nodeDiff = diffCustomNodes(snapshot.customNodes || [], currentNodes);
+  sendRestoreSummary(sendOutput, snapshot, nodeDiff, packages.length);
+}
+
+/**
+ * Move preserved directories back into a target ComfyUI directory.
+ * Returns an array of directories that failed to restore.
+ */
+async function restorePreservedDirs(preservedTmp, targetDir) {
+  const failed = [];
+  for (const dir of PRESERVED_DIRS) {
+    const src = path.join(preservedTmp, dir);
+    if (!fs.existsSync(src)) continue;
+    const dest = path.join(targetDir, dir);
+    try {
+      await fs.promises.rm(dest, { recursive: true, force: true }).catch(() => {});
+      await fs.promises.rename(src, dest);
+    } catch (err) {
+      failed.push({ dir, src, error: err.message });
+    }
+  }
+  return failed;
+}
+
+/**
  * Format a snapshot diff for display via sendOutput.
  */
 function formatSnapshotDiff(snapshotA, snapshotB, diff) {
@@ -479,7 +524,7 @@ const standaloneSource = {
       ],
     }));
 
-    const snapshotItems = snapshots.map((s) => ({
+    const snapshotItems = snapshots.map((s, idx) => ({
       label: `${s.label}  ·  ${new Date(s.createdAt).toLocaleString()}`,
       sublabel: t("standalone.snapshotSublabel", { nodes: s.nodeCount, packages: s.packageCount }),
       actions: [
@@ -496,6 +541,23 @@ const standaloneSource = {
               ] },
             ],
           } },
+        ...(snapshots.length > 1 ? [{
+          id: "snapshot-diff", label: t("standalone.compareSnapshot"), style: "default",
+          data: { fileA: s.filename },
+          confirm: {
+            title: t("standalone.compareSnapshotTitle"),
+            message: t("standalone.compareSnapshotMessage"),
+            fields: [
+              { id: "fileB", label: t("standalone.compareWith"), editType: "select",
+                value: snapshots[idx === 0 ? 1 : 0].filename,
+                options: snapshots.filter((o) => o.filename !== s.filename).map((o) => ({
+                  value: o.filename,
+                  label: `${o.label}  ·  ${new Date(o.createdAt).toLocaleString()}`,
+                })),
+              },
+            ],
+          },
+        }] : []),
         { id: "snapshot-delete", label: t("common.delete"), style: "danger",
           data: { file: s.filename },
           confirm: { title: t("standalone.deleteSnapshotConfirmTitle"), message: t("standalone.deleteSnapshotConfirmMessage") } },
@@ -592,6 +654,12 @@ const standaloneSource = {
             confirm: {
               title: t("standalone.undoLastUpdateTitle"),
               message: t("standalone.undoLastUpdateMessage", { snapshot: undoSnapshot }),
+              fields: [
+                { id: "mode", label: t("standalone.restoreMode"), editType: "select", value: "soft", options: [
+                  { value: "soft", label: t("standalone.restoreModeSoft") },
+                  { value: "clean", label: t("standalone.restoreModeClean") },
+                ] },
+              ],
             },
           });
         }
@@ -902,25 +970,20 @@ const standaloneSource = {
             // Restore backup
             await fs.promises.rename(bakComfyUI, oldComfyUI).catch(() => {});
             // Restore preserved dirs back into the restored ComfyUI/
-            for (const dir of PRESERVED_DIRS) {
-              const src = path.join(preservedTmp, dir);
-              if (fs.existsSync(src)) {
-                const dest = path.join(oldComfyUI, dir);
-                await fs.promises.rm(dest, { recursive: true, force: true }).catch(() => {});
-                await fs.promises.rename(src, dest).catch(() => {});
-              }
+            const rollbackFailed = await restorePreservedDirs(preservedTmp, oldComfyUI);
+            if (rollbackFailed.length > 0) {
+              const dirs = rollbackFailed.map((f) => f.dir).join(", ");
+              throw new Error(`Failed to apply ComfyUI update: ${swapErr.message}\n\nAdditionally, some user data could not be restored automatically: ${dirs}\nYour data is preserved in: ${preservedTmp}\nPlease move these directories back into ComfyUI/ manually.`);
             }
             await fs.promises.rm(preservedTmp, { recursive: true, force: true }).catch(() => {});
             throw new Error(`Failed to apply ComfyUI update: ${swapErr.message}`);
           }
           // Restore preserved dirs into the new ComfyUI/
-          for (const dir of PRESERVED_DIRS) {
-            const src = path.join(preservedTmp, dir);
-            if (fs.existsSync(src)) {
-              const dest = path.join(oldComfyUI, dir);
-              await fs.promises.rm(dest, { recursive: true, force: true }).catch(() => {});
-              await fs.promises.rename(src, dest);
-            }
+          const restoreFailed = await restorePreservedDirs(preservedTmp, oldComfyUI);
+          if (restoreFailed.length > 0) {
+            const dirs = restoreFailed.map((f) => f.dir).join(", ");
+            // Don't delete preservedTmp — user data is still in there
+            throw new Error(`Update applied but some user data could not be moved: ${dirs}\nYour data is preserved in: ${preservedTmp}\nPlease move these directories into ComfyUI/ manually.`);
           }
           await fs.promises.rm(preservedTmp, { recursive: true, force: true }).catch(() => {});
           await fs.promises.rm(bakComfyUI, { recursive: true, force: true }).catch(() => {});
@@ -938,12 +1001,45 @@ const standaloneSource = {
         sendProgress("setup", { percent: 0, status: t("standalone.updateRecreatingEnv") });
         const envPath = path.join(installPath, ENVS_DIR, envName);
         await fs.promises.rm(envPath, { recursive: true, force: true }).catch(() => {});
-        await createEnv(installPath, envName, (copied, total, elapsedSecs, etaSecs) => {
-          const percent = Math.round((copied / total) * 100);
-          const elapsed = formatTime(elapsedSecs);
-          const eta = etaSecs >= 0 ? formatTime(etaSecs) : "—";
-          sendProgress("setup", { percent, status: `${t("standalone.updateCopyingPackages")} ${copied} / ${total}  ·  ${elapsed} elapsed  ·  ${eta} remaining` });
-        });
+        let envCreateFailed = false;
+        try {
+          await createEnv(installPath, envName, (copied, total, elapsedSecs, etaSecs) => {
+            const percent = Math.round((copied / total) * 100);
+            const elapsed = formatTime(elapsedSecs);
+            const eta = etaSecs >= 0 ? formatTime(etaSecs) : "—";
+            sendProgress("setup", { percent, status: `${t("standalone.updateCopyingPackages")} ${copied} / ${total}  ·  ${elapsed} elapsed  ·  ${eta} remaining` });
+          });
+        } catch (envErr) {
+          envCreateFailed = true;
+          console.error("Env recreation failed, attempting recovery:", envErr.message);
+          // Code and standalone-env are updated successfully, but the venv is broken.
+          // Try creating a minimal env so the install is at least launchable.
+          sendProgress("setup", { percent: -1, status: t("standalone.updateEnvRetry") });
+          try {
+            await fs.promises.rm(envPath, { recursive: true, force: true }).catch(() => {});
+            await createEnv(installPath, envName);
+          } catch (retryErr) {
+            // Update metadata so the user sees the install was partially updated
+            const newManifestData = JSON.parse(await fs.promises.readFile(path.join(installPath, MANIFEST_FILE), "utf-8").catch(() => "{}"));
+            await update({
+              version: newManifestData.comfyui_ref || trackInfo.latestTag,
+              releaseTag: ghRelease.tag_name,
+              pythonVersion: newManifestData.python_version || installation.pythonVersion,
+              updateInfoByTrack: {
+                ...existing,
+                [track]: {
+                  ...trackInfo,
+                  available: false,
+                  installedTag: ghRelease.tag_name,
+                  checkedAt: Date.now(),
+                  lastError: t("standalone.updateEnvFailed"),
+                  lastErrorAt: Date.now(),
+                },
+              },
+            }).catch(() => {});
+            throw new Error(t("standalone.updateEnvFailed") + ` ${retryErr.message}`);
+          }
+        }
 
         // Update installation metadata
         const newManifestData = JSON.parse(await fs.promises.readFile(path.join(installPath, MANIFEST_FILE), "utf-8").catch(() => "{}"));
@@ -959,6 +1055,7 @@ const standaloneSource = {
               installedTag: ghRelease.tag_name,
               checkedAt: Date.now(),
               snapshotFailed: undefined,
+              ...(envCreateFailed ? { lastError: t("standalone.updateEnvPartial"), lastErrorAt: Date.now() } : { lastError: undefined, lastErrorAt: undefined }),
             },
           },
         });
@@ -990,23 +1087,39 @@ const standaloneSource = {
       await saveSnapshot(installation.installPath, envName, label, { getUvPath, getEnvPythonPath });
       return { ok: true, navigate: "detail" };
     }
-    if (actionId === "snapshot-restore") {
-      const filename = actionData?.file;
-      if (!filename) return { ok: false, message: "No snapshot file specified." };
-      const mode = actionData?.mode || "soft";
+    if (actionId === "snapshot-restore" || actionId === "undo-last-update") {
       const installPath = installation.installPath;
-      const snapshotPath = path.join(installPath, ".launcher", "snapshots", path.basename(filename));
+      const envName = resolveActiveEnv(installation) || DEFAULT_ENV;
+      let mode, snapshotPath;
+
+      if (actionId === "undo-last-update") {
+        mode = actionData?.mode || "soft";
+        const snapshotFile = installation.envSnapshots && installation.envSnapshots[envName];
+        if (!snapshotFile) {
+          return { ok: false, message: "No auto-snapshot found for the active environment." };
+        }
+        snapshotPath = path.join(installPath, ".launcher", "snapshots", path.basename(snapshotFile));
+        try {
+          await fs.promises.access(snapshotPath);
+        } catch {
+          return { ok: false, message: "Auto-snapshot file not found on disk." };
+        }
+      } else {
+        const filename = actionData?.file;
+        if (!filename) return { ok: false, message: "No snapshot file specified." };
+        mode = actionData?.mode || "soft";
+        snapshotPath = path.join(installPath, ".launcher", "snapshots", path.basename(filename));
+      }
 
       const snapshot = await loadSnapshot(snapshotPath);
       if (!snapshot || !snapshot.pipPackages) {
         return { ok: false, message: "Invalid or corrupt snapshot file." };
       }
 
-      const envName = resolveActiveEnv(installation) || DEFAULT_ENV;
-
       if (mode === "clean") {
         // Clean restore: create new env from master, then apply snapshot packages
-        const newEnvName = `restored-${path.basename(filename, ".json").slice(0, 30)}`;
+        const baseName = path.basename(snapshotPath, ".json").slice(0, 30);
+        const newEnvName = `restored-${baseName}`;
 
         sendProgress("steps", { steps: [
           { phase: "snapshot", label: t("standalone.snapshots") },
@@ -1034,20 +1147,8 @@ const standaloneSource = {
           sendProgress("create-env", { percent, status: `${t("standalone.updateCopyingPackages")} ${copied} / ${total}  ·  ${elapsed} elapsed  ·  ${eta} remaining` });
         });
 
-        // Install snapshot packages into new env
-        sendProgress("pip", { percent: -1, status: t("standalone.restoreInstallingPackages") });
-        const packages = buildRestorePackageList(snapshot.pipPackages, sendOutput);
-        if (packages.length > 0) {
-          const uvPath = getUvPath(installPath);
-          const pythonPath = getEnvPythonPath(installPath, newEnvName);
-          await pipInstallFromList(uvPath, pythonPath, packages);
-        }
-
-        // Compare custom nodes
-        sendProgress("nodes", { percent: -1, status: t("standalone.restoreComparingNodes") });
-        const currentNodes = await scanCustomNodes(installPath).catch(() => []);
-        const nodeDiff = diffCustomNodes(snapshot.customNodes || [], currentNodes);
-        sendRestoreSummary(sendOutput, snapshot, nodeDiff, packages.length);
+        // Install snapshot packages + compare nodes (reuses performSoftRestore)
+        await performSoftRestore(installPath, newEnvName, snapshot, { sendProgress, sendOutput });
 
         // Activate the new env
         const envMethods = { ...(installation.envMethods || {}), [newEnvName]: ENV_METHOD };
@@ -1071,60 +1172,7 @@ const standaloneSource = {
         console.error("Pre-restore snapshot failed:", err.message);
       }
 
-      // Install snapshot packages
-      sendProgress("pip", { percent: -1, status: t("standalone.restoreInstallingPackages") });
-      const packages = buildRestorePackageList(snapshot.pipPackages, sendOutput);
-      if (packages.length > 0) {
-        const uvPath = getUvPath(installPath);
-        const pythonPath = getEnvPythonPath(installPath, envName);
-        await pipInstallFromList(uvPath, pythonPath, packages);
-      }
-
-      // Compare custom nodes
-      sendProgress("nodes", { percent: -1, status: t("standalone.restoreComparingNodes") });
-      const currentNodes = await scanCustomNodes(installPath).catch(() => []);
-      const nodeDiff = diffCustomNodes(snapshot.customNodes || [], currentNodes);
-      sendRestoreSummary(sendOutput, snapshot, nodeDiff, packages.length);
-
-      return { ok: true, navigate: "detail" };
-    }
-    if (actionId === "undo-last-update") {
-      const envName = resolveActiveEnv(installation) || DEFAULT_ENV;
-      const snapshotFile = installation.envSnapshots && installation.envSnapshots[envName];
-      if (!snapshotFile) {
-        return { ok: false, message: "No auto-snapshot found for the active environment." };
-      }
-      const installPath = installation.installPath;
-      const snapshotPath = path.join(installPath, ".launcher", "snapshots", path.basename(snapshotFile));
-      try {
-        await fs.promises.access(snapshotPath);
-      } catch {
-        return { ok: false, message: "Auto-snapshot file not found on disk." };
-      }
-
-      // Delegate to the soft restore flow
-      const snapshot = await loadSnapshot(snapshotPath);
-      if (!snapshot || !snapshot.pipPackages) {
-        return { ok: false, message: "Invalid or corrupt snapshot file." };
-      }
-
-      sendProgress("steps", { steps: [
-        { phase: "pip", label: t("standalone.restorePip") },
-        { phase: "nodes", label: t("standalone.customNodes") },
-      ] });
-
-      sendProgress("pip", { percent: -1, status: t("standalone.restoreInstallingPackages") });
-      const packages = buildRestorePackageList(snapshot.pipPackages, sendOutput);
-      if (packages.length > 0) {
-        const uvPath = getUvPath(installPath);
-        const pythonPath = getEnvPythonPath(installPath, envName);
-        await pipInstallFromList(uvPath, pythonPath, packages);
-      }
-
-      sendProgress("nodes", { percent: -1, status: t("standalone.restoreComparingNodes") });
-      const currentNodes = await scanCustomNodes(installPath).catch(() => []);
-      const nodeDiff = diffCustomNodes(snapshot.customNodes || [], currentNodes);
-      sendRestoreSummary(sendOutput, snapshot, nodeDiff, packages.length);
+      await performSoftRestore(installPath, envName, snapshot, { sendProgress, sendOutput });
 
       return { ok: true, navigate: "detail" };
     }
