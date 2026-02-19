@@ -303,24 +303,28 @@ const standaloneSource = {
     let snapshots = [];
     if (installed && installation.installPath) {
       [nodes, snapshots] = await Promise.all([
-        scanCustomNodes(installation.installPath).catch(() => []),
-        listSnapshots(installation.installPath).catch(() => []),
+        scanCustomNodes(installation.installPath).catch((err) => { console.error("Failed to scan custom nodes:", err.message); return []; }),
+        listSnapshots(installation.installPath).catch((err) => { console.error("Failed to list snapshots:", err.message); return []; }),
       ]);
     }
 
+    const nodeTypeLabels = { cnr: "CNR", git: "Git", file: t("standalone.nodeTypeFile"), unknown: t("standalone.nodeTypeUnknown") };
     const nodeItems = nodes.map((node) => ({
       label: node.id,
       badges: [
-        { text: node.type, style: node.type === "cnr" ? "info" : "default" },
+        { text: nodeTypeLabels[node.type] || node.type, style: node.type === "cnr" ? "info" : "default" },
         { text: node.version || (node.commit ? node.commit.slice(0, 7) : "—") },
-        ...(!node.enabled ? [{ text: "disabled", style: "muted" }] : []),
+        ...(!node.enabled ? [{ text: t("standalone.nodeDisabled"), style: "muted" }] : []),
       ],
     }));
 
     const snapshotItems = snapshots.map((s) => ({
       label: `${s.label}  ·  ${new Date(s.createdAt).toLocaleString()}`,
-      sublabel: `${s.nodeCount} nodes  ·  ${s.packageCount} packages`,
+      sublabel: t("standalone.snapshotSublabel", { nodes: s.nodeCount, packages: s.packageCount }),
       actions: [
+        { id: "snapshot-restore", label: t("standalone.restoreSnapshot"), style: "default",
+          enabled: false, disabledMessage: t("actions.featureNotImplemented"),
+          data: { file: s.filename } },
         { id: "snapshot-delete", label: t("common.delete"), style: "danger",
           data: { file: s.filename },
           confirm: { title: t("standalone.deleteSnapshotConfirmTitle"), message: t("standalone.deleteSnapshotConfirmMessage") } },
@@ -529,7 +533,7 @@ const standaloneSource = {
     if (actionId === "snapshot-delete") {
       const filename = actionData?.file;
       if (!filename) return { ok: false, message: "No snapshot file specified." };
-      await deleteSnapshot(installation.installPath, filename);
+      await deleteSnapshot(installation.installPath, path.basename(filename));
       return { ok: true, navigate: "detail" };
     }
     return { ok: false, message: `Action "${actionId}" not yet implemented.` };
