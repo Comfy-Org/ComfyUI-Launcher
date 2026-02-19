@@ -7,7 +7,8 @@ const { deleteDir } = require("../lib/delete");
 const { parseArgs, formatTime } = require("../lib/util");
 const { t } = require("../lib/i18n");
 const { scanCustomNodes } = require("../lib/nodes");
-const { saveSnapshot, listSnapshots, deleteSnapshot } = require("../lib/snapshots");
+const { saveSnapshot, loadSnapshot, listSnapshots, deleteSnapshot, diffCustomNodes, diffSnapshots } = require("../lib/snapshots");
+const { pipInstallFromList } = require("../lib/pip");
 
 const RELEASE_REPO = "Kosinkadink/ComfyUI-Launcher-Environments";
 const COMFYUI_REPO = "Comfy-Org/ComfyUI";
@@ -281,6 +282,89 @@ function truncateNotes(text, maxLen) {
   return text.slice(0, maxLen) + "\n\n… (truncated)";
 }
 
+/**
+ * Build a list of pip package specs from snapshot data for restore.
+ * Skips nonstandard entries (editable installs, URL-based) and logs warnings.
+ */
+function buildRestorePackageList(pipPackages, sendOutput) {
+  const packages = [];
+  for (const [name, version] of Object.entries(pipPackages)) {
+    // Skip URL-based or editable installs — can't reliably reinstall
+    if (version.includes("://") || version.startsWith("/") || version.startsWith(".")) {
+      if (sendOutput) sendOutput(`⚠ Skipped nonstandard package: ${name} @ ${version}\n`);
+      continue;
+    }
+    packages.push(`${name}==${version}`);
+  }
+  return packages;
+}
+
+/**
+ * Send a summary of a restore operation via sendOutput.
+ */
+function sendRestoreSummary(sendOutput, snapshot, nodeDiff, packageCount) {
+  if (!sendOutput) return;
+  const lines = [`\n── Restore Summary ──\n`];
+  lines.push(`Snapshot: ${snapshot.label} (${snapshot.createdAt})`);
+  lines.push(`Packages restored: ${packageCount}`);
+  if (nodeDiff.added.length > 0) {
+    lines.push(`\nCustom nodes added since snapshot (${nodeDiff.added.length}):`);
+    for (const n of nodeDiff.added) lines.push(`  + ${n.id}`);
+  }
+  if (nodeDiff.removed.length > 0) {
+    lines.push(`\nCustom nodes removed since snapshot (${nodeDiff.removed.length}):`);
+    for (const n of nodeDiff.removed) lines.push(`  - ${n.id}`);
+  }
+  if (nodeDiff.changed.length > 0) {
+    lines.push(`\nCustom nodes changed since snapshot (${nodeDiff.changed.length}):`);
+    for (const c of nodeDiff.changed) {
+      const details = c.changes.map((ch) => `${ch.field}: ${ch.from} → ${ch.to}`).join(", ");
+      lines.push(`  ~ ${c.id} (${details})`);
+    }
+  }
+  if (nodeDiff.added.length === 0 && nodeDiff.removed.length === 0 && nodeDiff.changed.length === 0) {
+    lines.push(`\nCustom nodes: no changes since snapshot.`);
+  }
+  lines.push(``);
+  sendOutput(lines.join("\n"));
+}
+
+/**
+ * Format a snapshot diff for display via sendOutput.
+ */
+function formatSnapshotDiff(snapshotA, snapshotB, diff) {
+  const lines = [`\n── Snapshot Comparison ──\n`];
+  lines.push(`A: ${snapshotA.label} (${snapshotA.createdAt})`);
+  lines.push(`B: ${snapshotB.label} (${snapshotB.createdAt})\n`);
+
+  // Pip differences
+  const { pip, nodes } = diff;
+  if (pip.added.length === 0 && pip.removed.length === 0 && pip.changed.length === 0) {
+    lines.push(`Packages: identical`);
+  } else {
+    lines.push(`Package differences:`);
+    for (const p of pip.added) lines.push(`  + ${p.name}==${p.version}`);
+    for (const p of pip.removed) lines.push(`  - ${p.name}==${p.version}`);
+    for (const p of pip.changed) lines.push(`  ~ ${p.name}: ${p.from} → ${p.to}`);
+  }
+
+  // Node differences
+  if (nodes.added.length === 0 && nodes.removed.length === 0 && nodes.changed.length === 0) {
+    lines.push(`\nCustom nodes: identical`);
+  } else {
+    lines.push(`\nCustom node differences:`);
+    for (const n of nodes.added) lines.push(`  + ${n.id}`);
+    for (const n of nodes.removed) lines.push(`  - ${n.id}`);
+    for (const c of nodes.changed) {
+      const details = c.changes.map((ch) => `${ch.field}: ${ch.from} → ${ch.to}`).join(", ");
+      lines.push(`  ~ ${c.id} (${details})`);
+    }
+  }
+
+  lines.push(``);
+  return lines.join("\n");
+}
+
 const standaloneSource = {
   id: "standalone",
   get label() { return t("standalone.label"); },
@@ -400,8 +484,18 @@ const standaloneSource = {
       sublabel: t("standalone.snapshotSublabel", { nodes: s.nodeCount, packages: s.packageCount }),
       actions: [
         { id: "snapshot-restore", label: t("standalone.restoreSnapshot"), style: "default",
-          enabled: false, disabledMessage: t("actions.featureNotImplemented"),
-          data: { file: s.filename } },
+          enabled: installed && hasEnvs, data: { file: s.filename },
+          showProgress: true, progressTitle: t("standalone.restoringSnapshot"),
+          confirm: {
+            title: t("standalone.restoreSnapshotTitle"),
+            message: t("standalone.restoreSnapshotMessage"),
+            fields: [
+              { id: "mode", label: t("standalone.restoreMode"), editType: "select", value: "soft", options: [
+                { value: "soft", label: t("standalone.restoreModeSoft") },
+                { value: "clean", label: t("standalone.restoreModeClean") },
+              ] },
+            ],
+          } },
         { id: "snapshot-delete", label: t("common.delete"), style: "danger",
           data: { file: s.filename },
           confirm: { title: t("standalone.deleteSnapshotConfirmTitle"), message: t("standalone.deleteSnapshotConfirmMessage") } },
@@ -489,6 +583,18 @@ const standaloneSource = {
           { id: "check-update", label: t("actions.checkForUpdate"), style: "default", enabled: installed,
             showProgress: true, progressTitle: t("standalone.checkingForUpdate") },
         );
+        // "Undo last update" — enabled when an auto-snapshot exists for the active env
+        const undoSnapshot = installation.envSnapshots && installation.envSnapshots[activeEnv];
+        if (undoSnapshot) {
+          updateActions.push({
+            id: "undo-last-update", label: t("standalone.undoLastUpdate"), style: "default", enabled: installed,
+            showProgress: true, progressTitle: t("standalone.restoringSnapshot"),
+            confirm: {
+              title: t("standalone.undoLastUpdateTitle"),
+              message: t("standalone.undoLastUpdateMessage", { snapshot: undoSnapshot }),
+            },
+          });
+        }
         return { title: t("standalone.updates"), fields: updateFields, actions: updateActions };
       })(),
       {
@@ -884,11 +990,161 @@ const standaloneSource = {
       await saveSnapshot(installation.installPath, envName, label, { getUvPath, getEnvPythonPath });
       return { ok: true, navigate: "detail" };
     }
+    if (actionId === "snapshot-restore") {
+      const filename = actionData?.file;
+      if (!filename) return { ok: false, message: "No snapshot file specified." };
+      const mode = actionData?.mode || "soft";
+      const installPath = installation.installPath;
+      const snapshotPath = path.join(installPath, ".launcher", "snapshots", path.basename(filename));
+
+      const snapshot = await loadSnapshot(snapshotPath);
+      if (!snapshot || !snapshot.pipPackages) {
+        return { ok: false, message: "Invalid or corrupt snapshot file." };
+      }
+
+      const envName = resolveActiveEnv(installation) || DEFAULT_ENV;
+
+      if (mode === "clean") {
+        // Clean restore: create new env from master, then apply snapshot packages
+        const newEnvName = `restored-${path.basename(filename, ".json").slice(0, 30)}`;
+
+        sendProgress("steps", { steps: [
+          { phase: "snapshot", label: t("standalone.snapshots") },
+          { phase: "create-env", label: t("standalone.pythonEnvs") },
+          { phase: "pip", label: t("standalone.restorePip") },
+          { phase: "nodes", label: t("standalone.customNodes") },
+        ] });
+
+        // Auto-snapshot current state first
+        sendProgress("snapshot", { percent: -1, status: t("standalone.snapshotSaving") });
+        try {
+          await saveSnapshot(installPath, envName, "auto-pre-restore", { getUvPath, getEnvPythonPath });
+        } catch (err) {
+          console.error("Pre-restore snapshot failed:", err.message);
+        }
+
+        // Create new env
+        sendProgress("create-env", { percent: 0, status: t("standalone.updateRecreatingEnv") });
+        const newEnvPath = path.join(installPath, ENVS_DIR, newEnvName);
+        await fs.promises.rm(newEnvPath, { recursive: true, force: true }).catch(() => {});
+        await createEnv(installPath, newEnvName, (copied, total, elapsedSecs, etaSecs) => {
+          const percent = Math.round((copied / total) * 100);
+          const elapsed = formatTime(elapsedSecs);
+          const eta = etaSecs >= 0 ? formatTime(etaSecs) : "—";
+          sendProgress("create-env", { percent, status: `${t("standalone.updateCopyingPackages")} ${copied} / ${total}  ·  ${elapsed} elapsed  ·  ${eta} remaining` });
+        });
+
+        // Install snapshot packages into new env
+        sendProgress("pip", { percent: -1, status: t("standalone.restoreInstallingPackages") });
+        const packages = buildRestorePackageList(snapshot.pipPackages, sendOutput);
+        if (packages.length > 0) {
+          const uvPath = getUvPath(installPath);
+          const pythonPath = getEnvPythonPath(installPath, newEnvName);
+          await pipInstallFromList(uvPath, pythonPath, packages);
+        }
+
+        // Compare custom nodes
+        sendProgress("nodes", { percent: -1, status: t("standalone.restoreComparingNodes") });
+        const currentNodes = await scanCustomNodes(installPath).catch(() => []);
+        const nodeDiff = diffCustomNodes(snapshot.customNodes || [], currentNodes);
+        sendRestoreSummary(sendOutput, snapshot, nodeDiff, packages.length);
+
+        // Activate the new env
+        const envMethods = { ...(installation.envMethods || {}), [newEnvName]: ENV_METHOD };
+        await update({ activeEnv: newEnvName, envMethods });
+
+        return { ok: true, navigate: "detail" };
+      }
+
+      // Soft restore: install snapshot packages into current env
+      sendProgress("steps", { steps: [
+        { phase: "snapshot", label: t("standalone.snapshots") },
+        { phase: "pip", label: t("standalone.restorePip") },
+        { phase: "nodes", label: t("standalone.customNodes") },
+      ] });
+
+      // Auto-snapshot current state first
+      sendProgress("snapshot", { percent: -1, status: t("standalone.snapshotSaving") });
+      try {
+        await saveSnapshot(installPath, envName, "auto-pre-restore", { getUvPath, getEnvPythonPath });
+      } catch (err) {
+        console.error("Pre-restore snapshot failed:", err.message);
+      }
+
+      // Install snapshot packages
+      sendProgress("pip", { percent: -1, status: t("standalone.restoreInstallingPackages") });
+      const packages = buildRestorePackageList(snapshot.pipPackages, sendOutput);
+      if (packages.length > 0) {
+        const uvPath = getUvPath(installPath);
+        const pythonPath = getEnvPythonPath(installPath, envName);
+        await pipInstallFromList(uvPath, pythonPath, packages);
+      }
+
+      // Compare custom nodes
+      sendProgress("nodes", { percent: -1, status: t("standalone.restoreComparingNodes") });
+      const currentNodes = await scanCustomNodes(installPath).catch(() => []);
+      const nodeDiff = diffCustomNodes(snapshot.customNodes || [], currentNodes);
+      sendRestoreSummary(sendOutput, snapshot, nodeDiff, packages.length);
+
+      return { ok: true, navigate: "detail" };
+    }
+    if (actionId === "undo-last-update") {
+      const envName = resolveActiveEnv(installation) || DEFAULT_ENV;
+      const snapshotFile = installation.envSnapshots && installation.envSnapshots[envName];
+      if (!snapshotFile) {
+        return { ok: false, message: "No auto-snapshot found for the active environment." };
+      }
+      const installPath = installation.installPath;
+      const snapshotPath = path.join(installPath, ".launcher", "snapshots", path.basename(snapshotFile));
+      try {
+        await fs.promises.access(snapshotPath);
+      } catch {
+        return { ok: false, message: "Auto-snapshot file not found on disk." };
+      }
+
+      // Delegate to the soft restore flow
+      const snapshot = await loadSnapshot(snapshotPath);
+      if (!snapshot || !snapshot.pipPackages) {
+        return { ok: false, message: "Invalid or corrupt snapshot file." };
+      }
+
+      sendProgress("steps", { steps: [
+        { phase: "pip", label: t("standalone.restorePip") },
+        { phase: "nodes", label: t("standalone.customNodes") },
+      ] });
+
+      sendProgress("pip", { percent: -1, status: t("standalone.restoreInstallingPackages") });
+      const packages = buildRestorePackageList(snapshot.pipPackages, sendOutput);
+      if (packages.length > 0) {
+        const uvPath = getUvPath(installPath);
+        const pythonPath = getEnvPythonPath(installPath, envName);
+        await pipInstallFromList(uvPath, pythonPath, packages);
+      }
+
+      sendProgress("nodes", { percent: -1, status: t("standalone.restoreComparingNodes") });
+      const currentNodes = await scanCustomNodes(installPath).catch(() => []);
+      const nodeDiff = diffCustomNodes(snapshot.customNodes || [], currentNodes);
+      sendRestoreSummary(sendOutput, snapshot, nodeDiff, packages.length);
+
+      return { ok: true, navigate: "detail" };
+    }
     if (actionId === "snapshot-delete") {
       const filename = actionData?.file;
       if (!filename) return { ok: false, message: "No snapshot file specified." };
       await deleteSnapshot(installation.installPath, path.basename(filename));
       return { ok: true, navigate: "detail" };
+    }
+    if (actionId === "snapshot-diff") {
+      const fileA = actionData?.fileA;
+      const fileB = actionData?.fileB;
+      if (!fileA || !fileB) return { ok: false, message: "Two snapshot files required for comparison." };
+      const installPath = installation.installPath;
+      const snapshotA = await loadSnapshot(path.join(installPath, ".launcher", "snapshots", path.basename(fileA)));
+      const snapshotB = await loadSnapshot(path.join(installPath, ".launcher", "snapshots", path.basename(fileB)));
+
+      const diff = diffSnapshots(snapshotA, snapshotB);
+      sendOutput(formatSnapshotDiff(snapshotA, snapshotB, diff));
+      return { ok: true };
     }
     return { ok: false, message: `Action "${actionId}" not yet implemented.` };
   },

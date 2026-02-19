@@ -276,7 +276,19 @@
     "updateApplyingManifest": "Updating manifest…",
     "updateRecreatingEnv": "Recreating Python environment…",
     "updateCopyingPackages": "Copying packages…",
-    "snapshotSaving": "Saving pre-update snapshot…"
+    "snapshotSaving": "Saving pre-update snapshot…",
+    "restoringSnapshot": "Restoring snapshot…",
+    "restoreSnapshotTitle": "Restore Snapshot",
+    "restoreSnapshotMessage": "Restore this snapshot's pip packages into an environment. Custom nodes are shared across environments — any differences will be reported but not changed.",
+    "restoreMode": "Restore Mode",
+    "restoreModeSoft": "Soft restore (install packages into current env)",
+    "restoreModeClean": "Clean restore (create new env from snapshot)",
+    "restorePip": "Pip Packages",
+    "restoreInstallingPackages": "Installing packages from snapshot…",
+    "restoreComparingNodes": "Comparing custom nodes…",
+    "undoLastUpdate": "Undo Last Update",
+    "undoLastUpdateTitle": "Undo Last Update",
+    "undoLastUpdateMessage": "Restore pip packages from the auto-snapshot taken before the last update ({snapshot}).\n\nThis will install the old package versions into the current environment. Custom node differences will be reported."
   },
 
   "portable": {

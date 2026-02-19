@@ -275,7 +275,19 @@
     "updateApplyingManifest": "正在更新清单…",
     "updateRecreatingEnv": "正在重建 Python 环境…",
     "updateCopyingPackages": "正在复制包…",
-    "snapshotSaving": "正在保存更新前快照…"
+    "snapshotSaving": "正在保存更新前快照…",
+    "restoringSnapshot": "正在恢复快照…",
+    "restoreSnapshotTitle": "恢复快照",
+    "restoreSnapshotMessage": "将此快照的 pip 包恢复到环境中。自定义节点在环境之间共享——差异将被报告但不会被更改。",
+    "restoreMode": "恢复模式",
+    "restoreModeSoft": "软恢复（将包安装到当前环境）",
+    "restoreModeClean": "干净恢复（从快照创建新环境）",
+    "restorePip": "Pip 包",
+    "restoreInstallingPackages": "正在从快照安装包…",
+    "restoreComparingNodes": "正在比较自定义节点…",
+    "undoLastUpdate": "撤销上次更新",
+    "undoLastUpdateTitle": "撤销上次更新",
+    "undoLastUpdateMessage": "从上次更新前自动保存的快照 ({snapshot}) 恢复 pip 包。\n\n这将把旧版本的包安装到当前环境中。自定义节点的差异将被报告。"
   },
 
   "portable": {
