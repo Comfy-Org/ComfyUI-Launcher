@@ -61,7 +61,7 @@ window.Launcher.running = {
         });
 
         if (info.mode !== "console") actionsEl.appendChild(window.Launcher.buildFocusBtn(installationId));
-        actionsEl.appendChild(window.Launcher.buildConsoleBtn(installationId));
+        if (!inst || inst.hasConsole) actionsEl.appendChild(window.Launcher.buildConsoleBtn(installationId));
         actionsEl.appendChild(window.Launcher.buildStopBtn(installationId));
         if (inst) actionsEl.appendChild(window.Launcher.buildManageBtn(inst));
 
@@ -93,7 +93,7 @@ window.Launcher.running = {
           metaHtml,
         });
 
-        actionsEl.appendChild(window.Launcher.buildConsoleBtn(installationId));
+        if (!inst || inst.hasConsole) actionsEl.appendChild(window.Launcher.buildConsoleBtn(installationId));
         const dismissBtn = document.createElement("button");
         dismissBtn.textContent = window.t("running.dismiss");
         dismissBtn.onclick = () => window.Launcher.clearErrorInstance(installationId);

@@ -8,6 +8,7 @@ module.exports = {
   id: "cloud",
   get label() { return t("cloud.label"); },
   category: "cloud",
+  hasConsole: false,
 
   skipInstall: true,
 

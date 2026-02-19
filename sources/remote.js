@@ -6,6 +6,7 @@ module.exports = {
   id: "remote",
   get label() { return t("remote.label"); },
   category: "remote",
+  hasConsole: false,
 
   skipInstall: true,
 

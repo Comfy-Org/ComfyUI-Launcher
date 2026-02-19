@@ -119,10 +119,10 @@ window.Launcher.list = {
         if (runningInfo && runningInfo.mode !== "console") {
           actionsEl.appendChild(window.Launcher.buildFocusBtn(inst.id));
         }
-        actionsEl.appendChild(window.Launcher.buildConsoleBtn(inst.id));
+        if (inst.hasConsole) actionsEl.appendChild(window.Launcher.buildConsoleBtn(inst.id));
         actionsEl.appendChild(window.Launcher.buildStopBtn(inst.id));
       } else if (hasError) {
-        actionsEl.appendChild(window.Launcher.buildConsoleBtn(inst.id));
+        if (inst.hasConsole) actionsEl.appendChild(window.Launcher.buildConsoleBtn(inst.id));
         const dismissBtn = document.createElement("button");
         dismissBtn.textContent = window.t("running.dismiss");
         dismissBtn.onclick = () => window.Launcher.clearErrorInstance(inst.id);
