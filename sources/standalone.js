@@ -211,7 +211,7 @@ function recommendVariant(variantId, gpu) {
   return false;
 }
 
-module.exports = {
+const standaloneSource = {
   id: "standalone",
   get label() { return t("standalone.label"); },
   category: "local",
@@ -523,3 +523,9 @@ module.exports = {
     return [];
   },
 };
+
+module.exports = standaloneSource;
+module.exports.getUvPath = getUvPath;
+module.exports.getEnvPythonPath = getEnvPythonPath;
+module.exports.getMasterPythonPath = getMasterPythonPath;
+module.exports.findSitePackages = findSitePackages;
