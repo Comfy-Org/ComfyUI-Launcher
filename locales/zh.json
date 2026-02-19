@@ -53,7 +53,8 @@
     "portConflictAuto": "使用下一个可用端口（设置了 --port 时会询问）",
     "download": "下载",
     "extract": "解压",
-    "useSharedPaths": "使用共享目录"
+    "useSharedPaths": "使用共享目录",
+    "delete": "删除"
   },
 
   "list": {
@@ -225,7 +226,24 @@
     "cannotDeleteActive": "无法删除当前活动环境。请先将其他环境设为活动环境。",
     "deleteEnvConfirmTitle": "删除环境",
     "deleteEnvConfirmMessage": "删除环境 \"{env}\"？此操作无法撤销。",
-    "setupEnv": "配置环境"
+    "setupEnv": "配置环境",
+    "customNodes": "自定义节点",
+    "customNodesDesc": "已安装 {count} 个自定义节点",
+    "customNodesNone": "暂无已安装的自定义节点。",
+    "snapshots": "快照",
+    "snapshotsDesc": "保存和恢复环境状态。",
+    "snapshotsNone": "暂无快照。",
+    "saveSnapshot": "保存快照",
+    "saveSnapshotTitle": "保存快照",
+    "saveSnapshotMessage": "输入此快照的标签。",
+    "saveSnapshotPlaceholder": "例如 更新前",
+    "saveSnapshotCreate": "保存",
+    "saveSnapshotRequired": "请输入快照标签。",
+    "savingSnapshot": "正在保存快照…",
+    "restoreSnapshot": "恢复",
+    "deleteSnapshot": "删除",
+    "deleteSnapshotConfirmTitle": "删除快照",
+    "deleteSnapshotConfirmMessage": "删除此快照？此操作无法撤销。"
   },
 
   "portable": {

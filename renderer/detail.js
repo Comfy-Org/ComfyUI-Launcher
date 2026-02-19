@@ -83,10 +83,30 @@ window.Launcher.detail = {
       section.items.forEach((item) => {
         const row = document.createElement("div");
         row.className = "detail-item" + (item.active ? " active" : "");
-        const label = document.createElement("div");
+        const labelWrap = document.createElement("div");
+        labelWrap.className = "detail-item-label-wrap";
+        const labelRow = document.createElement("div");
+        labelRow.className = "detail-item-label-row";
+        const label = document.createElement("span");
         label.className = "detail-item-label";
         label.textContent = item.label + (item.active ? " (active)" : "");
-        row.appendChild(label);
+        labelRow.appendChild(label);
+        if (item.badges) {
+          item.badges.forEach((b) => {
+            const badge = document.createElement("span");
+            badge.className = "detail-badge" + (b.style ? " badge-" + b.style : "");
+            badge.textContent = b.text;
+            labelRow.appendChild(badge);
+          });
+        }
+        labelWrap.appendChild(labelRow);
+        if (item.sublabel) {
+          const sub = document.createElement("div");
+          sub.className = "detail-item-sublabel";
+          sub.textContent = item.sublabel;
+          labelWrap.appendChild(sub);
+        }
+        row.appendChild(labelWrap);
         if (item.actions) {
           row.appendChild(this._renderActionsBar(item.actions, "detail-item-actions"));
         }

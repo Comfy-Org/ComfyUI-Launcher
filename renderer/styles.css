@@ -826,4 +826,26 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 }
 .dir-card-actions { display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px; }
 
+/* Detail item badges and sublabels */
+.detail-item-label-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.detail-item-label-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.detail-item-sublabel { font-size: 13px; color: var(--text-muted); }
+.detail-badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.detail-badge.badge-info {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.detail-badge.badge-muted {
+  color: var(--text-faint);
+  border-color: var(--border);
+}
 

@@ -6,6 +6,8 @@ const { downloadAndExtract, downloadAndExtractMulti } = require("../lib/installe
 const { deleteDir } = require("../lib/delete");
 const { parseArgs, formatTime } = require("../lib/util");
 const { t } = require("../lib/i18n");
+const { scanCustomNodes } = require("../lib/nodes");
+const { saveSnapshot, listSnapshots, deleteSnapshot } = require("../lib/snapshots");
 
 const RELEASE_REPO = "Kosinkadink/ComfyUI-Launcher-Environments";
 const ENVS_DIR = "envs";
@@ -278,7 +280,7 @@ const standaloneSource = {
     ];
   },
 
-  getDetailSections(installation) {
+  async getDetailSections(installation) {
     const installed = installation.status === "installed";
     const envs = installed && installation.installPath ? listEnvs(installation.installPath) : [];
     const activeEnv = resolveActiveEnv(installation) || DEFAULT_ENV;
@@ -293,6 +295,35 @@ const standaloneSource = {
           showProgress: true, progressTitle: t("standalone.deletingEnv", { env: name }),
           disabledMessage: t("standalone.cannotDeleteActive"),
           confirm: { title: t("standalone.deleteEnvConfirmTitle"), message: t("standalone.deleteEnvConfirmMessage", { env: name }) } },
+      ],
+    }));
+
+    // Scan custom nodes and snapshots (only when installed)
+    let nodes = [];
+    let snapshots = [];
+    if (installed && installation.installPath) {
+      [nodes, snapshots] = await Promise.all([
+        scanCustomNodes(installation.installPath).catch(() => []),
+        listSnapshots(installation.installPath).catch(() => []),
+      ]);
+    }
+
+    const nodeItems = nodes.map((node) => ({
+      label: node.id,
+      badges: [
+        { text: node.type, style: node.type === "cnr" ? "info" : "default" },
+        { text: node.version || (node.commit ? node.commit.slice(0, 7) : "—") },
+        ...(!node.enabled ? [{ text: "disabled", style: "muted" }] : []),
+      ],
+    }));
+
+    const snapshotItems = snapshots.map((s) => ({
+      label: `${s.label}  ·  ${new Date(s.createdAt).toLocaleString()}`,
+      sublabel: `${s.nodeCount} nodes  ·  ${s.packageCount} packages`,
+      actions: [
+        { id: "snapshot-delete", label: t("common.delete"), style: "danger",
+          data: { file: s.filename },
+          confirm: { title: t("standalone.deleteSnapshotConfirmTitle"), message: t("standalone.deleteSnapshotConfirmMessage") } },
       ],
     }));
 
@@ -319,6 +350,25 @@ const standaloneSource = {
           { id: "env-create", label: t("standalone.newEnv"), style: "default", enabled: installed,
             showProgress: true, progressTitle: t("standalone.creatingEnv"),
             prompt: { title: t("standalone.newEnvTitle"), message: t("standalone.newEnvMessage"), placeholder: t("standalone.newEnvPlaceholder"), field: "env", confirmLabel: t("standalone.newEnvCreate"), required: t("standalone.newEnvRequired") } },
+        ],
+      },
+      {
+        title: t("standalone.customNodes"),
+        description: nodes.length > 0
+          ? t("standalone.customNodesDesc", { count: nodes.length })
+          : t("standalone.customNodesNone"),
+        items: nodeItems,
+      },
+      {
+        title: t("standalone.snapshots"),
+        description: snapshots.length > 0
+          ? t("standalone.snapshotsDesc")
+          : t("standalone.snapshotsNone"),
+        items: snapshotItems,
+        actions: [
+          { id: "snapshot-save", label: t("standalone.saveSnapshot"), style: "default", enabled: installed && hasEnvs,
+            showProgress: true, progressTitle: t("standalone.savingSnapshot"),
+            prompt: { title: t("standalone.saveSnapshotTitle"), message: t("standalone.saveSnapshotMessage"), placeholder: t("standalone.saveSnapshotPlaceholder"), field: "label", confirmLabel: t("standalone.saveSnapshotCreate"), required: t("standalone.saveSnapshotRequired") } },
         ],
       },
       {
@@ -466,6 +516,20 @@ const standaloneSource = {
       const envMethods = { ...installation.envMethods };
       delete envMethods[envName];
       await update({ envMethods });
+      return { ok: true, navigate: "detail" };
+    }
+    if (actionId === "snapshot-save") {
+      const label = actionData?.label;
+      if (!label) return { ok: false, message: "No snapshot label provided." };
+      const envName = resolveActiveEnv(installation) || DEFAULT_ENV;
+      sendProgress("snapshot", { percent: -1, status: "Saving snapshot…" });
+      await saveSnapshot(installation.installPath, envName, label, { getUvPath, getEnvPythonPath });
+      return { ok: true, navigate: "detail" };
+    }
+    if (actionId === "snapshot-delete") {
+      const filename = actionData?.file;
+      if (!filename) return { ok: false, message: "No snapshot file specified." };
+      await deleteSnapshot(installation.installPath, filename);
       return { ok: true, navigate: "detail" };
     }
     return { ok: false, message: `Action "${actionId}" not yet implemented.` };
