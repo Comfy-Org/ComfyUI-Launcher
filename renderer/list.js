@@ -47,7 +47,7 @@ window.Launcher.list = {
     el.innerHTML = "";
 
     const installations = allInstallations.filter((inst) => this._matchesFilter(inst));
-    const hasLocal = allInstallations.some((inst) => this._sourceCategory[inst.sourceId] === "local");
+    const hasLocal = allInstallations.some((inst) => inst.sourceCategory === "local");
 
     if (installations.length === 0) {
       if (hasLocal) {
