@@ -52,7 +52,8 @@
     "portConflictAsk": "询问处理方式",
     "portConflictAuto": "使用下一个可用端口（设置了 --port 时会询问）",
     "download": "下载",
-    "extract": "解压"
+    "extract": "解压",
+    "useSharedPaths": "使用共享目录"
   },
 
   "list": {
@@ -143,7 +144,10 @@
     "about": "关于",
     "version": "版本",
     "platform": "平台",
-    "language": "语言"
+    "language": "语言",
+    "sharedDirs": "共享目录",
+    "inputDir": "输入目录",
+    "outputDir": "输出目录"
   },
 
   "update": {

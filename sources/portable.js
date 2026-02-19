@@ -204,6 +204,7 @@ module.exports = {
       {
         title: t("common.launchSettings"),
         fields: [
+          { id: "useSharedPaths", label: t("common.useSharedPaths"), value: installation.useSharedPaths !== false, editable: true, editType: "boolean" },
           { id: "launchArgs", label: t("common.startupArgs"), value: installation.launchArgs ?? this.defaultLaunchArgs, editable: true },
           { id: "launchMode", label: t("common.launchMode"), value: installation.launchMode || "window", editable: true,
             editType: "select", options: [

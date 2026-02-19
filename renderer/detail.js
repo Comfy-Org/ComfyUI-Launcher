@@ -123,6 +123,16 @@ window.Launcher.detail = {
             }
           };
           row.appendChild(select);
+        } else if (f.editable && f.editType === "boolean") {
+          const toggle = document.createElement("input");
+          toggle.type = "checkbox";
+          toggle.className = "detail-field-toggle";
+          toggle.checked = f.value !== false;
+          toggle.onchange = async () => {
+            await window.api.updateInstallation(inst.id, { [f.id]: toggle.checked });
+            inst[f.id] = toggle.checked;
+          };
+          row.appendChild(toggle);
         } else if (f.editable) {
           const input = document.createElement("input");
           input.type = "text";

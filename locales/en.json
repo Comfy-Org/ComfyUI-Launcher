@@ -52,7 +52,8 @@
     "portConflictAsk": "Ask what to do",
     "portConflictAuto": "Use next available port (asks if --port is set)",
     "download": "Download",
-    "extract": "Extract"
+    "extract": "Extract",
+    "useSharedPaths": "Use Shared Directories"
   },
 
   "list": {
@@ -143,7 +144,10 @@
     "about": "About",
     "version": "Version",
     "platform": "Platform",
-    "language": "Language"
+    "language": "Language",
+    "sharedDirs": "Shared Directories",
+    "inputDir": "Input Directory",
+    "outputDir": "Output Directory"
   },
 
   "update": {

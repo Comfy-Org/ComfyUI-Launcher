@@ -5,11 +5,15 @@ const { MODEL_FOLDER_TYPES } = require("./lib/models");
 
 const dataPath = path.join(paths.configDir(), "settings.json");
 
+const SHARED_ROOT = path.join(paths.homeDir(), "ComfyUI-Shared");
+
 const defaults = {
   cacheDir: path.join(paths.cacheDir(), "download-cache"),
   maxCachedFiles: 5,
   onLauncherClose: "tray",
-  modelsDirs: [path.join(paths.homeDir(), "ComfyUI-Models")],
+  modelsDirs: [path.join(SHARED_ROOT, "models")],
+  inputDir: path.join(SHARED_ROOT, "input"),
+  outputDir: path.join(SHARED_ROOT, "output"),
 };
 
 function load() {
@@ -31,6 +35,12 @@ function load() {
     fs.mkdirSync(systemDefault, { recursive: true });
     for (const folder of MODEL_FOLDER_TYPES) {
       fs.mkdirSync(path.join(systemDefault, folder), { recursive: true });
+    }
+  } catch {}
+  // Create shared input/output directories
+  try {
+    for (const key of ["inputDir", "outputDir"]) {
+      fs.mkdirSync(result[key] || defaults[key], { recursive: true });
     }
   } catch {}
   return result;
