@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "namedInputs": {
+    "app": [
+      "{projectRoot}/main.js",
+      "{projectRoot}/preload.js",
+      "{projectRoot}/index.html",
+      "{projectRoot}/installations.js",
+      "{projectRoot}/settings.js",
+      "{projectRoot}/lib/**/*",
+      "{projectRoot}/sources/**/*",
+      "{projectRoot}/renderer/**/*",
+      "{projectRoot}/assets/**/*",
+      "{projectRoot}/locales/**/*",
+      "{projectRoot}/package.json"
+    ]
+  },
+  "targetDefaults": {
+    "start": {
+      "cache": false
+    },
+    "dist": {
+      "cache": true,
+      "inputs": ["app"]
+    },
+    "dist:win": {
+      "cache": true,
+      "inputs": ["app"]
+    },
+    "dist:mac": {
+      "cache": true,
+      "inputs": ["app"]
+    },
+    "dist:linux": {
+      "cache": true,
+      "inputs": ["app"]
+    }
+  },
+  "defaultBase": "nx"
+}

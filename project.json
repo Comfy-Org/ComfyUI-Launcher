@@ -1,0 +1,21 @@
+{
+  "name": "comfyui-launcher",
+  "$schema": "./node_modules/nx/schemas/project-schema.json",
+  "targets": {
+    "start": {
+      "command": "electron ."
+    },
+    "dist": {
+      "command": "electron-builder"
+    },
+    "dist:win": {
+      "command": "electron-builder --win"
+    },
+    "dist:mac": {
+      "command": "electron-builder --mac"
+    },
+    "dist:linux": {
+      "command": "electron-builder --linux"
+    }
+  }
+}

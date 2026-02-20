@@ -19,6 +19,7 @@
   "devDependencies": {
     "electron": "^40.4.1",
     "electron-builder": "^26.7.0",
+    "nx": "^22.5.1",
     "tar": "^7.5.9"
   },
   "dependencies": {
