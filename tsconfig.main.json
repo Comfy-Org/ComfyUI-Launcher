@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": [
+    "main.js",
+    "settings.ts",
+    "installations.js",
+    "lib/**/*",
+    "sources/**/*",
+    "src/shared/**/*"
+  ]
+}
