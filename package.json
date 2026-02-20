@@ -19,11 +19,14 @@
   "devDependencies": {
     "electron": "^40.4.1",
     "electron-builder": "^26.7.0",
-    "tar": "^7.5.9"
+    "tar": "^7.5.9",
+    "@vitejs/plugin-vue": "^6.0.4"
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",
-    "electron-updater": "^6.7.3"
+    "electron-updater": "^6.7.3",
+    "vue": "^3.5.28",
+    "@vueuse/core": "^14.2.1"
   },
   "build": {
     "appId": "com.kosinkadink.comfyui-launcher",
