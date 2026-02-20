@@ -14,12 +14,15 @@
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux"
+    "dist:linux": "electron-builder --linux",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "electron": "^40.4.1",
     "electron-builder": "^26.7.0",
-    "tar": "^7.5.9"
+    "tar": "^7.5.9",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",
