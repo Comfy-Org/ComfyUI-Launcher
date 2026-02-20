@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <title>ComfyUI Launcher</title>
   <link rel="stylesheet" href="renderer/styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "vue": "./node_modules/vue/dist/vue.esm-browser.js"
+    }
+  }
+  </script>
 </head>
 <body>
   <!-- Icon Sprite (Lucide) -->
@@ -238,7 +245,8 @@
 
   <script src="renderer/i18n.js"></script>
   <script src="renderer/util.js"></script>
-  <script src="renderer/modal.js"></script>
+  <!-- modal.js replaced by Vue 3 PoC -->
+  <script type="module" src="renderer/vue-poc/main.js"></script>
   <script src="renderer/list.js"></script>
   <script src="renderer/detail.js"></script>
   <script src="renderer/new-install.js"></script>
