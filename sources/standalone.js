@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
+const { spawn } = require("child_process");
 const { fetchJSON } = require("../lib/fetch");
+const { fetchLatestRelease, truncateNotes } = require("../lib/comfyui-releases");
 const { deleteAction, untrackAction } = require("../lib/actions");
 const { downloadAndExtract, downloadAndExtractMulti } = require("../lib/installer");
 const { deleteDir } = require("../lib/delete");
@@ -237,6 +239,15 @@ module.exports = {
     return { launchArgs: this.defaultLaunchArgs, launchMode: "window", portConflict: "auto" };
   },
 
+  getStatusTag(installation) {
+    const track = installation.updateTrack || "stable";
+    const info = installation.updateInfoByTrack && installation.updateInfoByTrack[track];
+    if (info && info.available) {
+      return { label: t("standalone.updateAvailableTag", { version: info.releaseName || info.latestTag }), style: "update" };
+    }
+    return undefined;
+  },
+
   buildInstallation(selections) {
     const manifest = selections.variant?.data?.manifest;
     return {
@@ -280,23 +291,8 @@ module.exports = {
 
   getDetailSections(installation) {
     const installed = installation.status === "installed";
-    const envs = installed && installation.installPath ? listEnvs(installation.installPath) : [];
-    const activeEnv = resolveActiveEnv(installation) || DEFAULT_ENV;
-    const hasEnvs = envs.length > 0;
 
-    const envItems = envs.map((name) => ({
-      label: name,
-      active: name === activeEnv,
-      actions: [
-        ...(name !== activeEnv ? [{ id: "env-activate", label: t("standalone.setActive"), style: "default", data: { env: name } }] : []),
-        { id: "env-delete", label: t("standalone.deleteEnv"), style: "danger", enabled: name !== activeEnv, data: { env: name },
-          showProgress: true, progressTitle: t("standalone.deletingEnv", { env: name }),
-          disabledMessage: t("standalone.cannotDeleteActive"),
-          confirm: { title: t("standalone.deleteEnvConfirmTitle"), message: t("standalone.deleteEnvConfirmMessage", { env: name }) } },
-      ],
-    }));
-
-    return [
+    const sections = [
       {
         title: t("common.installInfo"),
         fields: [
@@ -309,18 +305,55 @@ module.exports = {
           { label: t("common.installed"), value: new Date(installation.createdAt).toLocaleDateString() },
         ],
       },
-      {
-        title: t("standalone.pythonEnvs"),
-        description: hasEnvs
-          ? t("standalone.activeEnv", { env: activeEnv })
-          : t("standalone.noEnvs"),
-        items: envItems,
-        actions: [
-          { id: "env-create", label: t("standalone.newEnv"), style: "default", enabled: installed,
-            showProgress: true, progressTitle: t("standalone.creatingEnv"),
-            prompt: { title: t("standalone.newEnvTitle"), message: t("standalone.newEnvMessage"), placeholder: t("standalone.newEnvPlaceholder"), field: "env", confirmLabel: t("standalone.newEnvCreate"), required: t("standalone.newEnvRequired") } },
-        ],
-      },
+    ];
+
+    // Updates section
+    const hasGit = installed && installation.installPath && fs.existsSync(path.join(installation.installPath, "ComfyUI", ".git"));
+    const track = installation.updateTrack || "stable";
+    const info = installation.updateInfoByTrack && installation.updateInfoByTrack[track];
+    const updateFields = [
+      { id: "updateTrack", label: t("standalone.updateTrack"), value: track, editable: true,
+        refreshSection: true, editType: "select", options: [
+          { value: "stable", label: t("standalone.trackStable") },
+          { value: "latest", label: t("standalone.trackLatest") },
+        ] },
+    ];
+    if (info) {
+      updateFields.push(
+        { label: t("standalone.installedVersion"), value: info.installedTag || installation.version },
+        { label: t("standalone.latestVersion"), value: info.releaseName || info.latestTag || "—" },
+        { label: t("standalone.lastChecked"), value: info.checkedAt ? new Date(info.checkedAt).toLocaleString() : "—" },
+        { label: t("standalone.updateStatus"), value: info.available ? t("standalone.updateAvailable") : t("standalone.upToDate") },
+      );
+    }
+    const updateActions = [];
+    if (info && info.available && hasGit) {
+      const msgKey = track === "latest" ? "standalone.updateConfirmMessageLatest" : "standalone.updateConfirmMessage";
+      const notes = truncateNotes(info.releaseNotes, 2000);
+      updateActions.push({
+        id: "update-comfyui", label: t("standalone.updateNow"), style: "primary", enabled: installed,
+        showProgress: true, progressTitle: t("standalone.updatingTitle", { version: info.latestTag }),
+        confirm: {
+          title: t("standalone.updateConfirmTitle"),
+          message: t(msgKey, {
+            installed: info.installedTag || installation.version,
+            latest: info.latestTag,
+            commit: notes || "",
+            notes: notes || "(none)",
+          }),
+        },
+      });
+    }
+    updateActions.push({
+      id: "check-update", label: t("actions.checkForUpdate"), style: "default", enabled: installed,
+    });
+    sections.push({
+      title: t("standalone.updates"),
+      fields: updateFields,
+      actions: updateActions,
+    });
+
+    sections.push(
       {
         title: t("common.launchSettings"),
         fields: [
@@ -351,12 +384,13 @@ module.exports = {
             ...(!installed && { disabledMessage: t("errors.installNotReady") }),
             showProgress: true, progressTitle: t("common.startingComfyUI"), cancellable: true },
           { id: "open-folder", label: t("actions.openDirectory"), style: "default", enabled: !!installation.installPath },
-          { id: "check-update", label: t("actions.checkForUpdate"), style: "default", enabled: false, disabledMessage: t("actions.featureNotImplemented") },
           deleteAction(installation),
           untrackAction(),
         ],
       },
-    ];
+    );
+
+    return sections;
   },
 
   async install(installation, tools) {
@@ -423,7 +457,183 @@ module.exports = {
     };
   },
 
-  async handleAction(actionId, installation, actionData, { update, sendProgress }) {
+  async handleAction(actionId, installation, actionData, { update, sendProgress, sendOutput }) {
+    if (actionId === "check-update") {
+      const track = installation.updateTrack || "stable";
+      const release = await fetchLatestRelease(track);
+      if (!release) {
+        return { ok: false, message: "Could not fetch releases from GitHub." };
+      }
+      const installedTag = installation.version || "unknown";
+      const latestTag = release.tag_name;
+      const available = installedTag !== latestTag;
+      const existing = installation.updateInfoByTrack || {};
+      await update({
+        updateInfoByTrack: {
+          ...existing,
+          [track]: {
+            checkedAt: Date.now(),
+            installedTag,
+            latestTag,
+            available,
+            releaseName: release.name || latestTag,
+            releaseNotes: truncateNotes(release.body, 4000),
+            releaseUrl: release.html_url,
+            publishedAt: release.published_at,
+          },
+        },
+      });
+      return { ok: true, navigate: "detail" };
+    }
+
+    if (actionId === "update-comfyui") {
+      const installPath = installation.installPath;
+      const comfyuiDir = path.join(installPath, "ComfyUI");
+      const gitDir = path.join(comfyuiDir, ".git");
+
+      if (!fs.existsSync(gitDir)) {
+        return { ok: false, message: t("standalone.updateNoGit") };
+      }
+
+      const masterPython = getMasterPythonPath(installPath);
+      if (!fs.existsSync(masterPython)) {
+        return { ok: false, message: "Master Python not found." };
+      }
+
+      const track = installation.updateTrack || "stable";
+      const stableArgs = track === "stable" ? ["--stable"] : [];
+
+      // Capture pre-update requirements for comparison
+      const reqPath = path.join(comfyuiDir, "requirements.txt");
+      let preReqs = "";
+      try { preReqs = await fs.promises.readFile(reqPath, "utf-8"); } catch {}
+
+      sendProgress("steps", { steps: [
+        { phase: "prepare", label: t("standalone.updatePrepare") },
+        { phase: "run", label: t("standalone.updateRun") },
+        { phase: "deps", label: t("standalone.updateDeps") },
+      ] });
+
+      // Phase 1: Prepare
+      sendProgress("prepare", { percent: -1, status: t("standalone.updatePrepare") });
+
+      // Phase 2: Run launcher-owned update script with master Python (has pygit2)
+      sendProgress("run", { percent: -1, status: t("standalone.updateRun") });
+
+      const updateScript = path.join(__dirname, "..", "lib", "update_comfyui.py");
+      const markers = {};
+      const exitCode = await new Promise((resolve) => {
+        const proc = spawn(masterPython, ["-s", updateScript, comfyuiDir, ...stableArgs], {
+          stdio: ["ignore", "pipe", "pipe"],
+          windowsHide: true,
+        });
+        proc.stdout.on("data", (chunk) => {
+          const text = chunk.toString("utf-8");
+          // Parse structured markers from the script output
+          for (const line of text.split(/\r?\n/)) {
+            const match = line.match(/^\[(\w+)\]\s*(.+)$/);
+            if (match) markers[match[1]] = match[2].trim();
+          }
+          sendOutput(text);
+        });
+        proc.stderr.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
+        proc.on("error", (err) => {
+          sendOutput(`Error: ${err.message}\n`);
+          resolve(1);
+        });
+        proc.on("exit", (code) => resolve(code ?? 1));
+      });
+
+      if (exitCode !== 0) {
+        return { ok: false, message: t("standalone.updateFailed", { code: exitCode }) };
+      }
+
+      // Phase 3: Requirements sync via uv against active env
+      sendProgress("deps", { percent: -1, status: t("standalone.updateDepsChecking") });
+
+      let postReqs = "";
+      try { postReqs = await fs.promises.readFile(reqPath, "utf-8"); } catch {}
+
+      if (preReqs !== postReqs && postReqs.length > 0) {
+        const uvPath = getUvPath(installPath);
+        const activeEnvPython = getActivePythonPath(installation);
+
+        if (fs.existsSync(uvPath) && activeEnvPython) {
+          // Dry-run to check for conflicts
+          sendProgress("deps", { percent: -1, status: t("standalone.updateDepsDryRun") });
+          const dryRunResult = await new Promise((resolve) => {
+            const proc = spawn(uvPath, ["pip", "install", "--dry-run", "-r", reqPath, "--python", activeEnvPython], {
+              cwd: installPath,
+              stdio: ["ignore", "pipe", "pipe"],
+              windowsHide: true,
+            });
+            let stdout = "";
+            let stderr = "";
+            proc.stdout.on("data", (chunk) => { stdout += chunk.toString("utf-8"); });
+            proc.stderr.on("data", (chunk) => { stderr += chunk.toString("utf-8"); });
+            proc.on("error", (err) => resolve({ code: 1, stdout: "", stderr: err.message }));
+            proc.on("exit", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+          });
+
+          if (dryRunResult.code !== 0) {
+            sendOutput(`\nRequirements dry-run detected issues:\n${dryRunResult.stderr || dryRunResult.stdout}\n`);
+            sendOutput("Proceeding with install attempt…\n");
+          }
+
+          // Install requirements
+          sendProgress("deps", { percent: -1, status: t("standalone.updateDepsInstalling") });
+          const installResult = await new Promise((resolve) => {
+            const proc = spawn(uvPath, ["pip", "install", "-r", reqPath, "--python", activeEnvPython], {
+              cwd: installPath,
+              stdio: ["ignore", "pipe", "pipe"],
+              windowsHide: true,
+            });
+            proc.stdout.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
+            proc.stderr.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
+            proc.on("error", (err) => {
+              sendOutput(`Error: ${err.message}\n`);
+              resolve(1);
+            });
+            proc.on("exit", (code) => resolve(code ?? 1));
+          });
+
+          if (installResult !== 0) {
+            sendOutput(`\nWarning: requirements install exited with code ${installResult}\n`);
+          }
+        }
+      } else {
+        sendProgress("deps", { percent: -1, status: t("standalone.updateDepsUpToDate") });
+      }
+
+      // Update installation metadata
+      const existing = installation.updateInfoByTrack || {};
+      const trackInfo = existing[track] || {};
+      const latestTag = trackInfo.latestTag || installation.version;
+      const rollback = {
+        preUpdateHead: markers.PRE_UPDATE_HEAD || null,
+        postUpdateHead: markers.POST_UPDATE_HEAD || null,
+        backupBranch: markers.BACKUP_BRANCH || null,
+        track,
+        updatedAt: Date.now(),
+      };
+      await update({
+        version: markers.CHECKED_OUT_TAG || latestTag,
+        lastRollback: rollback,
+        updateInfoByTrack: {
+          ...existing,
+          [track]: {
+            ...trackInfo,
+            available: false,
+            installedTag: markers.CHECKED_OUT_TAG || latestTag,
+            checkedAt: Date.now(),
+          },
+        },
+      });
+
+      sendProgress("done", { percent: 100, status: "Complete" });
+      return { ok: true, navigate: "detail" };
+    }
+
     if (actionId === "env-create") {
       const envName = actionData?.env;
       if (!envName) return { ok: false, message: "No environment name provided." };

@@ -6,6 +6,7 @@ const { deleteAction, untrackAction } = require("../lib/actions");
 const { downloadAndExtract } = require("../lib/installer");
 const { parseArgs } = require("../lib/util");
 const { t } = require("../lib/i18n");
+const { fetchLatestRelease, truncateNotes } = require("../lib/comfyui-releases");
 
 function findPortableRoot(installPath) {
   // Content may be directly in installPath (tracked existing)
@@ -19,55 +20,6 @@ function findPortableRoot(installPath) {
     }
   }
   return null;
-}
-
-async function fetchLatestRelease(track) {
-  if (track === "latest") {
-    // "Latest on GitHub" pulls master, so compare against the latest master commit.
-    // Also fetch the latest stable tag so we can show "v0.14.1 + N commits".
-    const REPO = "Comfy-Org/ComfyUI";
-    const [commit, releases] = await Promise.all([
-      fetchJSON(`https://api.github.com/repos/${REPO}/commits/master`),
-      fetchJSON(`https://api.github.com/repos/${REPO}/releases?per_page=10`).catch(() => []),
-    ]);
-    if (!commit) return null;
-    const sha = commit.sha.slice(0, 7);
-    const date = commit.commit?.committer?.date;
-    const msg = commit.commit?.message?.split("\n")[0] || "";
-    const stable = releases.find((r) => !r.draft && !r.prerelease);
-    let label = sha;
-    if (stable) {
-      // Compare latest tag to master to get commit count ahead
-      try {
-        const cmp = await fetchJSON(`https://api.github.com/repos/${REPO}/compare/${stable.tag_name}...master`);
-        const ahead = cmp.ahead_by;
-        label = ahead > 0
-          ? `${stable.tag_name} + ${ahead} commit${ahead !== 1 ? "s" : ""} (${sha})`
-          : stable.tag_name;
-      } catch {
-        label = `${stable.tag_name}+ (${sha})`;
-      }
-    }
-    return {
-      tag_name: sha,
-      name: label,
-      body: msg || "",
-      html_url: commit.html_url,
-      published_at: date,
-      _commit: true,
-    };
-  }
-  // stable: first non-draft, non-prerelease
-  const releases = await fetchJSON(
-    "https://api.github.com/repos/Comfy-Org/ComfyUI/releases?per_page=30"
-  );
-  return releases.find((r) => !r.draft && !r.prerelease) || null;
-}
-
-function truncateNotes(text, maxLen) {
-  if (!text) return "";
-  if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen) + "\n\n… (truncated)";
 }
 
 module.exports = {
