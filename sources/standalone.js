@@ -375,6 +375,24 @@ module.exports = {
         title: t("common.advanced"),
         collapsed: true,
         actions: [
+          { id: "release-update", label: t("standalone.releaseUpdate"), style: "default", enabled: installed,
+            showProgress: true, progressTitle: t("standalone.releaseUpdatingTitle"), cancellable: true,
+            fieldSelects: [
+              { sourceId: "standalone", fieldId: "release", field: "releaseSelection",
+                title: t("standalone.releaseUpdateSelectRelease"),
+                message: t("standalone.releaseUpdateSelectReleaseMessage") },
+              { sourceId: "standalone", fieldId: "variant", field: "variantSelection",
+                title: t("standalone.releaseUpdateSelectVariant"),
+                message: t("standalone.releaseUpdateSelectVariantMessage") },
+            ],
+            prompt: {
+              title: t("standalone.releaseUpdateTitle"),
+              message: t("standalone.releaseUpdateNameMessage"),
+              defaultValue: `${installation.name} (Release Update)`,
+              confirmLabel: t("standalone.releaseUpdateConfirm"),
+              required: true,
+              field: "name",
+            } },
           { id: "migrate-from", label: t("migrate.migrateFrom"), style: "default", enabled: installed,
             showProgress: true, progressTitle: t("migrate.migrating"), cancellable: true,
             select: {
@@ -564,7 +582,7 @@ module.exports = {
         if (fs.existsSync(uvPath) && activeEnvPython) {
           // Filter out PyTorch packages — they are tied to the Standalone release
           // and must never be modified by a commit-based update.
-          const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;\[#]|$)/;
+          const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;\[#]|$)/i;
           const filteredReqs = postReqs.split("\n").filter((l) => !PYTORCH_RE.test(l.trim())).join("\n");
           const filteredReqPath = path.join(installPath, ".comfyui-reqs-filtered.txt");
           await fs.promises.writeFile(filteredReqPath, filteredReqs, "utf-8");
@@ -666,8 +684,9 @@ module.exports = {
       if (!sourceId) return { ok: false, message: "No source installation specified." };
 
       const wantNodes = actionData?.customNodes === true;
-      const wantWorkflows = actionData?.workflows === true;
-      const wantSettings = actionData?.userSettings === true;
+      const wantAllUserData = actionData?.allUserData === true;
+      const wantWorkflows = !wantAllUserData && actionData?.workflows === true;
+      const wantSettings = !wantAllUserData && actionData?.userSettings === true;
       const wantModels = actionData?.models === true;
       const wantInput = actionData?.input === true;
       const wantOutput = actionData?.output === true;
@@ -717,6 +736,7 @@ module.exports = {
       sendProgress("migrate", { percent: 0, status: t("migrate.scanning") });
 
       const srcNodes = wantNodes ? listCustomNodes(srcCustomNodes) : [];
+      const hasAllUserData = wantAllUserData && fs.existsSync(srcUserDir);
       const hasWorkflows = wantWorkflows && fs.existsSync(srcWorkflows);
       const hasModels = wantModels && fs.existsSync(srcModels);
       const hasInput = wantInput && fs.existsSync(srcInput);
@@ -738,7 +758,7 @@ module.exports = {
       }
 
       // Each category counts as one unit for overall progress
-      const total = srcNodes.length + (hasWorkflows ? 1 : 0) + (settingsFiles.length > 0 ? 1 : 0) + (hasModels ? 1 : 0) + (hasInput ? 1 : 0) + (hasOutput ? 1 : 0);
+      const total = srcNodes.length + (hasAllUserData ? 1 : 0) + (hasWorkflows ? 1 : 0) + (settingsFiles.length > 0 ? 1 : 0) + (hasModels ? 1 : 0) + (hasInput ? 1 : 0) + (hasOutput ? 1 : 0);
 
       if (total === 0) {
         sendProgress("migrate", { percent: 100, status: t("migrate.nothingToMigrate") });
@@ -771,6 +791,19 @@ module.exports = {
         }
         summary.push(t("migrate.summaryNodes", { count: migratedNodes.length }));
         if (backedUp.length > 0) summary.push(t("migrate.summaryBackedUp", { count: backedUp.length }));
+      }
+
+      // Full user directory (flat merge — replaces individual workflows/settings)
+      if (hasAllUserData) {
+        sendProgress("migrate", { percent: Math.round((migrated / total) * 100), status: t("migrate.mergingUserData") });
+        const dstUserDir = path.join(dstComfyUI, "user");
+        const result = await mergeDirFlat(srcUserDir, dstUserDir, (copied, skipped, fileTotal) => {
+          const sub = fileTotal > 0 ? (copied + skipped) / fileTotal : 1;
+          const percent = Math.round(((migrated + sub) / total) * 100);
+          sendProgress("migrate", { percent, status: t("migrate.mergingUserData") });
+        });
+        migrated++;
+        summary.push(t("migrate.summaryUserData", { copied: result.copied, skipped: result.skipped }));
       }
 
       // Workflows only (flat merge, skipped when full user data is selected)
@@ -851,7 +884,7 @@ module.exports = {
             sendOutput(t("migrate.noUvOrPython") + "\n");
             sendProgress("deps", { percent: 100, status: t("migrate.depsSkipped") });
           } else {
-            const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;\[#]|$)/;
+            const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;\[#]|$)/i;
             let installed = 0;
 
             for (const node of nodesWithReqs) {

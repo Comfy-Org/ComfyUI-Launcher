@@ -252,6 +252,37 @@ window.Launcher.detail = {
     if (!this._current) return;
     const { showView, list, modal } = window.Launcher;
 
+    if (action.fieldSelects) {
+      const selections = {};
+      for (const fs of action.fieldSelects) {
+        let items;
+        try {
+          items = await window.api.getFieldOptions(fs.sourceId, fs.fieldId, selections);
+        } catch (err) {
+          await modal.alert({ title: action.label, message: err.message || String(err) });
+          return;
+        }
+        if (!items || items.length === 0) {
+          await modal.alert({ title: action.label, message: fs.emptyMessage || window.t("common.noItems") });
+          return;
+        }
+        const selectItems = items.map((item) => ({
+          value: item.value,
+          label: (item.recommended ? "★ " : "") + item.label,
+          description: item.description,
+        }));
+        const selected = await modal.select({
+          title: fs.title || action.label,
+          message: fs.message || "",
+          items: selectItems,
+        });
+        if (!selected) return;
+        const selectedItem = items.find((i) => i.value === selected);
+        selections[fs.fieldId] = selectedItem;
+        action = { ...action, data: { ...action.data, [fs.field]: selectedItem } };
+      }
+    }
+
     if (action.select) {
       let items;
       if (action.select.source === "installations") {

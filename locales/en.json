@@ -223,6 +223,7 @@
     "nothingToMigrate": "Nothing to migrate from source.",
     "copyingNode": "Copying {name}… ({current}/{total})",
     "copyingSettings": "Copying user settings…",
+    "mergingUserData": "Merging user data…",
     "mergingWorkflows": "Merging workflows…",
     "mergingModels": "Merging models…",
     "mergingInput": "Merging input files…",
@@ -237,6 +238,7 @@
     "summaryNodes": "{count} custom node(s) migrated",
     "summaryBackedUp": "{count} backed up",
     "summarySettings": "{count} user settings profile(s) copied",
+    "summaryUserData": "user data: {copied} copied, {skipped} skipped",
     "summaryWorkflows": "workflows: {copied} copied, {skipped} skipped",
     "summaryModels": "models: {copied} copied, {skipped} skipped",
     "summaryInput": "input: {copied} copied, {skipped} skipped",
@@ -309,7 +311,17 @@
     "copyAndUpdateTitle": "Copy & Update",
     "copyAndUpdateMessage": "Create a copy of this installation and update the copy from {installed} to {latest}.\nThe original installation will not be modified.\n\nEnter a name for the copy:",
     "copyAndUpdateConfirm": "Copy & Update",
-    "copyUpdatingTitle": "Copy & Update to {version}…"
+    "copyUpdatingTitle": "Copy & Update to {version}…",
+    "releaseUpdate": "Release Update",
+    "releaseUpdateSelectRelease": "Select Release",
+    "releaseUpdateSelectReleaseMessage": "Choose a Standalone release to install.",
+    "releaseUpdateSelectVariant": "Select Variant",
+    "releaseUpdateSelectVariantMessage": "Choose an environment variant for the new installation.",
+    "releaseUpdateTitle": "Release Update",
+    "releaseUpdateNameMessage": "Enter a name for the new installation. It will be created next to the original.",
+    "releaseUpdateConfirm": "Install & Migrate",
+    "releaseUpdatingTitle": "Installing Release…",
+    "releaseUpdateCleaningUp": "Cleaning up…"
   },
 
   "portable": {

@@ -223,6 +223,7 @@
     "nothingToMigrate": "源中没有可迁移的内容。",
     "copyingNode": "正在复制 {name}… ({current}/{total})",
     "copyingSettings": "正在复制用户设置…",
+    "mergingUserData": "正在合并用户数据…",
     "mergingWorkflows": "正在合并工作流…",
     "mergingModels": "正在合并模型…",
     "mergingInput": "正在合并输入文件…",
@@ -237,6 +238,7 @@
     "summaryNodes": "已迁移 {count} 个自定义节点",
     "summaryBackedUp": "{count} 个已备份",
     "summarySettings": "已复制 {count} 个用户设置配置文件",
+    "summaryUserData": "用户数据：{copied} 个已复制，{skipped} 个已跳过",
     "summaryWorkflows": "工作流：{copied} 个已复制，{skipped} 个已跳过",
     "summaryModels": "模型：{copied} 个已复制，{skipped} 个已跳过",
     "summaryInput": "输入：{copied} 个已复制，{skipped} 个已跳过",
@@ -308,7 +310,17 @@
     "copyAndUpdateTitle": "复制并更新",
     "copyAndUpdateMessage": "创建此安装的副本，并将副本从 {installed} 更新到 {latest}。\n原始安装不会被修改。\n\n输入副本名称：",
     "copyAndUpdateConfirm": "复制并更新",
-    "copyUpdatingTitle": "复制并更新到 {version}…"
+    "copyUpdatingTitle": "复制并更新到 {version}…",
+    "releaseUpdate": "版本更新",
+    "releaseUpdateSelectRelease": "选择版本",
+    "releaseUpdateSelectReleaseMessage": "选择要安装的 Standalone 版本。",
+    "releaseUpdateSelectVariant": "选择变体",
+    "releaseUpdateSelectVariantMessage": "选择新安装的环境变体。",
+    "releaseUpdateTitle": "版本更新",
+    "releaseUpdateNameMessage": "输入新安装的名称。新安装将创建在原安装旁边。",
+    "releaseUpdateConfirm": "安装并迁移",
+    "releaseUpdatingTitle": "正在安装版本…",
+    "releaseUpdateCleaningUp": "正在清理…"
   },
 
   "portable": {
