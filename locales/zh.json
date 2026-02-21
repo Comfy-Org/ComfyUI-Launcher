@@ -303,7 +303,12 @@
     "updateDepsInstalling": "正在安装依赖…",
     "updateDepsUpToDate": "依赖无变化。",
     "updateFailed": "更新过程失败，退出代码 {code}。",
-    "updateNoGit": "ComfyUI/ 中未找到 .git 目录。基于提交的更新需要 git 仓库。"
+    "updateNoGit": "ComfyUI/ 中未找到 .git 目录。基于提交的更新需要 git 仓库。",
+    "copyAndUpdate": "复制并更新",
+    "copyAndUpdateTitle": "复制并更新",
+    "copyAndUpdateMessage": "创建此安装的副本，并将副本从 {installed} 更新到 {latest}。\n原始安装不会被修改。\n\n输入副本名称：",
+    "copyAndUpdateConfirm": "复制并更新",
+    "copyUpdatingTitle": "复制并更新到 {version}…"
   },
 
   "portable": {

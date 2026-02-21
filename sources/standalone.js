@@ -303,6 +303,19 @@ module.exports = {
           }),
         },
       });
+      updateActions.push({
+        id: "copy-update", label: t("standalone.copyAndUpdate"), style: "default", enabled: installed,
+        showProgress: true, progressTitle: t("standalone.copyUpdatingTitle", { version: latestDisplay }),
+        cancellable: true,
+        prompt: {
+          title: t("standalone.copyAndUpdateTitle"),
+          message: t("standalone.copyAndUpdateMessage", { installed: installedDisplay, latest: latestDisplay }),
+          defaultValue: `${installation.name} (${latestDisplay})`,
+          confirmLabel: t("standalone.copyAndUpdateConfirm"),
+          required: true,
+          field: "name",
+        },
+      });
     }
     updateActions.push({
       id: "check-update", label: t("actions.checkForUpdate"), style: "default", enabled: installed,
@@ -457,7 +470,7 @@ module.exports = {
     };
   },
 
-  async handleAction(actionId, installation, actionData, { update, sendProgress, sendOutput }) {
+  async handleAction(actionId, installation, actionData, { update, sendProgress, sendOutput, signal }) {
     if (actionId === "check-update") {
       const track = installation.updateTrack || "stable";
       return releaseCache.checkForUpdate(COMFYUI_REPO, track, installation, update);
@@ -505,6 +518,11 @@ module.exports = {
           stdio: ["ignore", "pipe", "pipe"],
           windowsHide: true,
         });
+        if (signal) {
+          const onAbort = () => proc.kill();
+          signal.addEventListener("abort", onAbort, { once: true });
+          proc.on("exit", () => signal.removeEventListener("abort", onAbort));
+        }
         proc.stdout.on("data", (chunk) => {
           const text = chunk.toString("utf-8");
           stdoutBuf += text;
@@ -533,6 +551,7 @@ module.exports = {
       }
 
       // Phase 3: Requirements sync via uv against active env
+      if (signal?.aborted) return { ok: false, message: "Cancelled" };
       sendProgress("deps", { percent: -1, status: t("standalone.updateDepsChecking") });
 
       let postReqs = "";
@@ -553,12 +572,18 @@ module.exports = {
           try {
             // Dry-run to check for conflicts
             sendProgress("deps", { percent: -1, status: t("standalone.updateDepsDryRun") });
+            if (signal?.aborted) return { ok: false, message: "Cancelled" };
             const dryRunResult = await new Promise((resolve) => {
               const proc = spawn(uvPath, ["pip", "install", "--dry-run", "-r", filteredReqPath, "--python", activeEnvPython], {
                 cwd: installPath,
                 stdio: ["ignore", "pipe", "pipe"],
                 windowsHide: true,
               });
+              if (signal) {
+                const onAbort = () => proc.kill();
+                signal.addEventListener("abort", onAbort, { once: true });
+                proc.on("exit", () => signal.removeEventListener("abort", onAbort));
+              }
               let stdout = "";
               let stderr = "";
               proc.stdout.on("data", (chunk) => { stdout += chunk.toString("utf-8"); });
@@ -568,15 +593,14 @@ module.exports = {
             });
 
             if (dryRunResult.code !== 0) {
-              // TODO(Step 4): When copy-commit-based updating exists, offer it as
-              // the safe alternative here instead of proceeding unconditionally.
               sendOutput(`\n⚠ Requirements dry-run detected potential conflicts:\n${dryRunResult.stderr || dryRunResult.stdout}\n`);
-              sendOutput("Proceeding with install attempt — some conflicts may be benign.\n");
+              sendOutput("Proceeding with install attempt — some conflicts may be benign.\nTip: Use \"Copy & Update\" for a risk-free update that leaves this installation untouched.\n");
             } else if (dryRunResult.stderr) {
               sendOutput(dryRunResult.stderr);
             }
 
             // Install requirements
+            if (signal?.aborted) return { ok: false, message: "Cancelled" };
             sendProgress("deps", { percent: -1, status: t("standalone.updateDepsInstalling") });
             const installResult = await new Promise((resolve) => {
               const proc = spawn(uvPath, ["pip", "install", "-r", filteredReqPath, "--python", activeEnvPython], {
@@ -584,6 +608,11 @@ module.exports = {
                 stdio: ["ignore", "pipe", "pipe"],
                 windowsHide: true,
               });
+              if (signal) {
+                const onAbort = () => proc.kill();
+                signal.addEventListener("abort", onAbort, { once: true });
+                proc.on("exit", () => signal.removeEventListener("abort", onAbort));
+              }
               proc.stdout.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
               proc.stderr.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
               proc.on("error", (err) => {
