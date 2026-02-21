@@ -48,20 +48,48 @@ window.Launcher.updateBanner = {
 
   _showAvailable(banner, info) {
     const { esc } = window.Launcher;
-    const availText = window.t("update.available", { version: info.version }).replace(/\*\*(.+?)\*\*/g, (_, s) => `<strong>${esc(s)}</strong>`);
-    banner.innerHTML = `
-      <span class="update-text">${availText}</span>
+    const channelBadge = info.channel === "beta"
+      ? ` <span class="update-channel-badge">${esc(window.t("update.beta"))}</span>`
+      : "";
+    const availText = window.t("update.availableEnhanced", { from: info.currentVersion || "?", to: info.version })
+      .replace(/\*\*(.+?)\*\*/g, (_, s) => `<strong>${esc(s)}</strong>`);
+
+    let html = `
+      <span class="update-text">${availText}${channelBadge}</span>`;
+
+    if (info.releaseNotes) {
+      html += `<button id="btn-update-notes">${esc(window.t("update.releaseNotes"))}</button>`;
+    }
+    html += `
       <button class="primary" id="btn-update-download">${esc(window.t("update.download"))}</button>
       <button id="btn-update-dismiss">${esc(window.t("update.dismiss"))}</button>`;
+
+    banner.innerHTML = html;
     banner.style.display = "flex";
+
     document.getElementById("btn-update-download").onclick = () => window.api.downloadUpdate();
     document.getElementById("btn-update-dismiss").onclick = () => { banner.style.display = "none"; };
+
+    if (info.releaseNotes) {
+      document.getElementById("btn-update-notes").onclick = () => {
+        window.Launcher.modal.alert({
+          title: window.t("update.releaseNotesTitle", { version: info.version }),
+          message: info.releaseNotes,
+        });
+      };
+    }
   },
 
   _showDownloading(banner, progress) {
     const { esc } = window.Launcher;
+    const speedText = progress.speed ? ` — ${esc(progress.speed)}` : "";
+    const etaText = progress.eta != null ? ` — ${esc(this._formatEta(progress.eta))}` : "";
+
     banner.innerHTML = `
-      <span class="update-text">${esc(window.t("update.downloading", { progress: `${progress.transferred} / ${progress.total} MB (${progress.percent}%)` }))}</span>`;
+      <div class="update-download-info">
+        <span class="update-text">${esc(window.t("update.downloading", { progress: `${progress.transferred} / ${progress.total} MB` }))}${speedText}${etaText}</span>
+        <progress class="update-progress-bar" value="${progress.percent}" max="100"></progress>
+      </div>`;
     banner.style.display = "flex";
   },
 
@@ -93,5 +121,13 @@ window.Launcher.updateBanner = {
       window.api.checkForUpdate();
     };
     document.getElementById("btn-update-error-dismiss").onclick = () => { banner.style.display = "none"; };
+  },
+
+  _formatEta(seconds) {
+    if (seconds == null || seconds <= 0) return "";
+    if (seconds < 60) return window.t("update.etaSeconds", { seconds });
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return window.t("update.etaMinutes", { minutes, seconds: secs });
   },
 };

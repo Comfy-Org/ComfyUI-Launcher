@@ -139,6 +139,9 @@
     "closeQuitMessage": "ComfyUI instances are still running. Quitting will stop all of them.",
     "closeQuitConfirm": "Quit",
     "autoUpdate": "Check for updates on startup",
+    "updateChannel": "Update channel",
+    "channelStable": "Stable",
+    "channelBeta": "Beta (early access)",
     "models": "Shared Models",
     "downloads": "Downloads",
     "cacheDir": "Cache Directory",
@@ -155,6 +158,7 @@
 
   "update": {
     "available": "Update available: **v{version}**",
+    "availableEnhanced": "Update available: **v{from}** → **v{to}**",
     "download": "Download",
     "dismiss": "Dismiss",
     "downloading": "Downloading update… {progress}",
@@ -164,7 +168,12 @@
     "checkFailed": "Update check failed",
     "details": "Details",
     "retry": "Retry",
-    "updateError": "Update Error"
+    "updateError": "Update Error",
+    "releaseNotes": "Release Notes",
+    "releaseNotesTitle": "Release Notes — v{version}",
+    "beta": "beta",
+    "etaSeconds": "{seconds}s remaining",
+    "etaMinutes": "{minutes}m {seconds}s remaining"
   },
 
   "modal": {

@@ -814,6 +814,29 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .update-banner .update-text { flex: 1; color: var(--text); }
 .update-banner .update-text strong { color: var(--accent); }
 .update-banner button { flex-shrink: 0; }
+.update-banner .update-download-info { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.update-banner .update-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  appearance: none;
+  border: none;
+  background: var(--border);
+}
+.update-banner .update-progress-bar::-webkit-progress-bar { background: var(--border); border-radius: 3px; }
+.update-banner .update-progress-bar::-webkit-progress-value { background: var(--accent); border-radius: 3px; }
+.update-channel-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--bg);
+  margin-left: 6px;
+  vertical-align: middle;
+}
 
 /* In-progress status tag on list cards */
 .status-in-progress { color: var(--accent); font-weight: 600; }
