@@ -1,3 +1,9 @@
+# 📎 Reference — Wheel Cache Approach
+
+> **Status:** Not part of the current development plan. This is a potential future optimization for environment creation. Originally written as "Phase 5" of the archived `standalone-environments.md` design. The current update plan (`comfy-vibe-station/update_support_plan.md`) does not depend on this — it uses direct copies. If we ever adopt `uv` hardlinks/symlinks or want to reduce disk usage per environment, this approach becomes relevant.
+
+---
+
 # Wheel Cache Approach for Standalone Environment Creation
 
 ## Goal
