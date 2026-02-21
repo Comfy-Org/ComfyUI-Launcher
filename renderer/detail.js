@@ -121,6 +121,17 @@ window.Launcher.detail = {
             if (f.refreshSection) {
               this._refreshSection(section.title, inst);
             }
+            if (f.onChangeAction) {
+              select.disabled = true;
+              try {
+                const result = await window.api.runAction(inst.id, f.onChangeAction);
+                if (result.navigate === "detail") {
+                  await this._refreshAllSections(inst);
+                }
+              } finally {
+                select.disabled = false;
+              }
+            }
           };
           row.appendChild(select);
         } else if (f.editable && f.editType === "boolean") {

@@ -213,6 +213,25 @@ function recommendVariant(variantId, gpu) {
   return false;
 }
 
+/**
+ * Determine if an update is available for the given track, using local data only.
+ * Handles cross-track switches (e.g. last update was on "latest" but viewing "stable").
+ */
+function isUpdateAvailable(installation, track, info) {
+  if (!info || !info.latestTag) return false;
+  // The stored check-update result
+  if (info.available) return true;
+  // Cross-track: last update was on a different track, so this track's installedTag is stale
+  const lastUpdateTrack = installation.lastRollback?.track;
+  if (lastUpdateTrack && lastUpdateTrack !== track) return true;
+  // Installed version string shows commits ahead of the stable tag (e.g. "v0.14.2 + 21 commits")
+  const version = installation.version || "";
+  if (track === "stable" && version.includes(info.latestTag + " +")) return true;
+  // Raw tag/sha mismatch
+  if (info.installedTag && info.installedTag !== info.latestTag) return true;
+  return false;
+}
+
 module.exports = {
   id: "standalone",
   get label() { return t("standalone.label"); },
@@ -242,7 +261,7 @@ module.exports = {
   getStatusTag(installation) {
     const track = installation.updateTrack || "stable";
     const info = installation.updateInfoByTrack && installation.updateInfoByTrack[track];
-    if (info && info.available) {
+    if (info && isUpdateAvailable(installation, track, info)) {
       return { label: t("standalone.updateAvailableTag", { version: info.releaseName || info.latestTag }), style: "update" };
     }
     return undefined;
@@ -313,31 +332,40 @@ module.exports = {
     const info = installation.updateInfoByTrack && installation.updateInfoByTrack[track];
     const updateFields = [
       { id: "updateTrack", label: t("standalone.updateTrack"), value: track, editable: true,
-        refreshSection: true, editType: "select", options: [
+        refreshSection: true, onChangeAction: "check-update", editType: "select", options: [
           { value: "stable", label: t("standalone.trackStable") },
           { value: "latest", label: t("standalone.trackLatest") },
         ] },
     ];
     if (info) {
+      const installedDisplay = installation.version || info.installedTag || "unknown";
+      const latestDisplay = info.releaseName || info.latestTag || "—";
+      const updateAvail = isUpdateAvailable(installation, track, info);
       updateFields.push(
-        { label: t("standalone.installedVersion"), value: info.installedTag || installation.version },
-        { label: t("standalone.latestVersion"), value: info.releaseName || info.latestTag || "—" },
+        { label: t("standalone.installedVersion"), value: installedDisplay },
+        { label: t("standalone.latestVersion"), value: latestDisplay },
         { label: t("standalone.lastChecked"), value: info.checkedAt ? new Date(info.checkedAt).toLocaleString() : "—" },
-        { label: t("standalone.updateStatus"), value: info.available ? t("standalone.updateAvailable") : t("standalone.upToDate") },
+        { label: t("standalone.updateStatus"), value: updateAvail ? t("standalone.updateAvailable") : t("standalone.upToDate") },
       );
     }
     const updateActions = [];
-    if (info && info.available && hasGit) {
-      const msgKey = track === "latest" ? "standalone.updateConfirmMessageLatest" : "standalone.updateConfirmMessage";
+    if (info && isUpdateAvailable(installation, track, info) && hasGit) {
+      const installedDisplay = installation.version || info.installedTag || "unknown";
+      const latestDisplay = info.releaseName || info.latestTag;
+      // Detect downgrade: installed is ahead of target (e.g. "v0.14.2 + 5 commits" → "v0.14.2")
+      const isDowngrade = track === "stable" && installedDisplay.includes(latestDisplay + " +");
+      const msgKey = isDowngrade ? "standalone.updateConfirmMessageDowngrade"
+        : track === "latest" ? "standalone.updateConfirmMessageLatest"
+        : "standalone.updateConfirmMessage";
       const notes = truncateNotes(info.releaseNotes, 2000);
       updateActions.push({
         id: "update-comfyui", label: t("standalone.updateNow"), style: "primary", enabled: installed,
-        showProgress: true, progressTitle: t("standalone.updatingTitle", { version: info.latestTag }),
+        showProgress: true, progressTitle: t("standalone.updatingTitle", { version: latestDisplay }),
         confirm: {
           title: t("standalone.updateConfirmTitle"),
           message: t(msgKey, {
-            installed: info.installedTag || installation.version,
-            latest: info.latestTag,
+            installed: installedDisplay,
+            latest: latestDisplay,
             commit: notes || "",
             notes: notes || "(none)",
           }),
@@ -464,10 +492,15 @@ module.exports = {
       if (!release) {
         return { ok: false, message: "Could not fetch releases from GitHub." };
       }
-      const installedTag = installation.version || "unknown";
-      const latestTag = release.tag_name;
-      const available = installedTag !== latestTag;
       const existing = installation.updateInfoByTrack || {};
+      const prevTrackInfo = existing[track];
+      // Use stored installedTag for this track if available; otherwise check if
+      // the last update was on a different track (always counts as update available)
+      const lastUpdateTrack = installation.lastRollback?.track;
+      const crossTrack = !prevTrackInfo?.installedTag && lastUpdateTrack && lastUpdateTrack !== track;
+      const installedTag = prevTrackInfo?.installedTag || installation.version || "unknown";
+      const latestTag = release.tag_name;
+      const available = crossTrack || installedTag !== latestTag;
       await update({
         updateInfoByTrack: {
           ...existing,
@@ -559,46 +592,59 @@ module.exports = {
         const activeEnvPython = getActivePythonPath(installation);
 
         if (fs.existsSync(uvPath) && activeEnvPython) {
-          // Dry-run to check for conflicts
-          sendProgress("deps", { percent: -1, status: t("standalone.updateDepsDryRun") });
-          const dryRunResult = await new Promise((resolve) => {
-            const proc = spawn(uvPath, ["pip", "install", "--dry-run", "-r", reqPath, "--python", activeEnvPython], {
-              cwd: installPath,
-              stdio: ["ignore", "pipe", "pipe"],
-              windowsHide: true,
-            });
-            let stdout = "";
-            let stderr = "";
-            proc.stdout.on("data", (chunk) => { stdout += chunk.toString("utf-8"); });
-            proc.stderr.on("data", (chunk) => { stderr += chunk.toString("utf-8"); });
-            proc.on("error", (err) => resolve({ code: 1, stdout: "", stderr: err.message }));
-            proc.on("exit", (code) => resolve({ code: code ?? 1, stdout, stderr }));
-          });
+          // Filter out PyTorch packages — they are tied to the Standalone release
+          // and must never be modified by a commit-based update.
+          const PYTORCH_RE = /^(torch|torchvision|torchaudio)\b/;
+          const filteredReqs = postReqs.split("\n").filter((l) => !PYTORCH_RE.test(l.trim())).join("\n");
+          const filteredReqPath = path.join(installPath, ".comfyui-reqs-filtered.txt");
+          await fs.promises.writeFile(filteredReqPath, filteredReqs, "utf-8");
 
-          if (dryRunResult.code !== 0) {
-            sendOutput(`\nRequirements dry-run detected issues:\n${dryRunResult.stderr || dryRunResult.stdout}\n`);
-            sendOutput("Proceeding with install attempt…\n");
-          }
-
-          // Install requirements
-          sendProgress("deps", { percent: -1, status: t("standalone.updateDepsInstalling") });
-          const installResult = await new Promise((resolve) => {
-            const proc = spawn(uvPath, ["pip", "install", "-r", reqPath, "--python", activeEnvPython], {
-              cwd: installPath,
-              stdio: ["ignore", "pipe", "pipe"],
-              windowsHide: true,
+          try {
+            // Dry-run to check for conflicts
+            sendProgress("deps", { percent: -1, status: t("standalone.updateDepsDryRun") });
+            const dryRunResult = await new Promise((resolve) => {
+              const proc = spawn(uvPath, ["pip", "install", "--dry-run", "-r", filteredReqPath, "--python", activeEnvPython], {
+                cwd: installPath,
+                stdio: ["ignore", "pipe", "pipe"],
+                windowsHide: true,
+              });
+              let stdout = "";
+              let stderr = "";
+              proc.stdout.on("data", (chunk) => { stdout += chunk.toString("utf-8"); });
+              proc.stderr.on("data", (chunk) => { stderr += chunk.toString("utf-8"); });
+              proc.on("error", (err) => resolve({ code: 1, stdout: "", stderr: err.message }));
+              proc.on("exit", (code) => resolve({ code: code ?? 1, stdout, stderr }));
             });
-            proc.stdout.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
-            proc.stderr.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
-            proc.on("error", (err) => {
-              sendOutput(`Error: ${err.message}\n`);
-              resolve(1);
-            });
-            proc.on("exit", (code) => resolve(code ?? 1));
-          });
 
-          if (installResult !== 0) {
-            sendOutput(`\nWarning: requirements install exited with code ${installResult}\n`);
+            if (dryRunResult.code !== 0) {
+              sendOutput(`\nRequirements dry-run detected issues:\n${dryRunResult.stderr || dryRunResult.stdout}\n`);
+              sendOutput("Proceeding with install attempt…\n");
+            } else if (dryRunResult.stderr) {
+              sendOutput(dryRunResult.stderr);
+            }
+
+            // Install requirements
+            sendProgress("deps", { percent: -1, status: t("standalone.updateDepsInstalling") });
+            const installResult = await new Promise((resolve) => {
+              const proc = spawn(uvPath, ["pip", "install", "-r", filteredReqPath, "--python", activeEnvPython], {
+                cwd: installPath,
+                stdio: ["ignore", "pipe", "pipe"],
+                windowsHide: true,
+              });
+              proc.stdout.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
+              proc.stderr.on("data", (chunk) => sendOutput(chunk.toString("utf-8")));
+              proc.on("error", (err) => {
+                sendOutput(`Error: ${err.message}\n`);
+                resolve(1);
+              });
+              proc.on("exit", (code) => resolve(code ?? 1));
+            });
+
+            if (installResult !== 0) {
+              sendOutput(`\nWarning: requirements install exited with code ${installResult}\n`);
+            }
+          } finally {
+            try { await fs.promises.unlink(filteredReqPath); } catch {}
           }
         }
       } else {
@@ -608,7 +654,11 @@ module.exports = {
       // Update installation metadata
       const existing = installation.updateInfoByTrack || {};
       const trackInfo = existing[track] || {};
-      const latestTag = trackInfo.latestTag || installation.version;
+      // For stable: use the checked-out tag; for latest: use the post-update commit sha
+      const postHead = markers.POST_UPDATE_HEAD ? markers.POST_UPDATE_HEAD.slice(0, 7) : null;
+      const installedTag = markers.CHECKED_OUT_TAG || postHead || trackInfo.latestTag || installation.version;
+      // For display: use releaseName (e.g. "v0.14.2 + 5 commits (abc1234)") for latest
+      const displayVersion = markers.CHECKED_OUT_TAG || trackInfo.releaseName || installedTag;
       const rollback = {
         preUpdateHead: markers.PRE_UPDATE_HEAD || null,
         postUpdateHead: markers.POST_UPDATE_HEAD || null,
@@ -617,14 +667,14 @@ module.exports = {
         updatedAt: Date.now(),
       };
       await update({
-        version: markers.CHECKED_OUT_TAG || latestTag,
+        version: displayVersion,
         lastRollback: rollback,
         updateInfoByTrack: {
           ...existing,
           [track]: {
             ...trackInfo,
             available: false,
-            installedTag: markers.CHECKED_OUT_TAG || latestTag,
+            installedTag,
             checkedAt: Date.now(),
           },
         },

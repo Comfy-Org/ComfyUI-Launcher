@@ -53,7 +53,8 @@
     "portConflictAuto": "使用下一个可用端口（设置了 --port 时会询问）",
     "download": "下载",
     "extract": "解压",
-    "useSharedPaths": "使用共享目录"
+    "useSharedPaths": "使用共享目录",
+    "done": "完成"
   },
 
   "list": {
@@ -241,6 +242,7 @@
     "updateConfirmTitle": "更新 ComfyUI",
     "updateConfirmMessage": "从 {installed} 更新到 {latest}？\n\n本地更改将被暂存，并创建备份分支。\n\n发布说明：\n{notes}",
     "updateConfirmMessageLatest": "从 {installed} 更新到 master 最新版（{latest}）？\n\n这将拉取 master 分支的最新提交。本地更改将被暂存，并创建备份分支。\n\n最新提交：{commit}",
+    "updateConfirmMessageDowngrade": "从 {installed} 回退到稳定版 {latest}？\n\n当前安装版本超前于最新稳定版。此操作将检出稳定标签，移除更新的提交。本地更改将被暂存，并创建备份分支。\n\n发布说明：\n{notes}",
     "updatingTitle": "正在更新到 {version}…",
     "updatePrepare": "准备",
     "updateRun": "更新",

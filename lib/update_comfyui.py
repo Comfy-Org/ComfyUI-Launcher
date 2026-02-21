@@ -19,43 +19,41 @@ import sys
 
 
 def pull(repo, remote_name="origin", branch="master"):
-    for remote in repo.remotes:
-        if remote.name == remote_name:
-            remote.fetch()
-            remote_ref = repo.lookup_reference("refs/remotes/origin/%s" % branch)
-            remote_id = remote_ref.target
-            merge_result, _ = repo.merge_analysis(remote_id)
+    remote_ref = repo.lookup_reference("refs/remotes/%s/%s" % (remote_name, branch))
+    remote_id = remote_ref.target
+    merge_result, _ = repo.merge_analysis(remote_id)
 
-            if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
-                print("Already up to date.")
-                return
+    if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
+        print("Already up to date.")
+        return
 
-            if merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
-                repo.checkout_tree(repo.get(remote_id))
-                try:
-                    local_ref = repo.lookup_reference("refs/heads/%s" % branch)
-                    local_ref.set_target(remote_id)
-                except KeyError:
-                    repo.create_branch(branch, repo.get(remote_id))
-                repo.head.set_target(remote_id)
-                return
+    if merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
+        repo.checkout_tree(repo.get(remote_id))
+        try:
+            local_ref = repo.lookup_reference("refs/heads/%s" % branch)
+            local_ref.set_target(remote_id)
+        except KeyError:
+            repo.create_branch(branch, repo.get(remote_id))
+        repo.head.set_target(remote_id)
+        return
 
-            if merge_result & pygit2.GIT_MERGE_ANALYSIS_NORMAL:
-                repo.merge(remote_id)
-                if repo.index.conflicts is not None:
-                    for conflict in repo.index.conflicts:
-                        print("Conflict in: %s" % conflict[0].path)
-                    raise RuntimeError("Merge conflicts detected. Aborting.")
-                user = repo.default_signature
-                tree = repo.index.write_tree()
-                repo.create_commit(
-                    "HEAD", user, user, "Merge!",
-                    tree, [repo.head.target, remote_id],
-                )
-                repo.state_cleanup()
-                return
+    if merge_result & pygit2.GIT_MERGE_ANALYSIS_NORMAL:
+        repo.merge(remote_id)
+        if repo.index.conflicts is not None:
+            for conflict in repo.index.conflicts:
+                entry = next((x for x in conflict if x is not None), None)
+                print("Conflict in: %s" % (entry.path if entry else "unknown"))
+            raise RuntimeError("Merge conflicts detected. Aborting.")
+        user = repo.default_signature
+        tree = repo.index.write_tree()
+        repo.create_commit(
+            "HEAD", user, user, "Merge!",
+            tree, [repo.head.target, remote_id],
+        )
+        repo.state_cleanup()
+        return
 
-            raise RuntimeError("Unknown merge analysis result")
+    raise RuntimeError("Unknown merge analysis result")
 
 
 def find_latest_stable_tag(repo):
@@ -114,27 +112,26 @@ def main():
     except Exception:
         print("Warning: could not create backup branch.")
 
-    # Checkout master
+    # Fetch master from origin (handles shallow/single-branch clones)
+    print("Fetching from origin…")
+    for remote in repo.remotes:
+        if remote.name == "origin":
+            refspecs = ["+refs/heads/master:refs/remotes/origin/master"]
+            if stable:
+                refspecs.append("+refs/tags/*:refs/tags/*")
+            remote.fetch(refspecs)
+            break
+
+    # Checkout master — create local branch if needed
     print("Checking out master branch…")
     branch = repo.lookup_branch("master")
     if branch is None:
-        try:
-            ref = repo.lookup_reference("refs/remotes/origin/master")
-        except KeyError:
-            print("Fetching from origin…")
-            for remote in repo.remotes:
-                if remote.name == "origin":
-                    remote.fetch()
-            ref = repo.lookup_reference("refs/remotes/origin/master")
-        repo.checkout(ref)
-        branch = repo.lookup_branch("master")
-        if branch is None:
-            repo.create_branch("master", repo.get(ref.target))
-    else:
-        ref = repo.lookup_reference(branch.name)
-        repo.checkout(ref)
+        ref = repo.lookup_reference("refs/remotes/origin/master")
+        repo.create_branch("master", repo.get(ref.target))
+    ref = repo.lookup_reference("refs/heads/master")
+    repo.checkout(ref)
 
-    # Pull latest
+    # Pull latest (fast-forward or merge against already-fetched origin/master)
     print("Pulling latest changes…")
     pull(repo)
 
@@ -144,7 +141,8 @@ def main():
         if tag is not None:
             print("Checking out stable tag: %s" % tag)
             repo.checkout(tag)
-            print("[CHECKED_OUT_TAG] %s" % tag)
+            tag_name = tag.replace("refs/tags/", "")
+            print("[CHECKED_OUT_TAG] %s" % tag_name)
         else:
             print("No stable tags found, staying on master.")
 

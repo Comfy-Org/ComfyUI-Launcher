@@ -53,7 +53,8 @@
     "portConflictAuto": "Use next available port (asks if --port is set)",
     "download": "Download",
     "extract": "Extract",
-    "useSharedPaths": "Use Shared Directories"
+    "useSharedPaths": "Use Shared Directories",
+    "done": "Done"
   },
 
   "list": {
@@ -242,6 +243,7 @@
     "updateConfirmTitle": "Update ComfyUI",
     "updateConfirmMessage": "Update from {installed} to {latest}?\n\nLocal changes will be stashed and a backup branch created.\n\nRelease notes:\n{notes}",
     "updateConfirmMessageLatest": "Update from {installed} to latest on master ({latest})?\n\nThis will pull the newest commits from the master branch. Local changes will be stashed and a backup branch created.\n\nLatest commit: {commit}",
+    "updateConfirmMessageDowngrade": "Roll back from {installed} to stable release {latest}?\n\nYour install is currently ahead of the latest stable release. This will check out the stable tag, removing any newer commits. Local changes will be stashed and a backup branch created.\n\nRelease notes:\n{notes}",
     "updatingTitle": "Updating to {version}…",
     "updatePrepare": "Prepare",
     "updateRun": "Update",

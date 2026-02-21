@@ -163,8 +163,22 @@ window.Launcher.progress = {
     terminal.scrollTop = terminal.scrollHeight;
     container.appendChild(terminal);
 
-    // Cancel button
-    if (op.finished) {
+    // Cancel / Done button
+    if (op.finished && op.result) {
+      // Successful finish — show Done button
+      cancelBtn.style.display = "";
+      cancelBtn.disabled = false;
+      cancelBtn.className = "primary";
+      cancelBtn.textContent = window.t("common.done");
+      cancelBtn.onclick = () => {
+        window.Launcher.closeViewModal("progress");
+        if (op.result.navigate === "detail" && window.Launcher.detail._current) {
+          window.Launcher.detail.show(window.Launcher.detail._current);
+        } else if (op.result.mode === "console") {
+          window.Launcher.console.show(installationId);
+        }
+      };
+    } else if (op.finished) {
       cancelBtn.style.display = "none";
     } else {
       cancelBtn.style.display = "";
@@ -416,17 +430,30 @@ window.Launcher.progress = {
 
     const handleResult = (result) => {
       op.finished = true;
+      if (result.ok) op.result = result;
       this._cleanupOperation(installationId);
       if (result.ok) {
-        const wasShowing = this._isShowing(installationId);
         window.Launcher.clearActiveSession(installationId);
-        if (wasShowing) window.Launcher.closeViewModal("progress");
-        if (result.navigate === "detail" && window.Launcher.detail._current && wasShowing) {
-          window.Launcher.detail.show(window.Launcher.detail._current);
-        } else if (result.mode === "console" && wasShowing) {
-          window.Launcher.console.show(installationId);
-        }
         window.Launcher.list.render();
+
+        if (!this._isShowing(installationId)) return;
+
+        // Show success state instead of auto-closing
+        if (op.steps) markAllDone();
+
+        const cancelBtn = document.getElementById("btn-progress-cancel");
+        cancelBtn.style.display = "";
+        cancelBtn.disabled = false;
+        cancelBtn.className = "primary";
+        cancelBtn.textContent = window.t("common.done");
+        cancelBtn.onclick = () => {
+          window.Launcher.closeViewModal("progress");
+          if (result.navigate === "detail" && window.Launcher.detail._current) {
+            window.Launcher.detail.show(window.Launcher.detail._current);
+          } else if (result.mode === "console") {
+            window.Launcher.console.show(installationId);
+          }
+        };
       } else if (result.portConflict) {
         window.Launcher.clearActiveSession(installationId);
         if (this._isShowing(installationId)) {
