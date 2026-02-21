@@ -36,7 +36,18 @@ chmod +x ComfyUI-Launcher-*.AppImage
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) **v22 LTS** or later
+
+We recommend using [nvm](https://github.com/nvm-sh/nvm) (or [nvm-windows](https://github.com/coreybutler/nvm-windows)) to manage Node versions:
+
+```bash
+# Install and use Node 22
+nvm install 22
+nvm use 22
+
+# Verify
+node --version   # should print v22.x.x
+```
 
 ### Setup
 
