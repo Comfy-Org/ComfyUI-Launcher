@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import type { DetailItem, DetailField, ActionDef } from '../types/ipc'
 
 interface Props {
@@ -28,10 +28,15 @@ const emit = defineEmits<{
 }>()
 
 const isCollapsed = ref(props.collapsed === true)
+const sectionRef = ref<HTMLDivElement | null>(null)
 
-function toggleCollapse(): void {
+async function toggleCollapse(): Promise<void> {
   if (props.collapsed != null) {
     isCollapsed.value = !isCollapsed.value
+    if (!isCollapsed.value) {
+      await nextTick()
+      sectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
   }
 }
 
@@ -60,7 +65,7 @@ function handleAction(action: ActionDef, event: MouseEvent): void {
 </script>
 
 <template>
-  <div class="detail-section" :data-section-title="title">
+  <div class="detail-section" :data-section-title="title" ref="sectionRef">
     <div v-if="title" class="detail-section-title"
          :class="{ collapsible: collapsed != null }"
          :data-collapsed="isCollapsed ? 'true' : 'false'"

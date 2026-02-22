@@ -45,19 +45,26 @@ const sections = ref<DetailSection[]>([])
 const mainSections = computed(() => sections.value.filter((s) => !s.pinBottom))
 const bottomSection = computed(() => sections.value.find((s) => s.pinBottom) ?? null)
 
+const previousInstId = ref<string | null>(null)
+
 watch(
   () => props.installation,
   async (inst) => {
     if (!inst) {
       sections.value = []
+      previousInstId.value = null
       return
     }
     if (!inst.seen) {
       window.api.updateInstallation(inst.id, { seen: true })
     }
+    const isNewInstallation = inst.id !== previousInstId.value
+    previousInstId.value = inst.id
     sections.value = await window.api.getDetailSections(inst.id)
-    await nextTick()
-    if (scrollRef.value) scrollRef.value.scrollTop = 0
+    if (isNewInstallation) {
+      await nextTick()
+      if (scrollRef.value) scrollRef.value.scrollTop = 0
+    }
   },
   { immediate: true }
 )
