@@ -49,6 +49,33 @@ nvm use 22
 node --version   # should print v22.x.x
 ```
 
+### Stack
+
+- **Build tool:** [electron-vite](https://electron-vite.org/)
+- **Renderer:** [Vue 3](https://vuejs.org/) (Composition API) + [TypeScript](https://www.typescriptlang.org/)
+- **State:** [Pinia](https://pinia.vuejs.org/)
+- **i18n:** [vue-i18n](https://vue-i18n.intlify.dev/) (locale files in `locales/`)
+- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
+- **Icons:** [Lucide](https://lucide.dev/)
+- **Main process:** TypeScript (`src/main/`)
+
+### Project structure
+
+```
+src/
+  main/          # Electron main process (TypeScript)
+  preload/       # Preload scripts (context bridge)
+  renderer/src/  # Vue 3 renderer
+    components/  # Reusable UI components
+    composables/ # Vue composables (useModal, useTheme, …)
+    stores/      # Pinia stores (session, installation)
+    views/       # Top-level views and modal views
+    types/       # Renderer-side type re-exports
+  types/         # Shared IPC types (single source of truth)
+locales/         # i18n translation files
+sources/         # Installation source plugins
+```
+
 ### Setup
 
 ```bash
@@ -61,7 +88,7 @@ npm install
 
 **Windows / macOS:**
 ```bash
-npm start
+npm run dev
 ```
 
 **Linux:**
@@ -69,16 +96,21 @@ npm start
 ./linux-dev.sh
 ```
 
+### Type checking
+
+```bash
+npm run typecheck          # both main + renderer
+npm run typecheck:node     # main process only
+npm run typecheck:web      # renderer only
+```
+
 ### Build for distribution
 
 ```bash
-# Current platform
-npm run dist
-
 # Platform-specific
-npm run dist:win      # Windows (NSIS installer)
-npm run dist:mac      # macOS (DMG)
-npm run dist:linux    # Linux (AppImage, .deb)
+npm run build:win      # Windows (NSIS installer)
+npm run build:mac      # macOS (DMG)
+npm run build:linux    # Linux (AppImage, .deb)
 ```
 
 Build output is written to the `dist/` directory.
