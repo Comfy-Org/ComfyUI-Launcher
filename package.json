@@ -10,72 +10,40 @@
   "engines": {
     "node": ">=22"
   },
-  "main": "main.js",
+  "main": "./out/main/index.js",
   "scripts": {
-    "postinstall": "node -e \"if(process.platform!=='win32'){try{require('fs').chmodSync(require('7zip-bin').path7za,0o755)}catch{}}\"",
-    "start": "electron .",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux"
-  },
-  "devDependencies": {
-    "electron": "^40.4.1",
-    "electron-builder": "^26.7.0",
-    "tar": "^7.5.9"
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "start": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "build:unpack": "npm run build && electron-builder --dir",
+    "build:win": "npm run build && electron-builder --win",
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",
     "electron-updater": "^6.7.3"
   },
-  "build": {
-    "appId": "com.kosinkadink.comfyui-launcher",
-    "productName": "ComfyUI Launcher",
-    "publish": {
-      "provider": "github",
-      "owner": "Kosinkadink",
-      "repo": "ComfyUI-Launcher"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "index.html",
-      "installations.js",
-      "settings.js",
-      "lib/**/*",
-      "sources/**/*",
-      "renderer/**/*",
-      "assets/**/*",
-      "locales/**/*"
-    ],
-    "asarUnpack": [
-      "node_modules/7zip-bin/**/*"
-    ],
-    "artifactName": "ComfyUI-Launcher-${version}-${os}-${arch}.${ext}",
-    "win": {
-      "target": "nsis",
-      "icon": "assets/Comfy_Logo_x256.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "icon": "assets/Comfy_Logo_x512.png",
-      "category": "public.app-category.developer-tools"
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "icon": "assets/Comfy_Logo_x256.png",
-      "category": "Development"
-    }
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.8",
+    "@types/node": "^22.19.1",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "@vueuse/core": "^13.5.0",
+    "electron": "^40.4.1",
+    "electron-builder": "^26.7.0",
+    "electron-vite": "^5.0.0",
+    "lucide-vue-next": "^0.525.0",
+    "pinia": "^3.0.3",
+    "tailwindcss": "^4.1.8",
+    "tar": "^7.5.9",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vue": "^3.5.25",
+    "vue-i18n": "^11.1.6",
+    "vue-tsc": "^3.1.6"
   }
 }
