@@ -58,6 +58,8 @@ node --version   # should print v22.x.x
 - **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
 - **Icons:** [Lucide](https://lucide.dev/)
 - **Main process:** TypeScript (`src/main/`)
+- **Linting:** [ESLint](https://eslint.org/) (flat config) + [Prettier](https://prettier.io/)
+- **Testing:** [Vitest](https://vitest.dev/) + [Vue Test Utils](https://test-utils.vuejs.org/)
 
 ### Project structure
 
@@ -102,6 +104,22 @@ npm run dev
 npm run typecheck          # both main + renderer
 npm run typecheck:node     # main process only
 npm run typecheck:web      # renderer only
+```
+
+### Linting
+
+```bash
+npm run lint           # check for lint errors
+npm run lint:fix       # auto-fix lint errors
+npm run format         # format with Prettier
+npm run format:check   # check formatting without writing
+```
+
+### Testing
+
+```bash
+npm test               # run all unit tests
+npm run test:watch     # run in watch mode
 ```
 
 ### Build for distribution
