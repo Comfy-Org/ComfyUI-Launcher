@@ -137,8 +137,8 @@ defineExpose({ open })
             <div class="path-input">
               <input
                 id="track-path"
-                type="text"
                 v-model="trackPath"
+                type="text"
                 :placeholder="$t('track.selectDir')"
               />
               <button @click="handleBrowse">{{ $t('common.browse') }}</button>
@@ -150,8 +150,8 @@ defineExpose({ open })
             <label for="track-name">{{ $t('common.name') }}</label>
             <input
               id="track-name"
-              type="text"
               v-model="trackName"
+              type="text"
               :placeholder="$t('common.namePlaceholder')"
             />
           </div>
@@ -172,14 +172,15 @@ defineExpose({ open })
                     : $t('track.browseDirFirst')
                 }}
               </option>
-              <option
-                v-else
-                v-for="(r, i) in probeResults"
-                :key="i"
-                :value="i"
-              >
-                {{ r.sourceLabel }}
-              </option>
+              <template v-else>
+                <option
+                  v-for="(r, i) in probeResults"
+                  :key="i"
+                  :value="i"
+                >
+                  {{ r.sourceLabel }}
+                </option>
+              </template>
             </select>
           </div>
 

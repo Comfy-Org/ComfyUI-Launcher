@@ -33,6 +33,8 @@ const bannerMessage = computed<string>(() => {
       return boldify(t('update.ready', { version: state.value.version }))
     case 'error':
       return t('update.checkFailed')
+    default:
+      return ''
   }
 })
 

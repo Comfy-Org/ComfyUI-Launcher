@@ -20,7 +20,6 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
-  'navigate-list': []
   'show-detail': [installationId: string]
   'show-console': [installationId: string]
 }>()
@@ -478,9 +477,9 @@ defineExpose({ startOperation, showOperation, getProgressInfo, operations })
         <!-- Terminal output -->
         <div
           v-if="currentOp.terminalOutput"
-          class="terminal-output"
-          ref="terminalRef"
           id="progress-terminal"
+          ref="terminalRef"
+          class="terminal-output"
         >{{ currentOp.terminalOutput }}</div>
 
         <!-- Cancel / Done buttons -->

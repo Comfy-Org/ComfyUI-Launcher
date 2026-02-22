@@ -129,8 +129,8 @@ onUnmounted(() => {
         <div class="modal-title">{{ state.title }}</div>
         <div
           class="modal-message"
-          v-html="linkifiedMessage"
           @click="handleMessageClick"
+          v-html="linkifiedMessage"
         ></div>
         <div class="modal-actions">
           <button class="primary" @click="close(undefined)">{{ state.buttonLabel }}</button>
@@ -142,8 +142,8 @@ onUnmounted(() => {
         <div class="modal-title">{{ state.title }}</div>
         <div
           class="modal-message"
-          v-html="linkifiedMessage"
           @click="handleMessageClick"
+          v-html="linkifiedMessage"
         ></div>
         <div class="modal-actions">
           <button @click="close(false)">{{ $t('common.cancel') }}</button>
@@ -159,7 +159,7 @@ onUnmounted(() => {
         <div class="modal-message">{{ state.message }}</div>
         <div class="modal-options">
           <label v-for="opt in localOptions" :key="opt.id" class="modal-option">
-            <input type="checkbox" v-model="opt.checked" />
+            <input v-model="opt.checked" type="checkbox" />
             <span>{{ opt.label }}</span>
           </label>
         </div>
@@ -182,9 +182,9 @@ onUnmounted(() => {
         <div class="modal-input-wrap">
           <input
             ref="inputRef"
+            v-model="inputValue"
             type="text"
             class="modal-input"
-            v-model="inputValue"
             :placeholder="state.placeholder"
             @keydown.enter="submitPrompt"
           />

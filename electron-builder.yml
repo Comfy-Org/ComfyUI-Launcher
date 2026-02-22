@@ -6,18 +6,12 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,.prettierignore,.prettierrc.yaml,README.md,DESIGN_PROCESS.md,MANAGER_RESTART.md,REFERENCE_COMFY_DESKTOP.md}'
+  - '!eslint.config.ts'
+  - '!{.eslintcache,.prettierrc.json,README.md,DESIGN_PROCESS.md,MANAGER_RESTART.md,REFERENCE_COMFY_DESKTOP.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!{.env,.env.*,.npmrc}'
   - '!docs/*'
   - '!reference/*'
-  - '!renderer/*'
-  - '!main.js'
-  - '!preload.js'
-  - '!index.html'
-  - '!installations.js'
-  - '!settings.js'
-  - '!lib/*'
 asarUnpack:
   - node_modules/7zip-bin/**/*
 publish:

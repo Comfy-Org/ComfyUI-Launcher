@@ -89,17 +89,20 @@ async function addPath(): Promise<void> {
     </div>
 
     <!-- Select -->
-    <select v-else-if="field.type === 'select'" class="detail-field-input"
+    <select
+v-else-if="field.type === 'select'" class="detail-field-input"
             :value="field.value" @change="handleSelectChange">
       <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
     </select>
 
     <!-- Boolean -->
-    <input v-else-if="field.type === 'boolean'" type="checkbox" class="detail-field-toggle"
+    <input
+v-else-if="field.type === 'boolean'" type="checkbox" class="detail-field-toggle"
            :checked="field.value === true" @change="handleBooleanChange" />
 
     <!-- Number -->
-    <input v-else-if="field.type === 'number'" type="number" class="detail-field-input"
+    <input
+v-else-if="field.type === 'number'" type="number" class="detail-field-input"
            :value="field.value" :min="field.min" :max="field.max" @change="handleNumberChange" />
 
     <!-- PathList -->
@@ -115,7 +118,8 @@ async function addPath(): Promise<void> {
     </div>
 
     <!-- Text (fallback) -->
-    <input v-else type="text" class="detail-field-input"
+    <input
+v-else type="text" class="detail-field-input"
            :value="field.value ?? ''" @change="updateSetting(($event.target as HTMLInputElement).value)" />
   </div>
 </template>

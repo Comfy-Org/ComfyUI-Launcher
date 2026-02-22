@@ -129,9 +129,9 @@ function handleOverlayClick(event: MouseEvent): void {
       </div>
       <div class="view-modal-body">
         <div
-          class="terminal-output"
-          ref="terminalRef"
           id="console-terminal"
+          ref="terminalRef"
+          class="terminal-output"
         >{{ terminalOutput }}</div>
       </div>
     </div>

@@ -29,7 +29,6 @@ const emit = defineEmits<{
     }
   ]
   'navigate-list': []
-  'show-console': [installationId: string]
   'update:installation': [inst: Installation]
 }>()
 
@@ -304,7 +303,7 @@ function handleOverlayClick(event: MouseEvent): void {
     @mousedown="handleOverlayMouseDown"
     @click="handleOverlayClick"
   >
-    <div class="view-modal-content" ref="contentRef">
+    <div ref="contentRef" class="view-modal-content">
       <div class="view-modal-header">
         <div
           class="view-modal-title"
@@ -318,7 +317,7 @@ function handleOverlayClick(event: MouseEvent): void {
         <button class="view-modal-close" @click="emit('close')">✕</button>
       </div>
       <div class="view-modal-body">
-        <div class="view-scroll" ref="scrollRef">
+        <div ref="scrollRef" class="view-scroll">
           <DetailSectionComponent
             v-for="section in mainSections"
             :key="section.title ?? 'untitled'"

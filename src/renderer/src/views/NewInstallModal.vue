@@ -357,8 +357,8 @@ defineExpose({ open })
             <label for="inst-name">{{ $t('common.name') }}</label>
             <input
               id="inst-name"
-              type="text"
               v-model="instName"
+              type="text"
               :placeholder="$t('common.namePlaceholder')"
             />
           </div>
@@ -397,16 +397,16 @@ defineExpose({ open })
               <template v-if="field.type === 'text'">
                 <div class="path-input">
                   <input
-                    type="text"
                     :id="`sf-${field.id}`"
+                    type="text"
                     :value="textFieldValues.get(field.id) ?? ''"
                     :placeholder="field.defaultValue || ''"
                     @input="textFieldValues.set(field.id, ($event.target as HTMLInputElement).value)"
                   />
                   <button
                     v-if="field.action"
-                    type="button"
                     :id="`sf-${field.id}-action`"
+                    type="button"
                     @click="handleTextAction(field)"
                   >
                     {{ field.action.label }}
@@ -455,14 +455,15 @@ defineExpose({ open })
                           : '—'
                     }}
                   </option>
-                  <option
-                    v-else
-                    v-for="(opt, i) in fieldOptions.get(field.id)"
-                    :key="opt.value"
-                    :value="i"
-                  >
-                    {{ opt.label }}
-                  </option>
+                  <template v-else>
+                    <option
+                      v-for="(opt, i) in fieldOptions.get(field.id)"
+                      :key="opt.value"
+                      :value="i"
+                    >
+                      {{ opt.label }}
+                    </option>
+                  </template>
                 </select>
               </template>
             </div>
@@ -477,8 +478,8 @@ defineExpose({ open })
             <div class="path-input">
               <input
                 id="inst-path"
-                type="text"
                 v-model="instPath"
+                type="text"
               />
               <button @click="handleBrowse">{{ $t('common.browse') }}</button>
             </div>

@@ -625,7 +625,7 @@ export const standalone: SourcePlugin = {
         const activeEnvPython = getActivePythonPath(installation)
 
         if (fs.existsSync(uvPath) && activeEnvPython) {
-          const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;\[#]|$)/i
+          const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;[#]|$)/i
           const filteredReqs = postReqs.split('\n').filter((l) => !PYTORCH_RE.test(l.trim())).join('\n')
           const filteredReqPath = path.join(installPath, '.comfyui-reqs-filtered.txt')
           await fs.promises.writeFile(filteredReqPath, filteredReqs, 'utf-8')
@@ -905,7 +905,7 @@ export const standalone: SourcePlugin = {
             sendOutput(t('migrate.noUvOrPython') + '\n')
             sendProgress('deps', { percent: 100, status: t('migrate.depsSkipped') })
           } else {
-            const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;\[#]|$)/i
+            const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;[#]|$)/i
             let depsInstalled = 0
 
             for (const node of nodesWithReqs) {

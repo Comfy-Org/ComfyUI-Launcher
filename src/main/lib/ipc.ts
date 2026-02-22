@@ -26,7 +26,8 @@ import * as i18n from './i18n'
 import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
-import type { SourcePlugin } from '../types/sources'
+import type { FieldOption, SourcePlugin } from '../types/sources'
+import type { LaunchCmd } from './process'
 
 const MARKER_FILE = '.comfyui-launcher'
 const IGNORE_FILES = new Set([MARKER_FILE, '.DS_Store', 'Thumbs.db', 'desktop.ini'])
@@ -334,7 +335,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const gpu = _detectedGPU === undefined ? null : _detectedGPU
     const options = await resolveSource(sourceId).getFieldOptions(
       fieldId,
-      selections as Record<string, import('../types/sources').FieldOption | undefined>,
+      selections as Record<string, FieldOption | undefined>,
       { gpu: gpu && gpu.id }
     )
     return options
@@ -350,7 +351,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     return {
       sourceId: source.id,
       sourceLabel: source.label,
-      ...source.buildInstallation(selections as Record<string, import('../types/sources').FieldOption | undefined>),
+      ...source.buildInstallation(selections as Record<string, FieldOption | undefined>),
     }
   })
 
@@ -903,8 +904,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
       const source = resolveSource(inst.sourceId)
       const installData = source.buildInstallation({
-        release: releaseSelection as unknown as import('../types/sources').FieldOption,
-        variant: variantSelection as unknown as import('../types/sources').FieldOption,
+        release: releaseSelection as unknown as FieldOption,
+        variant: variantSelection as unknown as FieldOption,
       })
 
       const parentDir = path.dirname(inst.installPath)
@@ -1099,7 +1100,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
 
       if (actionData && actionData.portOverride) {
-        setPortArg(launchCmd as import('./process').LaunchCmd, actionData.portOverride as number)
+        setPortArg(launchCmd as LaunchCmd, actionData.portOverride as number)
       }
 
       const existingPids = await findPidsByPort(launchCmd.port!)
@@ -1116,7 +1117,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
         if (portConflictMode === 'auto' && nextPort && !portIsExplicit) {
           sendProgress('launch', { percent: -1, status: i18n.t('launch.portBusyUsing', { old: launchCmd.port!, new: nextPort }) })
-          setPortArg(launchCmd as import('./process').LaunchCmd, nextPort)
+          setPortArg(launchCmd as LaunchCmd, nextPort)
         } else {
           const lock = readPortLock(launchCmd.port!)
           let message: string

@@ -242,7 +242,6 @@ onMounted(async () => {
     @close="closeDetail"
     @show-progress="showProgress"
     @navigate-list="handleNavigateList"
-    @show-console="openConsole"
     @update:installation="(inst) => detailInstallation = inst"
   />
 
@@ -255,7 +254,6 @@ onMounted(async () => {
     ref="progressRef"
     :installation-id="progressInstallationId"
     @close="closeProgress"
-    @navigate-list="handleNavigateList"
     @show-detail="handleProgressShowDetail"
     @show-console="openConsole"
   />

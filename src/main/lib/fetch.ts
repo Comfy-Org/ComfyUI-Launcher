@@ -14,7 +14,7 @@ interface CacheEntry {
 const MAX_CACHE_SIZE = 100
 const CACHE_FILE = path.join(cacheDir(), "fetch-cache.json")
 
-let _cache: Map<string, CacheEntry> = new Map()
+const _cache: Map<string, CacheEntry> = new Map()
 let _loaded = false
 
 function _ensureLoaded(): void {
