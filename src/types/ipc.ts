@@ -54,6 +54,7 @@ export interface FieldOption {
   label: string
   description?: string
   recommended?: boolean
+  data?: Record<string, unknown>
 }
 
 // --- Detail types ---

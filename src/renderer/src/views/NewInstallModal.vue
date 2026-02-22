@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import type { Source, SourceField, FieldOption } from '../types/ipc'
@@ -34,6 +34,16 @@ const fieldOptions = ref(new Map<string, FieldOption[]>())
 const fieldLoading = ref(new Map<string, boolean>())
 const fieldErrors = ref(new Map<string, string>())
 const textFieldValues = ref(new Map<string, string>())
+
+/** Deep-strip Vue reactive proxies for safe IPC serialization */
+function rawSelections(): Record<string, FieldOption> {
+  const raw = toRaw(selections.value)
+  const result: Record<string, FieldOption> = {}
+  for (const [key, val] of Object.entries(raw)) {
+    result[key] = JSON.parse(JSON.stringify(toRaw(val))) as FieldOption
+  }
+  return result
+}
 
 let gpuPromise: Promise<string> | null = null
 let installDirPromise: Promise<string> | null = null
@@ -156,7 +166,7 @@ async function loadFieldOptions(fieldIndex: number): Promise<void> {
     const options = await window.api.getFieldOptions(
       source.id,
       field.id,
-      selections.value
+      rawSelections()
     )
     fieldLoading.value.set(field.id, false)
 
@@ -258,7 +268,7 @@ async function handleSave(): Promise<void> {
     }
   }
 
-  const instData = await window.api.buildInstallation(source.id, selections.value)
+  const instData = await window.api.buildInstallation(source.id, rawSelections())
   const name =
     instName.value.trim() ||
     `ComfyUI (${(instData as Record<string, unknown>).version || source.label})`
@@ -344,18 +354,18 @@ defineExpose({ open })
         <div class="view-scroll">
           <!-- Installation name -->
           <div class="field">
-            <label for="inst-name">{{ $t('newInstall.name') }}</label>
+            <label for="inst-name">{{ $t('common.name') }}</label>
             <input
               id="inst-name"
               type="text"
               v-model="instName"
-              :placeholder="$t('newInstall.namePlaceholder')"
+              :placeholder="$t('common.namePlaceholder')"
             />
           </div>
 
           <!-- Source select -->
           <div class="field">
-            <label for="source">{{ $t('newInstall.source') }}</label>
+            <label for="source">{{ $t('newInstall.installMethod') }}</label>
             <select
               id="source"
               :disabled="sources.length <= 1"
@@ -463,7 +473,7 @@ defineExpose({ open })
             v-if="!currentSource?.hideInstallPath"
             class="field"
           >
-            <label for="inst-path">{{ $t('newInstall.installPath') }}</label>
+            <label for="inst-path">{{ $t('newInstall.installLocation') }}</label>
             <div class="path-input">
               <input
                 id="inst-path"
@@ -482,7 +492,7 @@ defineExpose({ open })
             :disabled="saveDisabled"
             @click="handleSave"
           >
-            {{ $t('newInstall.save') }}
+            {{ $t('newInstall.addInstallation') }}
           </button>
         </div>
       </div>

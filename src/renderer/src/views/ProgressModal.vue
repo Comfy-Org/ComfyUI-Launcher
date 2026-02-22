@@ -151,52 +151,54 @@ function startOperation(opts: {
     apiCall
   }
   operations.set(installationId, op)
+  // Get the reactive proxy so callbacks trigger Vue re-renders
+  const rop = operations.get(installationId)!
 
   // Subscribe to progress events
-  op.unsubProgress = window.api.onInstallProgress((data: ProgressData) => {
+  rop.unsubProgress = window.api.onInstallProgress((data: ProgressData) => {
     if (data.installationId !== installationId) return
 
     if (data.phase === 'steps' && data.steps) {
-      op.steps = data.steps
-      op.activePhase = null
-      op.activePercent = -1
+      rop.steps = data.steps
+      rop.activePhase = null
+      rop.activePercent = -1
       return
     }
 
-    if (data.phase === 'done' && op.steps) {
-      op.done = true
+    if (data.phase === 'done' && rop.steps) {
+      rop.done = true
       return
     }
 
-    if (op.steps) {
-      const stepIndex = op.steps.findIndex((s) => s.phase === data.phase)
+    if (rop.steps) {
+      const stepIndex = rop.steps.findIndex((s) => s.phase === data.phase)
       if (stepIndex === -1) return
-      op.activePhase = data.phase
-      op.lastStatus[data.phase] = data.status || data.phase
-      op.activePercent = data.percent ?? -1
+      rop.activePhase = data.phase
+      rop.lastStatus[data.phase] = data.status || data.phase
+      rop.activePercent = data.percent ?? -1
       return
     }
 
     // Flat mode
-    if (!op.cancelRequested) {
-      op.flatStatus = data.status || data.phase
+    if (!rop.cancelRequested) {
+      rop.flatStatus = data.status || data.phase
     }
     if (data.percent !== undefined) {
-      op.flatPercent = data.percent
+      rop.flatPercent = data.percent
     }
   })
 
   // Subscribe to terminal output
-  op.unsubOutput = window.api.onComfyOutput((data: ComfyOutputData) => {
+  rop.unsubOutput = window.api.onComfyOutput((data: ComfyOutputData) => {
     if (data.installationId !== installationId) return
-    op.terminalOutput += data.text
+    rop.terminalOutput += data.text
   })
 
   // Execute the API call
   apiCall()
     .then((result) => {
-      op.finished = true
-      if (result.ok) op.result = result
+      rop.finished = true
+      if (result.ok) rop.result = result
       cleanupOperation(installationId)
 
       if (result.ok) {
@@ -210,18 +212,18 @@ function startOperation(opts: {
           return
         }
 
-        if (op.steps) op.done = true
+        if (rop.steps) rop.done = true
       } else if (result.portConflict) {
         sessionStore.clearActiveSession(installationId)
-        // Port conflict state is stored in op.result for template rendering
+        // Port conflict state is stored in rop.result for template rendering
       } else {
-        op.error = result.message || t('progress.unknownError')
+        rop.error = result.message || t('progress.unknownError')
         sessionStore.clearActiveSession(installationId)
       }
     })
     .catch((err: Error) => {
-      op.error = err.message
-      op.finished = true
+      rop.error = err.message
+      rop.finished = true
       cleanupOperation(installationId)
       sessionStore.clearActiveSession(installationId)
     })

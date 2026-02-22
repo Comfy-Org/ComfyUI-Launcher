@@ -7,6 +7,7 @@
   },
 
   "running": {
+    "title": "Running",
     "empty": "Nothing running or in progress.",
     "instances": "Running Instances",
     "errors": "Errors",
@@ -112,7 +113,8 @@
     "working": "Working…",
     "starting": "Starting…",
     "cancelling": "Cancelling…",
-    "error": "Error: {message}"
+    "error": "Error: {message}",
+    "unknownError": "An unknown error occurred"
   },
 
   "console": {

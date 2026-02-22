@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from './stores/sessionStore'
 import { useInstallationStore } from './stores/installationStore'
@@ -79,8 +79,9 @@ function closeConsole(): void {
   consoleInstallationId.value = null
 }
 
-function openNewInstall(): void {
+async function openNewInstall(): Promise<void> {
   showNewInstall.value = true
+  await nextTick()
   newInstallRef.value?.open()
 }
 
@@ -88,8 +89,9 @@ function closeNewInstall(): void {
   showNewInstall.value = false
 }
 
-function openTrack(): void {
+async function openTrack(): Promise<void> {
   showTrack.value = true
+  await nextTick()
   trackRef.value?.open()
 }
 
@@ -105,6 +107,11 @@ function showProgress(opts: {
   returnTo?: string
 }): void {
   progressInstallationId.value = opts.installationId
+  // If an operation already exists for this ID, just show it
+  if (progressRef.value?.operations.has(opts.installationId)) {
+    progressRef.value.showOperation(opts.installationId)
+    return
+  }
   progressRef.value?.startOperation({
     installationId: opts.installationId,
     title: opts.title,
