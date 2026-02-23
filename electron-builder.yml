@@ -1,0 +1,40 @@
+appId: com.kosinkadink.comfyui-launcher
+productName: ComfyUI Launcher
+directories:
+  buildResources: resources
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!eslint.config.ts'
+  - '!{.eslintcache,.prettierrc.json,README.md,DESIGN_PROCESS.md,MANAGER_RESTART.md,REFERENCE_COMFY_DESKTOP.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{.env,.env.*,.npmrc}'
+  - '!docs/*'
+  - '!reference/*'
+asarUnpack:
+  - node_modules/7zip-bin/**/*
+publish:
+  provider: github
+  owner: Kosinkadink
+  repo: ComfyUI-Launcher
+artifactName: ComfyUI-Launcher-${version}-${os}-${arch}.${ext}
+win:
+  target: nsis
+  icon: assets/Comfy_Logo_x256.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - dmg
+    - zip
+  icon: assets/Comfy_Logo_x512.png
+  category: public.app-category.developer-tools
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: assets/Comfy_Logo_x256.png
+  category: Development

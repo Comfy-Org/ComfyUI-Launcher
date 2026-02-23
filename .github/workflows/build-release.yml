@@ -48,7 +48,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Lint
+        run: npm run lint
+
+      - name: Compile
+        run: npm run build
+
+      - name: Package
         run: npx electron-builder ${{ matrix.args }} --publish never
 
       - name: Upload artifacts
