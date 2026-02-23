@@ -263,12 +263,14 @@ onMounted(async () => {
     ref="newInstallRef"
     @close="closeNewInstall"
     @show-progress="showProgress"
+    @navigate-list="handleNavigateList"
   />
 
   <TrackModal
     v-if="showTrack"
     ref="trackRef"
     @close="closeTrack"
+    @navigate-list="handleNavigateList"
   />
 
   <!-- Global modal dialog (alerts/confirms/prompts/selects) -->
