@@ -26,12 +26,6 @@ chmod +x ComfyUI-Launcher-*.AppImage
 ./ComfyUI-Launcher-*.AppImage --no-sandbox
 ```
 
-**Nix (flake):**
-
-> ⚠️ The Nix flake (`flake.nix`) is not working currently.
-
-
-
 ## Development
 
 ### Prerequisites
