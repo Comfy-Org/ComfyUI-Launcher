@@ -33,30 +33,30 @@ beforeEach(() => {
 describe('DetailSection', () => {
   it('starts collapsed when collapsed=true', () => {
     const wrapper = mountComponent({ title: 'Collapsible', collapsed: true })
-    expect(wrapper.find('.detail-section-body').element.style.display).toBe('none')
+    expect((wrapper.find('.detail-section-body').element as HTMLElement).style.display).toBe('none')
   })
 
   it('toggles collapse on title click', async () => {
     const wrapper = mountComponent({ title: 'Toggle Me', collapsed: true })
-    const body = wrapper.find('.detail-section-body')
+    const bodyEl = wrapper.find('.detail-section-body').element as HTMLElement
 
-    expect(body.element.style.display).toBe('none')
-
-    await wrapper.find('.detail-section-title').trigger('click')
-    expect(body.element.style.display).not.toBe('none')
+    expect(bodyEl.style.display).toBe('none')
 
     await wrapper.find('.detail-section-title').trigger('click')
-    expect(body.element.style.display).toBe('none')
+    expect(bodyEl.style.display).not.toBe('none')
+
+    await wrapper.find('.detail-section-title').trigger('click')
+    expect(bodyEl.style.display).toBe('none')
   })
 
   it('is not collapsible when collapsed=null', async () => {
     const wrapper = mountComponent({ title: 'Static', collapsed: null })
-    const body = wrapper.find('.detail-section-body')
+    const bodyEl = wrapper.find('.detail-section-body').element as HTMLElement
 
-    expect(body.element.style.display).not.toBe('none')
+    expect(bodyEl.style.display).not.toBe('none')
 
     await wrapper.find('.detail-section-title').trigger('click')
-    expect(body.element.style.display).not.toBe('none')
+    expect(bodyEl.style.display).not.toBe('none')
   })
 
   it('emits run-action with the action def when action button clicked', async () => {
@@ -65,8 +65,8 @@ describe('DetailSection', () => {
 
     await wrapper.find('.detail-actions button').trigger('click')
 
-    const emitted = wrapper.emitted('run-action')
+    const emitted = wrapper.emitted('run-action')!
     expect(emitted).toHaveLength(1)
-    expect(emitted![0][0]).toEqual(actions[0])
+    expect(emitted[0]![0]).toEqual(actions[0])
   })
 })
