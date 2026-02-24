@@ -48,7 +48,7 @@
     "browserPartition": "Browser Cache",
     "partitionShared": "Shared",
     "partitionUnique": "Unique to this install",
-    "startingComfyUI": "Starting ComfyUI…",
+    "startingComfyUI": "Starting ComfyUI",
     "portConflict": "If Port is Busy",
     "portConflictAsk": "Ask what to do",
     "portConflictAuto": "Use next available port (asks if --port is set)",
@@ -89,7 +89,7 @@
     "detectedGpu": "Detected GPU: {label}",
     "noGpuDetected": "No supported GPU detected",
     "noOptions": "No options available",
-    "installing": "Installing…"
+    "installing": "Installing"
   },
 
   "detail": {},
@@ -114,7 +114,10 @@
     "starting": "Starting…",
     "cancelling": "Cancelling…",
     "error": "Error: {message}",
-    "unknownError": "An unknown error occurred"
+    "unknownError": "An unknown error occurred",
+    "completedSuccess": "Completed successfully",
+    "completedError": "Operation failed",
+    "completedCancelled": "Operation was cancelled"
   },
 
   "console": {
@@ -184,7 +187,7 @@
   "actions": {
     "launch": "Launch",
     "connect": "Connect",
-    "connecting": "Connecting…",
+    "connecting": "Connecting",
     "openDirectory": "Open Directory",
     "checkForUpdate": "Check for Update",
     "featureNotImplemented": "This feature is not yet implemented.",
@@ -193,7 +196,7 @@
     "copyInstallationTitle": "Copy Installation",
     "copyInstallationMessage": "Enter a name for the copy. It will be created next to the original.",
     "copyInstallationConfirm": "Copy",
-    "copyingInstallation": "Copying Installation…",
+    "copyingInstallation": "Copying Installation",
     "copyingFiles": "Copying files…",
     "delete": "Delete Installation",
     "deleteConfirmTitle": "Delete Installation",
@@ -205,7 +208,7 @@
 
   "migrate": {
     "migrateFrom": "Migrate From",
-    "migrating": "Migrating…",
+    "migrating": "Migrating",
     "migrateConfirm": "Migrate",
     "selectSource": "Migrate From",
     "selectSourceMessage": "Select a source installation to migrate from.",
@@ -299,7 +302,7 @@
     "updateConfirmMessage": "Update from {installed} to {latest}?\n\nLocal changes will be stashed and a backup branch created.\n\nRelease notes:\n{notes}",
     "updateConfirmMessageLatest": "Update from {installed} to latest on master ({latest})?\n\nThis will pull the newest commits from the master branch. Local changes will be stashed and a backup branch created.\n\nLatest commit: {commit}",
     "updateConfirmMessageDowngrade": "Roll back from {installed} to stable release {latest}?\n\nYour install is currently ahead of the latest stable release. This will check out the stable tag, removing any newer commits. Local changes will be stashed and a backup branch created.\n\nRelease notes:\n{notes}",
-    "updatingTitle": "Updating to {version}…",
+    "updatingTitle": "Updating to {version}",
     "updatePrepare": "Prepare",
     "updateRun": "Update",
     "updateDeps": "Dependencies",
@@ -313,7 +316,7 @@
     "copyAndUpdateTitle": "Copy & Update",
     "copyAndUpdateMessage": "Create a copy of this installation and update the copy from {installed} to {latest}.\nThe original installation will not be modified.\n\nEnter a name for the copy:",
     "copyAndUpdateConfirm": "Copy & Update",
-    "copyUpdatingTitle": "Copy & Update to {version}…",
+    "copyUpdatingTitle": "Copy & Update to {version}",
     "releaseUpdate": "Release Update",
     "releaseUpdateSelectRelease": "Select Release",
     "releaseUpdateSelectReleaseMessage": "Choose a Standalone release to install.",
@@ -322,7 +325,7 @@
     "releaseUpdateTitle": "Release Update",
     "releaseUpdateNameMessage": "Enter a name for the new installation. It will be created next to the original.",
     "releaseUpdateConfirm": "Install & Migrate",
-    "releaseUpdatingTitle": "Installing Release…",
+    "releaseUpdatingTitle": "Installing Release",
     "releaseUpdateCleaningUp": "Cleaning up…"
   },
 
@@ -346,7 +349,7 @@
     "updateConfirmTitle": "Update ComfyUI",
     "updateConfirmMessage": "Update from {installed} to {latest}?\n\nLocal changes will be stashed and a backup branch created.\n\nRelease notes:\n{notes}",
     "updateConfirmMessageLatest": "Update from {installed} to latest on master ({latest})?\n\nThis will pull the newest commits from the master branch. Local changes will be stashed and a backup branch created.\n\nLatest commit: {commit}",
-    "updatingTitle": "Updating to {version}…",
+    "updatingTitle": "Updating to {version}",
     "updatePrepare": "Prepare",
     "updateRun": "Update",
     "updateDeps": "Dependencies",
@@ -363,7 +366,7 @@
   },
 
   "launch": {
-    "connecting": "Connecting to {url}…",
+    "connecting": "Connecting to {url}",
     "connectingTime": "Connecting to {url}… ({secs}s)",
     "starting": "Starting ComfyUI process…",
     "waiting": "Waiting for ComfyUI to be ready…",

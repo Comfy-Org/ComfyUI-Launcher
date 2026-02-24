@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Check, X, TriangleAlert } from 'lucide-vue-next'
 import { useModal } from '../composables/useModal'
 import { useSessionStore } from '../stores/sessionStore'
 import type {
@@ -299,22 +300,33 @@ function getStepClass(
     ? op.steps.findIndex((s) => s.phase === op.activePhase)
     : -1
 
-  if (op.done || stepIndex < activeIndex) return 'progress-step done'
-  if (stepIndex === activeIndex) return 'progress-step active'
+  if (stepIndex < activeIndex) return 'progress-step done'
+  if (stepIndex === activeIndex) {
+    if (op.finished && op.cancelRequested) return 'progress-step cancelled'
+    if (op.finished && op.error) return 'progress-step error'
+    if (op.done) return 'progress-step done'
+    return 'progress-step active'
+  }
+  if (op.done && !op.cancelRequested && !op.error) return 'progress-step done'
   return 'progress-step'
 }
 
 function getStepIndicator(
   op: Operation,
   stepIndex: number
-): string {
-  if (!op.steps) return String(stepIndex + 1)
+): 'check' | 'error' | 'cancelled' | 'number' {
+  if (!op.steps) return 'number'
   const activeIndex = op.activePhase
     ? op.steps.findIndex((s) => s.phase === op.activePhase)
     : -1
 
-  if (op.done || stepIndex < activeIndex) return '✓'
-  return String(stepIndex + 1)
+  if (stepIndex < activeIndex) return 'check'
+  if (stepIndex === activeIndex) {
+    if (op.finished && op.cancelRequested) return 'cancelled'
+    if (op.finished && op.error) return 'error'
+    if (op.done) return 'check'
+  }
+  return 'number'
 }
 
 function isStepDetailVisible(
@@ -325,7 +337,9 @@ function isStepDetailVisible(
   const activeIndex = op.activePhase
     ? op.steps.findIndex((s) => s.phase === op.activePhase)
     : -1
-  return stepIndex === activeIndex && !op.done
+  if (stepIndex !== activeIndex) return false
+  if (op.done) return false
+  return true
 }
 
 function getStepStatus(op: Operation, step: ProgressStep): string {
@@ -397,6 +411,30 @@ defineExpose({ startOperation, showOperation, getProgressInfo, operations })
         <button class="view-modal-close" @click="emit('close')">✕</button>
       </div>
       <div class="view-modal-body">
+        <!-- Status banner -->
+        <div
+          v-if="currentOp.finished && !currentOp.result?.portConflict"
+          class="progress-banner"
+          :class="{
+            'progress-banner-cancelled': currentOp.cancelRequested,
+            'progress-banner-success': !currentOp.cancelRequested && currentOp.result?.ok,
+            'progress-banner-error': !currentOp.cancelRequested && currentOp.error
+          }"
+        >
+          <TriangleAlert v-if="currentOp.cancelRequested" :size="16" />
+          <Check v-else-if="currentOp.result?.ok" :size="16" />
+          <X v-else :size="16" />
+          <span>
+            {{
+              currentOp.cancelRequested
+                ? $t('progress.completedCancelled')
+                : currentOp.result?.ok
+                  ? $t('progress.completedSuccess')
+                  : $t('progress.completedError')
+            }}
+          </span>
+        </div>
+
         <!-- Stepped progress -->
         <template v-if="currentOp.steps">
           <div class="progress-steps">
@@ -408,7 +446,10 @@ defineExpose({ startOperation, showOperation, getProgressInfo, operations })
             >
               <div class="progress-step-header">
                 <span class="progress-step-indicator">
-                  {{ getStepIndicator(currentOp, i) }}
+                  <Check v-if="getStepIndicator(currentOp, i) === 'check'" :size="14" />
+                  <X v-else-if="getStepIndicator(currentOp, i) === 'error'" :size="14" />
+                  <TriangleAlert v-else-if="getStepIndicator(currentOp, i) === 'cancelled'" :size="14" />
+                  <template v-else>{{ i + 1 }}</template>
                 </span>
                 <span class="progress-step-label">{{ step.label }}</span>
               </div>
@@ -422,14 +463,14 @@ defineExpose({ startOperation, showOperation, getProgressInfo, operations })
                 <div
                   v-if="!(currentOp.error && currentOp.activePhase === step.phase)"
                   class="progress-bar-track"
+                  :class="{ indeterminate: currentOp.activePercent < 0 }"
                 >
                   <div
                     class="progress-bar-fill"
-                    :class="{ indeterminate: currentOp.activePercent < 0 }"
                     :style="{
                       width: currentOp.activePercent >= 0
                         ? `${currentOp.activePercent}%`
-                        : '100%'
+                        : '0%'
                     }"
                   ></div>
                 </div>
@@ -446,21 +487,18 @@ defineExpose({ startOperation, showOperation, getProgressInfo, operations })
 
         <!-- Flat progress -->
         <template v-else>
-          <div class="progress-status">
-            {{
-              currentOp.error
-                ? $t('progress.error', { message: currentOp.error })
-                : currentOp.flatStatus
-            }}
-          </div>
-          <div class="progress-bar-track">
+          <div class="progress-status">{{ currentOp.flatStatus }}</div>
+          <div
+            v-if="!currentOp.finished"
+            class="progress-bar-track"
+            :class="{ indeterminate: currentOp.flatPercent < 0 }"
+          >
             <div
               class="progress-bar-fill"
-              :class="{ indeterminate: currentOp.flatPercent < 0 }"
               :style="{
                 width: currentOp.flatPercent >= 0
                   ? `${currentOp.flatPercent}%`
-                  : '100%'
+                  : '0%'
               }"
             ></div>
           </div>

@@ -47,7 +47,7 @@
     "browserPartition": "浏览器缓存",
     "partitionShared": "共享",
     "partitionUnique": "此安装独享",
-    "startingComfyUI": "正在启动 ComfyUI…",
+    "startingComfyUI": "正在启动 ComfyUI",
     "portConflict": "端口被占用时",
     "portConflictAsk": "询问处理方式",
     "portConflictAuto": "使用下一个可用端口（设置了 --port 时会询问）",
@@ -88,7 +88,7 @@
     "detectedGpu": "检测到 GPU：{label}",
     "noGpuDetected": "未检测到支持的 GPU",
     "noOptions": "没有可用选项",
-    "installing": "正在安装…"
+    "installing": "正在安装"
   },
 
   "detail": {},
@@ -112,7 +112,10 @@
     "working": "处理中…",
     "starting": "正在启动…",
     "cancelling": "正在取消…",
-    "error": "错误：{message}"
+    "error": "错误：{message}",
+    "completedSuccess": "操作成功完成",
+    "completedError": "操作失败",
+    "completedCancelled": "操作已取消"
   },
 
   "console": {
@@ -182,7 +185,7 @@
   "actions": {
     "launch": "启动",
     "connect": "连接",
-    "connecting": "连接中…",
+    "connecting": "连接中",
     "openDirectory": "打开目录",
     "checkForUpdate": "检查更新",
     "featureNotImplemented": "此功能尚未实现。",
@@ -191,7 +194,7 @@
     "copyInstallationTitle": "复制安装",
     "copyInstallationMessage": "输入副本名称。副本将创建在原安装旁边。",
     "copyInstallationConfirm": "复制",
-    "copyingInstallation": "正在复制安装…",
+    "copyingInstallation": "正在复制安装",
     "copyingFiles": "正在复制文件…",
     "delete": "删除安装",
     "deleteConfirmTitle": "删除安装",
@@ -203,7 +206,7 @@
 
   "migrate": {
     "migrateFrom": "从其他安装迁移",
-    "migrating": "迁移中…",
+    "migrating": "迁移中",
     "migrateConfirm": "迁移",
     "selectSource": "从…迁移",
     "selectSourceMessage": "选择要迁移的源安装。",
@@ -296,7 +299,7 @@
     "updateConfirmMessage": "从 {installed} 更新到 {latest}？\n\n本地更改将被暂存，并创建备份分支。\n\n发布说明：\n{notes}",
     "updateConfirmMessageLatest": "从 {installed} 更新到 master 最新版（{latest}）？\n\n这将拉取 master 分支的最新提交。本地更改将被暂存，并创建备份分支。\n\n最新提交：{commit}",
     "updateConfirmMessageDowngrade": "从 {installed} 回退到稳定版 {latest}？\n\n当前安装版本超前于最新稳定版。此操作将检出稳定标签，移除更新的提交。本地更改将被暂存，并创建备份分支。\n\n发布说明：\n{notes}",
-    "updatingTitle": "正在更新到 {version}…",
+    "updatingTitle": "正在更新到 {version}",
     "updatePrepare": "准备",
     "updateRun": "更新",
     "updateDeps": "依赖",
@@ -310,7 +313,7 @@
     "copyAndUpdateTitle": "复制并更新",
     "copyAndUpdateMessage": "创建此安装的副本，并将副本从 {installed} 更新到 {latest}。\n原始安装不会被修改。\n\n输入副本名称：",
     "copyAndUpdateConfirm": "复制并更新",
-    "copyUpdatingTitle": "复制并更新到 {version}…",
+    "copyUpdatingTitle": "复制并更新到 {version}",
     "releaseUpdate": "版本更新",
     "releaseUpdateSelectRelease": "选择版本",
     "releaseUpdateSelectReleaseMessage": "选择要安装的 Standalone 版本。",
@@ -319,7 +322,7 @@
     "releaseUpdateTitle": "版本更新",
     "releaseUpdateNameMessage": "输入新安装的名称。新安装将创建在原安装旁边。",
     "releaseUpdateConfirm": "安装并迁移",
-    "releaseUpdatingTitle": "正在安装版本…",
+    "releaseUpdatingTitle": "正在安装版本",
     "releaseUpdateCleaningUp": "正在清理…"
   },
 
@@ -343,7 +346,7 @@
     "updateConfirmTitle": "更新 ComfyUI",
     "updateConfirmMessage": "从 {installed} 更新到 {latest}？\n\n本地更改将被暂存，并创建备份分支。\n\n发布说明：\n{notes}",
     "updateConfirmMessageLatest": "从 {installed} 更新到 master 最新版（{latest}）？\n\n这将拉取 master 分支的最新提交。本地更改将被暂存，并创建备份分支。\n\n最新提交：{commit}",
-    "updatingTitle": "正在更新到 {version}…",
+    "updatingTitle": "正在更新到 {version}",
     "updatePrepare": "准备",
     "updateRun": "更新",
     "updateDeps": "依赖",
@@ -360,7 +363,7 @@
   },
 
   "launch": {
-    "connecting": "正在连接 {url}…",
+    "connecting": "正在连接 {url}",
     "connectingTime": "正在连接 {url}…（{secs}秒）",
     "starting": "正在启动 ComfyUI 进程…",
     "waiting": "等待 ComfyUI 就绪…",

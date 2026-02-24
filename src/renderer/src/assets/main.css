@@ -32,6 +32,8 @@
   --border: #3c3d42;
   --border-hover: #494a50;
   --danger: #b33a3a;
+  --warning: #ca8a04;
+  --success: #16a34a;
   --terminal-bg: #111112;
   --overlay-bg: rgba(0, 0, 0, 0.55);
 }
@@ -47,6 +49,8 @@
   --border: #d9d9d9;
   --border-hover: #b4b4b4;
   --danger: #c02323;
+  --warning: #a16207;
+  --success: #15803d;
   --terminal-bg: #f3f3f3;
   --overlay-bg: rgba(0, 0, 0, 0.35);
 }
@@ -304,7 +308,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .progress-status { font-size: 14px; color: var(--text-muted); margin-bottom: 12px; user-select: text; }
 .progress-bar-track { width: 100%; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
 .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; width: 0%; transition: width 0.3s ease; }
-.progress-bar-fill.indeterminate {
+.progress-bar-track.indeterminate {
   animation: indeterminate 1.5s ease-in-out infinite;
   background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 50%, var(--accent) 100%);
   background-size: 200% 100%;
@@ -329,7 +333,22 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .progress-step.done .progress-step-label { color: var(--text-muted); }
 .progress-step-detail { margin-left: 32px; margin-top: 6px; }
 .progress-step-status { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; user-select: text; }
+.progress-step.error { opacity: 1; background: var(--surface); }
+.progress-step.error .progress-step-indicator { border-color: var(--danger); background: var(--danger); color: var(--bg); }
+.progress-step.error .progress-step-label { color: var(--text); }
+.progress-step.cancelled { opacity: 1; background: var(--surface); }
+.progress-step.cancelled .progress-step-indicator { border-color: var(--warning); background: var(--warning); color: var(--bg); }
+.progress-step.cancelled .progress-step-label { color: var(--text); }
 .progress-step-summary { margin-left: 32px; margin-top: 2px; font-size: 13px; color: var(--text-faint); user-select: text; }
+
+.progress-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; margin-bottom: 16px;
+}
+.progress-banner-success { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); }
+.progress-banner-error { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.progress-banner-cancelled { background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
 
 .progress-conflict-actions { margin-bottom: 16px; display: flex; gap: 8px; }
 

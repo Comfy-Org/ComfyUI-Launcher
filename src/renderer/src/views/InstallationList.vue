@@ -111,7 +111,7 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
   if (action.showProgress) {
     emit('show-progress', {
       installationId: inst.id,
-      title: action.progressTitle || `${action.label}…`,
+      title: `${action.progressTitle || action.label} — ${inst.name}`,
       apiCall: () => window.api.runAction(inst.id, action.id),
       cancellable: !!action.cancellable,
     })

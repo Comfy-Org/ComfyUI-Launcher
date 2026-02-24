@@ -107,9 +107,10 @@ function showProgress(opts: {
   returnTo?: string
 }): void {
   progressInstallationId.value = opts.installationId
-  // If an operation already exists for this ID, just show it
-  if (progressRef.value?.operations.has(opts.installationId)) {
-    progressRef.value.showOperation(opts.installationId)
+  // If an in-progress operation already exists for this ID, just show it
+  const existingOp = progressRef.value?.operations.get(opts.installationId)
+  if (existingOp && !existingOp.finished) {
+    progressRef.value!.showOperation(opts.installationId)
     return
   }
   progressRef.value?.startOperation({

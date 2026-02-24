@@ -239,11 +239,13 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
   // showProgress
   if (mutableAction.showProgress) {
     const instId = props.installation.id
-    const title = (mutableAction.progressTitle || `${mutableAction.label}…`).replace(
+    const instName = props.installation.name
+    const rawTitle = (mutableAction.progressTitle || mutableAction.label).replace(
       /\{(\w+)\}/g,
       (_, k: string) =>
         String((mutableAction.data as Record<string, unknown>)?.[k] ?? k)
     )
+    const title = `${rawTitle} — ${instName}`
     emit('show-progress', {
       installationId: instId,
       title,
