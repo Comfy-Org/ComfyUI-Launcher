@@ -35,6 +35,8 @@ export interface RunningInstance {
 export interface Source {
   id: string
   label: string
+  category?: string
+  description?: string
   fields: SourceField[]
   hideInstallPath?: boolean
   skipInstall?: boolean
@@ -47,6 +49,7 @@ export interface SourceField {
   defaultValue?: string
   action?: { label: string }
   errorTarget?: string
+  renderAs?: 'cards'
 }
 
 export interface FieldOption {

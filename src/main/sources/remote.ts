@@ -9,6 +9,7 @@ const DEFAULT_URL = 'http://localhost:8188'
 export const remote: SourcePlugin = {
   id: 'remote',
   get label() { return t('remote.label') },
+  get description() { return t('remote.desc') },
   category: 'remote',
   hasConsole: false,
   skipInstall: true,

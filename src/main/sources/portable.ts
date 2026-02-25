@@ -49,6 +49,7 @@ function findPortableRoot(installPath: string): string | null {
 export const portable: SourcePlugin = {
   id: 'portable',
   get label() { return t('portable.label') },
+  get description() { return t('portable.desc') },
   category: 'local',
 
   get fields() {

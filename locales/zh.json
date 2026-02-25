@@ -104,7 +104,12 @@
     "detectedGpu": "检测到 GPU：{label}",
     "noGpuDetected": "未检测到支持的 GPU",
     "noOptions": "没有可用选项",
-    "installing": "正在安装"
+    "installing": "正在安装",
+    "chooseMethod": "选择安装方式",
+    "configuration": "配置",
+    "nameLocation": "名称和位置",
+    "next": "下一步",
+    "recommended": "推荐"
   },
 
   "detail": {},
@@ -262,8 +267,14 @@
     "summaryDeps": "{count} 个已安装依赖"
   },
 
+  "git": {
+    "label": "Git 源码",
+    "desc": "从 Git 仓库克隆，用于开发或自定义分支。"
+  },
+
   "remote": {
     "label": "远程连接",
+    "desc": "连接到在另一台机器上运行的 ComfyUI 实例。",
     "connectionInfo": "连接信息",
     "comfyuiUrl": "ComfyUI 网址",
     "url": "网址",
@@ -271,11 +282,13 @@
   },
 
   "cloud": {
-    "label": "云端"
+    "label": "云端",
+    "desc": "连接到 Comfy Cloud 进行远程 GPU 加速工作流。"
   },
 
   "standalone": {
     "label": "Standalone",
+    "desc": "预构建环境，包含托管的 Python 和依赖项。",
     "comfyui": "ComfyUI",
     "variant": "环境变体",
     "python": "Python",
@@ -341,6 +354,7 @@
 
   "portable": {
     "label": "Portable",
+    "desc": "官方便携式 Windows 构建，附带嵌入式 Python。",
     "package": "Portable Package",
     "version": "版本",
     "packageLabel": "包",

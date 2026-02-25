@@ -230,12 +230,13 @@ interface VariantData {
 export const standalone: SourcePlugin = {
   id: 'standalone',
   get label() { return t('standalone.label') },
+  get description() { return t('standalone.desc') },
   category: 'local',
 
   get fields() {
     return [
       { id: 'release', label: t('common.release'), type: 'select' as const },
-      { id: 'variant', label: t('standalone.variant'), type: 'select' as const },
+      { id: 'variant', label: t('standalone.variant'), type: 'select' as const, renderAs: 'cards' as const },
     ]
   },
 
@@ -1063,7 +1064,8 @@ export const standalone: SourcePlugin = {
           const downloadUrl = downloadFiles.length === 1 ? downloadFiles[0]!.url : ''
           return {
             value: downloadFiles.length > 0 ? m.id : '',
-            label: `${getVariantLabel(m.id)}  —  ComfyUI ${m.comfyui_ref}  ·  Python ${m.python_version}  ·  ${sizeMB} MB`,
+            label: getVariantLabel(m.id),
+            description: `ComfyUI ${m.comfyui_ref}  ·  Python ${m.python_version}  ·  ${sizeMB} MB`,
             data: { variantId: m.id, manifest: m, downloadFiles, downloadUrl } as unknown as Record<string, unknown>,
             recommended: recommendVariant(m.id, gpu),
           }

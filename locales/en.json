@@ -105,7 +105,12 @@
     "detectedGpu": "Detected GPU: {label}",
     "noGpuDetected": "No supported GPU detected",
     "noOptions": "No options available",
-    "installing": "Installing"
+    "installing": "Installing",
+    "chooseMethod": "Choose Install Method",
+    "configuration": "Configuration",
+    "nameLocation": "Name & Location",
+    "next": "Next",
+    "recommended": "Recommended"
   },
 
   "detail": {},
@@ -264,8 +269,14 @@
     "summaryDeps": "{count} with dependencies installed"
   },
 
+  "git": {
+    "label": "Git Source",
+    "desc": "Clone from a Git repository for development or custom forks."
+  },
+
   "remote": {
     "label": "Remote Connection",
+    "desc": "Connect to a running ComfyUI instance on another machine.",
     "connectionInfo": "Connection Info",
     "comfyuiUrl": "ComfyUI URL",
     "url": "URL",
@@ -273,12 +284,14 @@
   },
 
   "cloud": {
-    "label": "Cloud"
+    "label": "Cloud",
+    "desc": "Connect to Comfy Cloud for remote GPU-powered workflows."
   },
 
   "standalone": {
     "_note": "standalone.label and portable.label are product names — keep in English across all translations.",
     "label": "Standalone",
+    "desc": "Pre-built environment with managed Python and dependencies.",
     "comfyui": "ComfyUI",
     "variant": "Environment Variant",
     "python": "Python",
@@ -346,6 +359,7 @@
 
   "portable": {
     "label": "Portable",
+    "desc": "Official portable Windows builds with embedded Python.",
     "package": "Portable Package",
     "version": "Version",
     "packageLabel": "Package",

@@ -12,6 +12,7 @@ export interface SourceField {
   defaultValue?: string
   action?: { label: string }
   errorTarget?: string
+  renderAs?: 'cards'
 }
 
 export interface FieldOption {
@@ -80,6 +81,7 @@ export interface InstallStep {
 export interface SourcePlugin {
   id: string
   label: string
+  description?: string
   category: string
   hasConsole?: boolean
   skipInstall?: boolean

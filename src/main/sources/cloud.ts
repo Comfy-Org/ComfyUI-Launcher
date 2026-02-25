@@ -9,6 +9,7 @@ const DEFAULT_URL = 'https://cloud.comfy.org/'
 export const cloud: SourcePlugin = {
   id: 'cloud',
   get label() { return t('cloud.label') },
+  get description() { return t('cloud.desc') },
   category: 'cloud',
   hasConsole: false,
   skipInstall: true,

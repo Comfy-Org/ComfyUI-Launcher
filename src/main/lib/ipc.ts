@@ -373,7 +373,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   // Sources
   ipcMain.handle('get-sources', () =>
-    sources.map((s) => ({ id: s.id, label: s.label, fields: s.fields, skipInstall: !!s.skipInstall, hideInstallPath: !!s.skipInstall }))
+    sources.map((s) => ({ id: s.id, label: s.label, category: s.category, description: s.description, fields: s.fields, skipInstall: !!s.skipInstall, hideInstallPath: !!s.skipInstall }))
   )
 
   ipcMain.handle('get-field-options', async (_event, sourceId: string, fieldId: string, selections: Record<string, unknown>) => {

@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fetchJSON } from '../lib/fetch'
 import { deleteAction, untrackAction } from '../lib/actions'
+import { t } from '../lib/i18n'
 import type { InstallationRecord } from '../installations'
 import type { SourcePlugin, FieldOption, ActionResult, ActionTools } from '../types/sources'
 
@@ -31,7 +32,8 @@ function parseGitHubRepo(url: string): GitHubParsed | null {
 
 export const gitSource: SourcePlugin = {
   id: 'git',
-  label: 'Git Source',
+  get label() { return t('git.label') },
+  get description() { return t('git.desc') },
   category: 'local',
 
   fields: [
