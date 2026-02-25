@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { useInstallationStore } from '../stores/installationStore'
 import { useModal } from '../composables/useModal'
+import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { useProgressStore } from '../stores/progressStore'
 import { DraggableList } from '../lib/draggableList'
 import InstanceCard from '../components/InstanceCard.vue'
@@ -14,6 +15,7 @@ const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
 const progressStore = useProgressStore()
 const modal = useModal()
+const localInstanceGuard = useLocalInstanceGuard()
 
 const filter = ref('all')
 const listActions = ref(new Map<string, ListAction[]>())
@@ -120,6 +122,10 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
       confirmStyle: action.style || 'danger',
     })
     if (!confirmed) return
+  }
+  if (action.id === 'launch') {
+    const canLaunch = await localInstanceGuard.checkBeforeLaunch(inst.id)
+    if (!canLaunch) return
   }
   if (action.showProgress) {
     emit('show-progress', {

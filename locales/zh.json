@@ -395,7 +395,11 @@
     "starting": "正在启动 ComfyUI 进程…",
     "waiting": "等待 ComfyUI 就绪…",
     "waitingTime": "等待 ComfyUI 就绪…（{secs}秒）",
-    "portBusyUsing": "端口 {old} 被占用——改用端口 {new}…"
+    "portBusyUsing": "端口 {old} 被占用——改用端口 {new}…",
+    "instanceRunningTitle": "实例正在运行",
+    "instanceRunningMessage": "\"{name}\" 正在运行。同时运行多个本地安装可能会消耗大量系统资源。",
+    "instanceRunningProceed": "同时启动",
+    "instanceRunningReplace": "关闭运行中的实例并启动"
   },
 
   "errors": {

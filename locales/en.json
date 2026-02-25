@@ -400,7 +400,11 @@
     "starting": "Starting ComfyUI process…",
     "waiting": "Waiting for ComfyUI to be ready…",
     "waitingTime": "Waiting for ComfyUI to be ready… ({secs}s)",
-    "portBusyUsing": "Port {old} is busy — using port {new} instead…"
+    "portBusyUsing": "Port {old} is busy — using port {new} instead…",
+    "instanceRunningTitle": "Instance Already Running",
+    "instanceRunningMessage": "\"{name}\" is currently running. Running multiple local installs simultaneously may use significant system resources.",
+    "instanceRunningProceed": "Launch Alongside",
+    "instanceRunningReplace": "Close Running & Launch"
   },
 
   "errors": {

@@ -4,6 +4,7 @@ import { useInstallationStore } from '../stores/installationStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useProgressStore } from '../stores/progressStore'
 import { useModal } from '../composables/useModal'
+import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { Play, Download, ExternalLink, Square } from 'lucide-vue-next'
 import type { Installation, ListAction } from '../types/ipc'
 
@@ -15,6 +16,7 @@ const installationStore = useInstallationStore()
 const sessionStore = useSessionStore()
 const progressStore = useProgressStore()
 const modal = useModal()
+const localInstanceGuard = useLocalInstanceGuard()
 
 const emit = defineEmits<{
   'show-new-install': []
@@ -98,6 +100,11 @@ async function handleLaunch(): Promise<void> {
       confirmStyle: action.style || 'danger',
     })
     if (!confirmed) return
+  }
+
+  if (action.id === 'launch') {
+    const canLaunch = await localInstanceGuard.checkBeforeLaunch(inst.id)
+    if (!canLaunch) return
   }
 
   if (action.showProgress) {
