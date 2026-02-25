@@ -112,6 +112,11 @@ const api: ElectronApi = {
     ipcRenderer.on('confirm-quit', handler)
     return () => ipcRenderer.removeListener('confirm-quit', handler)
   },
+  onInstallationsChanged: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('installations-changed', handler)
+    return () => ipcRenderer.removeListener('installations-changed', handler)
+  },
   onUpdateAvailable: (callback) => {
     const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
     ipcRenderer.on('update-available', handler)

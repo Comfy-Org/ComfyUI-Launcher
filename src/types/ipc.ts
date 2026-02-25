@@ -365,6 +365,7 @@ export interface ElectronApi {
   onThemeChanged(callback: (theme: string) => void): Unsubscribe
   onLocaleChanged(callback: (messages: Record<string, unknown>) => void): Unsubscribe
   onConfirmQuit(callback: () => void): Unsubscribe
+  onInstallationsChanged(callback: () => void): Unsubscribe
   onUpdateAvailable(callback: (info: UpdateInfo) => void): Unsubscribe
   onUpdateDownloadProgress(callback: (progress: UpdateDownloadProgress) => void): Unsubscribe
   onUpdateDownloaded(callback: (info: UpdateInfo) => void): Unsubscribe

@@ -26,10 +26,13 @@ import * as i18n from './i18n'
 import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
+import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import type { LaunchCmd } from './process'
 
 const MARKER_FILE = '.comfyui-launcher'
+const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
+const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000
 const IGNORE_FILES = new Set([MARKER_FILE, '.DS_Store', 'Thumbs.db', 'desktop.ini'])
 
 function isEffectivelyEmptyInstallDir(dirPath: string): boolean {
@@ -287,6 +290,38 @@ function resolveTheme(): string {
   return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
 }
 
+async function checkInstallationUpdates(): Promise<void> {
+  try {
+    const all = await installations.list()
+    const tracks = new Set<string>()
+    for (const inst of all) {
+      const source = sourceMap[inst.sourceId]
+      if (!source || source.skipInstall) continue
+      if (inst.status !== 'installed') continue
+      const track = (inst.updateTrack as string | undefined) || 'stable'
+      tracks.add(track)
+    }
+    if (tracks.size === 0) return
+    await Promise.allSettled(
+      [...tracks].map((track) =>
+        releaseCache.getOrFetch(COMFYUI_REPO, track, async () => {
+          const release = await fetchLatestRelease(track)
+          if (!release) return null
+          return {
+            checkedAt: Date.now(),
+            latestTag: release.tag_name as string,
+            releaseName: (release.name as string) || (release.tag_name as string),
+            releaseNotes: truncateNotes(release.body as string, 4000),
+            releaseUrl: release.html_url as string,
+            publishedAt: release.published_at as string,
+          }
+        }, true)
+      )
+    )
+    _broadcastToRenderer('installations-changed', {})
+  } catch {}
+}
+
 export function register(callbacks: RegisterCallbacks = {}): void {
   _onLaunch = callbacks.onLaunch ?? null
   _onStop = callbacks.onStop ?? null
@@ -331,6 +366,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       ])
     } catch {}
   })()
+
+  // Check installation updates on startup and periodically
+  setTimeout(() => checkInstallationUpdates(), 3_000)
+  setInterval(() => checkInstallationUpdates(), UPDATE_CHECK_INTERVAL)
 
   // Sources
   ipcMain.handle('get-sources', () =>
