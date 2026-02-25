@@ -227,6 +227,10 @@ function startOperation(opts: {
       } else {
         rop.error = result.message || t('progress.unknownError')
         sessionStore.clearActiveSession(installationId)
+        sessionStore.errorInstances.set(installationId, {
+          installationName: rop.title,
+          message: rop.error,
+        })
       }
     })
     .catch((err: Error) => {
@@ -234,6 +238,10 @@ function startOperation(opts: {
       rop.finished = true
       cleanupOperation(installationId)
       sessionStore.clearActiveSession(installationId)
+      sessionStore.errorInstances.set(installationId, {
+        installationName: rop.title,
+        message: rop.error,
+      })
     })
 }
 

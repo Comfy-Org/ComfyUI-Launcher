@@ -66,8 +66,10 @@ function getMetaParts(inst: Installation): MetaPart[] {
   if (sessionStore.isRunning(inst.id)) {
     parts.push({ text: t('list.running'), class: 'status-running' })
   }
-  if (sessionStore.errorInstances.has(inst.id)) {
-    parts.push({ text: t('running.crashed'), class: 'status-danger' })
+  const errorInstance = sessionStore.errorInstances.get(inst.id)
+  if (errorInstance) {
+    const label = errorInstance.message || t('running.crashed')
+    parts.push({ text: label, class: 'status-danger' })
   }
   const activeSession = sessionStore.activeSessions.get(inst.id)
   if (!sessionStore.isRunning(inst.id) && activeSession) {
