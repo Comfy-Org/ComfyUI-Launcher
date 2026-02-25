@@ -18,6 +18,7 @@ const sessionStore = useSessionStore()
 
 const api = window.api
 const terminalRef = ref<HTMLDivElement | null>(null)
+const isAtBottom = ref(true)
 const mouseDownOnOverlay = ref(false)
 
 const session = computed(() => {
@@ -60,20 +61,25 @@ const terminalOutput = computed(() => {
   return session.value?.output ?? ''
 })
 
+function handleTerminalScroll(): void {
+  if (!terminalRef.value) return
+  const el = terminalRef.value
+  isAtBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+}
+
 watch(
   terminalOutput,
   async () => {
+    if (!isAtBottom.value) return
     await nextTick()
-    if (!terminalRef.value) return
-    const el = terminalRef.value
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30
-    if (atBottom) el.scrollTop = el.scrollHeight
+    if (terminalRef.value) terminalRef.value.scrollTop = terminalRef.value.scrollHeight
   }
 )
 
 watch(
   () => props.installationId,
   async () => {
+    isAtBottom.value = true
     await nextTick()
     if (terminalRef.value) {
       terminalRef.value.scrollTop = terminalRef.value.scrollHeight
@@ -132,6 +138,7 @@ function handleOverlayClick(event: MouseEvent): void {
           id="console-terminal"
           ref="terminalRef"
           class="terminal-output"
+          @scroll="handleTerminalScroll"
         >{{ terminalOutput }}</div>
       </div>
     </div>

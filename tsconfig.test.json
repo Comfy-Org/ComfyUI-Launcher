@@ -18,16 +18,10 @@
     "baseUrl": ".",
     "paths": {
       "@renderer/*": ["src/renderer/src/*"]
-    }
+    },
+    "types": ["vitest/globals"]
   },
   "include": [
-    "src/renderer/src/env.d.ts",
-    "src/renderer/src/**/*",
-    "src/renderer/src/**/*.vue",
-    "src/preload/*.d.ts",
-    "src/types/**/*"
-  ],
-  "exclude": [
     "src/**/*.test.ts"
   ]
 }

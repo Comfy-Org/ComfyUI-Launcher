@@ -32,7 +32,7 @@ export default defineConfig([
       parserOptions: {
         ...commonParserOptions,
         projectService: {
-          allowDefaultProject: ['electron.vite.config.ts', 'eslint.config.ts']
+          allowDefaultProject: ['eslint.config.ts', 'vitest.config.ts']
         }
       }
     }

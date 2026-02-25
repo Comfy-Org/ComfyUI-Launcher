@@ -26,10 +26,13 @@ import * as i18n from './i18n'
 import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
+import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import type { LaunchCmd } from './process'
 
 const MARKER_FILE = '.comfyui-launcher'
+const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
+const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000
 const IGNORE_FILES = new Set([MARKER_FILE, '.DS_Store', 'Thumbs.db', 'desktop.ini'])
 
 function isEffectivelyEmptyInstallDir(dirPath: string): boolean {
@@ -79,7 +82,12 @@ async function resolveInstallation(id: string): Promise<InstallationRecord> {
 
 async function findDuplicatePath(installPath: string): Promise<InstallationRecord | null> {
   const normalized = path.resolve(installPath)
-  return (await installations.list()).find((i) => path.resolve(i.installPath) === normalized) ?? null
+  return (await installations.list()).find((i) => i.installPath && path.resolve(i.installPath) === normalized) ?? null
+}
+
+async function uniqueName(baseName: string): Promise<string> {
+  const all = await installations.list()
+  return installations.uniqueName(baseName, all)
 }
 
 interface SessionInfo {
@@ -164,9 +172,10 @@ async function performCopy(
     }
 
     const { id: _id, name: _name, installPath: _path, createdAt: _created, seen: _seen, status: _status, ...inherited } = inst
+    const finalName = await uniqueName(name)
     const entry = await installations.add({
       ...inherited,
-      name,
+      name: finalName,
       installPath: destPath,
       status: 'installed',
       seen: false,
@@ -200,7 +209,7 @@ let _onStop: StopCallback | null = null
 let _onComfyExited: ExitCallback | null = null
 let _onComfyRestarted: RestartCallback | null = null
 let _onLocaleChanged: LocaleCallback | null = null
-let _detectedGPU: GpuInfo | null | undefined = undefined
+let _gpuPromise: Promise<GpuInfo | null> | null = null
 
 const _operationAborts = new Map<string, AbortController>()
 const _runningSessions = new Map<string, SessionInfo>()
@@ -281,6 +290,38 @@ function resolveTheme(): string {
   return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
 }
 
+async function checkInstallationUpdates(): Promise<void> {
+  try {
+    const all = await installations.list()
+    const tracks = new Set<string>()
+    for (const inst of all) {
+      const source = sourceMap[inst.sourceId]
+      if (!source || source.skipInstall) continue
+      if (inst.status !== 'installed') continue
+      const track = (inst.updateTrack as string | undefined) || 'stable'
+      tracks.add(track)
+    }
+    if (tracks.size === 0) return
+    await Promise.allSettled(
+      [...tracks].map((track) =>
+        releaseCache.getOrFetch(COMFYUI_REPO, track, async () => {
+          const release = await fetchLatestRelease(track)
+          if (!release) return null
+          return {
+            checkedAt: Date.now(),
+            latestTag: release.tag_name as string,
+            releaseName: (release.name as string) || (release.tag_name as string),
+            releaseNotes: truncateNotes(release.body as string, 4000),
+            releaseUrl: release.html_url as string,
+            publishedAt: release.published_at as string,
+          }
+        }, true)
+      )
+    )
+    _broadcastToRenderer('installations-changed', {})
+  } catch {}
+}
+
 export function register(callbacks: RegisterCallbacks = {}): void {
   _onLaunch = callbacks.onLaunch ?? null
   _onStop = callbacks.onStop ?? null
@@ -326,13 +367,17 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     } catch {}
   })()
 
+  // Check installation updates on startup and periodically
+  setTimeout(() => checkInstallationUpdates(), 3_000)
+  setInterval(() => checkInstallationUpdates(), UPDATE_CHECK_INTERVAL)
+
   // Sources
   ipcMain.handle('get-sources', () =>
     sources.map((s) => ({ id: s.id, label: s.label, fields: s.fields, skipInstall: !!s.skipInstall, hideInstallPath: !!s.skipInstall }))
   )
 
   ipcMain.handle('get-field-options', async (_event, sourceId: string, fieldId: string, selections: Record<string, unknown>) => {
-    const gpu = _detectedGPU === undefined ? null : _detectedGPU
+    const gpu = _gpuPromise ? await _gpuPromise : null
     const options = await resolveSource(sourceId).getFieldOptions(
       fieldId,
       selections as Record<string, FieldOption | undefined>,
@@ -342,8 +387,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('detect-gpu', async () => {
-    if (_detectedGPU === undefined) _detectedGPU = await detectGPU()
-    return _detectedGPU
+    if (!_gpuPromise) {
+      _gpuPromise = detectGPU().catch(() => null)
+    }
+    return _gpuPromise
   })
 
   ipcMain.handle('build-installation', (_event, sourceId: string, selections: Record<string, unknown>) => {
@@ -395,7 +442,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     })
   })
 
+  ipcMain.handle('get-unique-name', async (_event, baseName: string) => {
+    return uniqueName(baseName)
+  })
+
   ipcMain.handle('add-installation', async (_event, data: Record<string, unknown>) => {
+    data.name = await uniqueName((data.name as string) || 'ComfyUI')
     if (data.installPath) {
       const dirName = (data.name as string).replace(/[<>:"/\\|?*]+/g, '_').trim() || 'ComfyUI'
       let installPath = path.join(data.installPath as string, dirName)
@@ -600,13 +652,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         ],
       },
       {
-        title: i18n.t('settings.sharedDirs'),
-        fields: [
-          { id: 'inputDir', label: i18n.t('settings.inputDir'), type: 'path', value: s.inputDir || settings.defaults.inputDir, openable: true },
-          { id: 'outputDir', label: i18n.t('settings.outputDir'), type: 'path', value: s.outputDir || settings.defaults.outputDir, openable: true },
-        ],
-      },
-      {
         title: i18n.t('settings.downloads'),
         fields: [
           { id: 'cacheDir', label: i18n.t('settings.cacheDir'), type: 'path', value: s.cacheDir, openable: true },
@@ -652,7 +697,21 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           ],
         },
       ],
+
     }
+  })
+
+  ipcMain.handle('get-media-sections', () => {
+    const s = settings.getAll()
+    return [
+      {
+        title: i18n.t('media.sharedDirs'),
+        fields: [
+          { id: 'inputDir', label: i18n.t('media.inputDir'), type: 'path' as const, value: s.inputDir || settings.defaults.inputDir, openable: true },
+          { id: 'outputDir', label: i18n.t('media.outputDir'), type: 'path' as const, value: s.outputDir || settings.defaults.outputDir, openable: true },
+        ],
+      },
+    ]
   })
 
   ipcMain.handle('set-setting', (_event, key: string, value: unknown) => {
@@ -953,11 +1012,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         const cache = createCache(settings.get('cacheDir') as string, settings.get('maxCachedFiles') as number)
         await source.install!(installRecord, { sendProgress, download, cache, extract, signal: abort.signal })
 
+        const finalName = await uniqueName(name)
         entry = await installations.add({
           sourceId: inst.sourceId,
           sourceLabel: source.label,
           ...installData,
-          name,
+          name: finalName,
           installPath: destPath,
           status: 'installed',
           seen: false,

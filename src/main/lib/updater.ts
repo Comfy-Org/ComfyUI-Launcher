@@ -136,8 +136,10 @@ export function register(): void {
 
   ipcMain.handle('get-pending-update', () => _updateInfo)
 
-  // Check on startup if auto-update is enabled
-  if (settings.get('autoUpdate') !== false) {
-    setTimeout(() => checkForUpdate().catch(() => {}), 5000)
+  // Check on startup and periodically (respects autoUpdate setting at each check)
+  const runIfEnabled = (): void => {
+    if (settings.get('autoUpdate') !== false) checkForUpdate().catch(() => {})
   }
+  setTimeout(runIfEnabled, 2000)
+  setInterval(runIfEnabled, 10 * 60 * 1000)
 }

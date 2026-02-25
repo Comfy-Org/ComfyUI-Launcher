@@ -8,7 +8,6 @@ interface Props {
 defineProps<Props>()
 
 const emit = defineEmits<{
-  browse: []
   remove: []
   'make-primary': []
   open: []
@@ -24,7 +23,7 @@ const emit = defineEmits<{
     </div>
     <div class="dir-card-actions">
       <button @click="emit('open')">{{ $t('settings.open') }}</button>
-      <button v-if="!isDefault" @click="emit('browse')">{{ $t('common.browse') }}</button>
+
       <button v-if="!isDefault" class="danger" @click="emit('remove')">{{ $t('models.removeDir') }}</button>
       <button v-if="!isPrimary" class="accent" @click="emit('make-primary')">{{ $t('models.makePrimary') }}</button>
     </div>

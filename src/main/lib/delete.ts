@@ -85,19 +85,24 @@ export async function deleteDir(
   const batchSize = 200
   let sinceYield = 0
   const startTime = Date.now()
+  let lastReportTime = 0
+  const REPORT_INTERVAL_MS = 150
 
   const report = (): void => {
-    if (onProgress) {
-      const elapsedSecs = (Date.now() - startTime) / 1000
-      const etaSecs = deleted > 0 ? elapsedSecs * ((total - deleted) / deleted) : -1
-      onProgress({
-        deleted,
-        total,
-        percent: total > 0 ? Math.round((deleted / total) * 100) : 100,
-        elapsedSecs,
-        etaSecs,
-      })
-    }
+    if (!onProgress) return
+    const now = Date.now()
+    // Throttle: only report at most every REPORT_INTERVAL_MS, but always report the final state
+    if (now - lastReportTime < REPORT_INTERVAL_MS && deleted < total) return
+    lastReportTime = now
+    const elapsedSecs = (now - startTime) / 1000
+    const etaSecs = deleted > 0 ? elapsedSecs * ((total - deleted) / deleted) : -1
+    onProgress({
+      deleted,
+      total,
+      percent: total > 0 ? Math.round((deleted / total) * 100) : 100,
+      elapsedSecs,
+      etaSecs,
+    })
   }
 
   await new Promise<void>((resolve, reject) => {

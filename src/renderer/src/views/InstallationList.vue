@@ -1,20 +1,31 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { useInstallationStore } from '../stores/installationStore'
 import { useModal } from '../composables/useModal'
+import { useProgressStore } from '../stores/progressStore'
+import { DraggableList } from '../lib/draggableList'
 import InstanceCard from '../components/InstanceCard.vue'
 import type { Installation, ListAction } from '../types/ipc'
 
 const { t } = useI18n()
 const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
+const progressStore = useProgressStore()
 const modal = useModal()
 
 const filter = ref('all')
 const listActions = ref(new Map<string, ListAction[]>())
-const dragSrcId = ref<string | null>(null)
+
+const cardProgress = computed(() => {
+  const map = new Map<string, { status: string; percent: number }>()
+  for (const inst of installationStore.installations) {
+    const info = progressStore.getProgressInfo(inst.id)
+    if (info) map.set(inst.id, info)
+  }
+  return map
+})
 
 const filteredInstallations = computed(() => {
   if (filter.value === 'all') return installationStore.installations
@@ -66,8 +77,10 @@ function getMetaParts(inst: Installation): MetaPart[] {
   if (sessionStore.isRunning(inst.id)) {
     parts.push({ text: t('list.running'), class: 'status-running' })
   }
-  if (sessionStore.errorInstances.has(inst.id)) {
-    parts.push({ text: t('running.crashed'), class: 'status-danger' })
+  const errorInstance = sessionStore.errorInstances.get(inst.id)
+  if (errorInstance) {
+    const label = errorInstance.message || t('running.crashed')
+    parts.push({ text: label, class: 'status-danger' })
   }
   const activeSession = sessionStore.activeSessions.get(inst.id)
   if (!sessionStore.isRunning(inst.id) && activeSession) {
@@ -111,7 +124,7 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
   if (action.showProgress) {
     emit('show-progress', {
       installationId: inst.id,
-      title: action.progressTitle || `${action.label}…`,
+      title: `${action.progressTitle || action.label} — ${inst.name}`,
       apiCall: () => window.api.runAction(inst.id, action.id),
       cancellable: !!action.cancellable,
     })
@@ -125,22 +138,47 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
   }
 }
 
-function handleDragStart(installationId: string): void {
-  dragSrcId.value = installationId
+// --- Drag-to-reorder ---
+const listContainerRef = useTemplateRef<HTMLElement>('listContainer')
+let draggableList: DraggableList | null = null
+
+function initDraggable(): void {
+  draggableList?.dispose()
+  draggableList = null
+  if (!listContainerRef.value) return
+  draggableList = new DraggableList(
+    listContainerRef.value,
+    '.instance-card',
+    { onReorder: handleReorder }
+  )
 }
 
-function handleDrop(targetId: string): void {
-  if (!dragSrcId.value || dragSrcId.value === targetId) return
+async function handleReorder(oldIndex: number, newIndex: number): Promise<void> {
+  const visible = filteredInstallations.value
+  const movedId = visible[oldIndex]?.id
+  const targetId = visible[newIndex]?.id
+  if (!movedId || !targetId || movedId === targetId) return
   const ids = installationStore.installations.map((i) => i.id)
-  const fromIdx = ids.indexOf(dragSrcId.value)
+  const fromIdx = ids.indexOf(movedId)
   const toIdx = ids.indexOf(targetId)
   if (fromIdx === -1 || toIdx === -1) return
   const moved = ids.splice(fromIdx, 1)[0]
   if (moved) ids.splice(toIdx, 0, moved)
-  window.api.reorderInstallations(ids)
+  // Optimistically reorder the store so Vue re-renders before next paint
+  const byId = new Map(installationStore.installations.map((i) => [i.id, i]))
+  installationStore.installations = ids.map((id) => byId.get(id)!).filter(Boolean)
+  await window.api.reorderInstallations(ids)
   refresh()
-  dragSrcId.value = null
 }
+
+watch(
+  () => filteredInstallations.value.map((i) => i.id).join('|'),
+  () => initDraggable(),
+  { flush: 'post' }
+)
+
+onMounted(() => initDraggable())
+onBeforeUnmount(() => draggableList?.dispose())
 
 function markSeen(inst: Installation): void {
   if (inst.seen === false) {
@@ -162,6 +200,17 @@ const filterKeys = ['all', 'local', 'remote', 'cloud'] as const
 function filterLabel(f: string): string {
   return t(`list.filter${f.charAt(0).toUpperCase() + f.slice(1)}`)
 }
+
+const filterStats = computed(() => {
+  const stats: Record<string, { count: number; hasNew: boolean }> = {}
+  for (const f of filterKeys) {
+    const list = f === 'all'
+      ? installationStore.installations
+      : installationStore.installations.filter((i) => i.sourceCategory === f)
+    stats[f] = { count: list.length, hasNew: list.some((i) => i.seen === false) }
+  }
+  return stats
+})
 
 const emit = defineEmits<{
   'show-detail': [inst: Installation]
@@ -201,12 +250,12 @@ defineExpose({ refresh })
         :class="{ active: filter === f }"
         @click="setFilter(f)"
       >
-        {{ filterLabel(f) }}
+        {{ filterLabel(f) }}<span v-if="filterStats[f]?.count" class="filter-count" :class="{ 'has-new': filterStats[f]?.hasNew }">{{ filterStats[f]?.count }}</span>
       </button>
     </div>
 
     <div class="view-list-scroll">
-      <div class="instance-list">
+      <div ref="listContainer" class="instance-list">
         <!-- Empty: has local but filtered out -->
         <div v-if="filteredInstallations.length === 0 && hasLocal" class="empty-state">
           {{ $t('list.emptyFilter') }}
@@ -228,8 +277,6 @@ defineExpose({ refresh })
           :installation-id="inst.id"
           :name="inst.name"
           :draggable="true"
-          @dragstart="handleDragStart(inst.id)"
-          @drop="handleDrop(inst.id)"
           @mousedown="markSeen(inst)"
         >
           <template #meta>
@@ -243,6 +290,21 @@ defineExpose({ refresh })
 
           <template #extra-info>
             <div v-if="getLaunchMeta(inst)" class="instance-meta">{{ getLaunchMeta(inst) }}</div>
+            <div
+              v-if="cardProgress.get(inst.id)"
+              class="card-progress"
+            >
+              <div class="card-progress-status">{{ cardProgress.get(inst.id)!.status }}</div>
+              <div class="card-progress-track">
+                <div
+                  class="card-progress-fill"
+                  :class="{ indeterminate: cardProgress.get(inst.id)!.percent < 0 }"
+                  :style="cardProgress.get(inst.id)!.percent >= 0
+                    ? { width: cardProgress.get(inst.id)!.percent + '%' }
+                    : { width: '100%' }"
+                ></div>
+              </div>
+            </div>
           </template>
 
           <template #actions>
@@ -305,6 +367,18 @@ defineExpose({ refresh })
             </button>
           </template>
         </InstanceCard>
+
+        <!-- Prompt to install when no local installations exist -->
+        <div
+          v-if="filteredInstallations.length > 0 && !hasLocal && (filter === 'all' || filter === 'local')"
+          class="empty-state"
+        >
+          <div style="font-weight: 700; color: var(--text-faint)">{{ $t('list.empty') }}</div>
+          <div style="margin-top: 4px">{{ $t('list.emptyHint') }}</div>
+          <button class="accent add-btn" style="margin-top: 8px" @click="emit('show-new-install')">
+            + {{ $t('list.newInstall') }}
+          </button>
+        </div>
       </div>
     </div>
 

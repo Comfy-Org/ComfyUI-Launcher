@@ -28,6 +28,7 @@ const instName = ref('')
 const instPath = ref('')
 const detectedGpu = ref('')
 const saveDisabled = ref(true)
+const sourcesLoading = ref(false)
 
 // Per-field state
 const fieldOptions = ref(new Map<string, FieldOption[]>())
@@ -47,6 +48,7 @@ function rawSelections(): Record<string, FieldOption> {
 
 let gpuPromise: Promise<string> | null = null
 let installDirPromise: Promise<string> | null = null
+let sourcesPromise: Promise<Source[]> | null = null
 
 onMounted(() => {
   gpuPromise = window.api
@@ -65,6 +67,7 @@ onMounted(() => {
     })
 
   installDirPromise = window.api.getDefaultInstallDir().catch(() => '')
+  sourcesPromise = window.api.getSources()
 })
 
 async function open(): Promise<void> {
@@ -73,11 +76,15 @@ async function open(): Promise<void> {
   saveDisabled.value = true
 
   detectedGpu.value = t('newInstall.detectingGpu')
-  if (gpuPromise) await gpuPromise
 
-  instPath.value = (await installDirPromise) ?? ''
+  // Run sources, GPU detection, and install dir in parallel
+  const [, , installDir] = await Promise.all([
+    initSources(),
+    gpuPromise,
+    installDirPromise
+  ])
 
-  await initSources()
+  instPath.value = installDir ?? ''
 }
 
 async function initSources(): Promise<void> {
@@ -86,7 +93,9 @@ async function initSources(): Promise<void> {
     if (first) await selectSource(first)
     return
   }
-  sources.value = await window.api.getSources()
+  sourcesLoading.value = true
+  sources.value = sourcesPromise ? await sourcesPromise : await window.api.getSources()
+  sourcesLoading.value = false
   const first = sources.value[0]
   if (first) await selectSource(first)
 }
@@ -269,9 +278,9 @@ async function handleSave(): Promise<void> {
   }
 
   const instData = await window.api.buildInstallation(source.id, rawSelections())
-  const name =
-    instName.value.trim() ||
-    `ComfyUI (${(instData as Record<string, unknown>).version || source.label})`
+  const baseName = instName.value.trim() ||
+    (source.id === 'standalone' ? 'ComfyUI' : `ComfyUI (${source.label})`)
+  const name = await window.api.getUniqueName(baseName)
 
   if (source.skipInstall) {
     const result = await window.api.addInstallation({
@@ -308,7 +317,7 @@ async function handleSave(): Promise<void> {
   if (result.entry) {
     emit('show-progress', {
       installationId: result.entry.id,
-      title: t('newInstall.installing'),
+      title: `${t('newInstall.installing')} — ${name}`,
       apiCall: () => window.api.installInstance(result.entry!.id)
     })
   }
@@ -368,16 +377,21 @@ defineExpose({ open })
             <label for="source">{{ $t('newInstall.installMethod') }}</label>
             <select
               id="source"
-              :disabled="sources.length <= 1"
+              :disabled="sourcesLoading || sources.length <= 1"
               @change="handleSourceChange"
             >
-              <option
-                v-for="(s, i) in sources"
-                :key="s.id"
-                :value="i"
-              >
-                {{ s.label }}
+              <option v-if="sourcesLoading">
+                {{ $t('newInstall.loading') }}
               </option>
+              <template v-else>
+                <option
+                  v-for="(s, i) in sources"
+                  :key="s.id"
+                  :value="i"
+                >
+                  {{ s.label }}
+                </option>
+              </template>
             </select>
           </div>
 

@@ -3,16 +3,19 @@ import { ref, onMounted, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from './stores/sessionStore'
 import { useInstallationStore } from './stores/installationStore'
+import { useProgressStore } from './stores/progressStore'
 import { useModal } from './composables/useModal'
 import { useTheme } from './composables/useTheme'
 import type { Installation, ActionResult } from './types/ipc'
 
 import ModalDialog from './components/ModalDialog.vue'
 import UpdateBanner from './components/UpdateBanner.vue'
+import DashboardView from './views/DashboardView.vue'
 import InstallationList from './views/InstallationList.vue'
 import RunningView from './views/RunningView.vue'
 import SettingsView from './views/SettingsView.vue'
 import ModelsView from './views/ModelsView.vue'
+import MediaView from './views/MediaView.vue'
 import DetailModal from './views/DetailModal.vue'
 import ConsoleModal from './views/ConsoleModal.vue'
 import ProgressModal from './views/ProgressModal.vue'
@@ -20,17 +23,18 @@ import NewInstallModal from './views/NewInstallModal.vue'
 import TrackModal from './views/TrackModal.vue'
 
 // Lucide icons
-import { Box, Play, FolderOpen, Settings } from 'lucide-vue-next'
+import { LayoutDashboard, Box, Play, FolderOpen, Image, Settings } from 'lucide-vue-next'
 
 const { t, setLocaleMessage, locale } = useI18n()
 const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
+const progressStore = useProgressStore()
 const modal = useModal()
 useTheme()
 
 // --- View state ---
-type TabView = 'list' | 'running' | 'models' | 'settings'
-const activeView = ref<TabView>('list')
+type TabView = 'dashboard' | 'list' | 'running' | 'models' | 'media' | 'settings'
+const activeView = ref<TabView>('dashboard')
 
 // --- Modal views ---
 const detailInstallation = ref<Installation | null>(null)
@@ -43,15 +47,18 @@ const showTrack = ref(false)
 const listRef = ref<InstanceType<typeof InstallationList> | null>(null)
 const settingsRef = ref<InstanceType<typeof SettingsView> | null>(null)
 const modelsRef = ref<InstanceType<typeof ModelsView> | null>(null)
+const mediaRef = ref<InstanceType<typeof MediaView> | null>(null)
 const progressRef = ref<InstanceType<typeof ProgressModal> | null>(null)
 const newInstallRef = ref<InstanceType<typeof NewInstallModal> | null>(null)
 const trackRef = ref<InstanceType<typeof TrackModal> | null>(null)
 
 // --- Sidebar ---
 const sidebarItems = computed(() => [
+  { key: 'dashboard' as const, icon: LayoutDashboard, labelKey: 'dashboard.title' },
   { key: 'list' as const, icon: Box, labelKey: 'sidebar.installations' },
   { key: 'running' as const, icon: Play, labelKey: 'sidebar.running' },
   { key: 'models' as const, icon: FolderOpen, labelKey: 'models.title' },
+  { key: 'media' as const, icon: Image, labelKey: 'media.title' },
   { key: 'settings' as const, icon: Settings, labelKey: 'settings.title' },
 ])
 
@@ -60,6 +67,7 @@ function switchView(view: TabView): void {
   if (view === 'list') listRef.value?.refresh()
   else if (view === 'settings') settingsRef.value?.loadSettings()
   else if (view === 'models') modelsRef.value?.loadModels()
+  else if (view === 'media') mediaRef.value?.loadMedia()
 }
 
 // --- Modal handlers ---
@@ -106,10 +114,13 @@ function showProgress(opts: {
   cancellable?: boolean
   returnTo?: string
 }): void {
+  // Close any open modal so they don't stack visually
+  if (opts.returnTo === 'detail') closeDetail()
   progressInstallationId.value = opts.installationId
-  // If an operation already exists for this ID, just show it
-  if (progressRef.value?.operations.has(opts.installationId)) {
-    progressRef.value.showOperation(opts.installationId)
+  // If an in-progress operation already exists for this ID, just show it
+  const existingOp = progressStore.operations.get(opts.installationId)
+  if (existingOp && !existingOp.finished) {
+    progressRef.value!.showOperation(opts.installationId)
     return
   }
   progressRef.value?.startOperation({
@@ -123,6 +134,7 @@ function showProgress(opts: {
 
 function closeProgress(): void {
   progressInstallationId.value = null
+  listRef.value?.refresh()
 }
 
 function handleNavigateList(): void {
@@ -203,6 +215,15 @@ onMounted(async () => {
 
     <!-- Content Area -->
     <main class="content">
+      <DashboardView
+        v-show="activeView === 'dashboard'"
+        :visible="activeView === 'dashboard'"
+        @show-new-install="openNewInstall"
+        @show-detail="openDetail"
+        @show-console="openConsole"
+        @show-progress="showProgress"
+      />
+
       <InstallationList
         v-show="activeView === 'list'"
         ref="listRef"
@@ -227,6 +248,11 @@ onMounted(async () => {
       <ModelsView
         v-show="activeView === 'models'"
         ref="modelsRef"
+      />
+
+      <MediaView
+        v-show="activeView === 'media'"
+        ref="mediaRef"
       />
 
       <SettingsView

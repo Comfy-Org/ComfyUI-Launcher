@@ -14,6 +14,7 @@ interface ActiveSession {
 interface ErrorInstance {
   installationName: string
   exitCode?: number | string
+  message?: string
 }
 
 export const useSessionStore = defineStore('session', () => {

@@ -38,9 +38,15 @@ export function download(
     request.setHeader('User-Agent', 'ComfyUI-Launcher')
 
     let aborted = false
+    let settled = false
+    const safeResolve = (v: string): void => { if (!settled) { settled = true; resolve(v) } }
+    const safeReject = (e: Error): void => { if (!settled) { settled = true; reject(e) } }
+
     const onAbort = (): void => {
       aborted = true
       request.abort()
+      try { fs.unlinkSync(destPath) } catch {}
+      safeReject(new Error('Download cancelled'))
     }
     if (signal) signal.addEventListener('abort', onAbort, { once: true })
 
@@ -52,21 +58,21 @@ export function download(
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         cleanup()
         if (_maxRedirects <= 0) {
-          reject(new Error('Download failed: too many redirects'))
+          safeReject(new Error('Download failed: too many redirects'))
           return
         }
         const rawLocation = response.headers.location
         const loc = Array.isArray(rawLocation) ? rawLocation[0] : rawLocation
         if (!loc) {
-          reject(new Error('Download failed: empty redirect location'))
+          safeReject(new Error('Download failed: empty redirect location'))
           return
         }
-        download(loc, destPath, onProgress, { signal, _maxRedirects: _maxRedirects - 1 }).then(resolve, reject)
+        download(loc, destPath, onProgress, { signal, _maxRedirects: _maxRedirects - 1 }).then(safeResolve, safeReject)
         return
       }
       if (response.statusCode !== 200) {
         cleanup()
-        reject(new Error(`Download failed: HTTP ${response.statusCode}`))
+        safeReject(new Error(`Download failed: HTTP ${response.statusCode}`))
         return
       }
 
@@ -77,6 +83,11 @@ export function download(
       const startTime = Date.now()
 
       const fileStream = fs.createWriteStream(destPath)
+      fileStream.on('error', (err: Error) => {
+        cleanup()
+        try { fs.unlinkSync(destPath) } catch {}
+        safeReject(err)
+      })
 
       response.on('data', (chunk: Buffer) => {
         receivedBytes += chunk.length
@@ -107,10 +118,10 @@ export function download(
           try {
             fs.unlinkSync(destPath)
           } catch {}
-          reject(new Error('Download cancelled'))
+          safeReject(new Error('Download cancelled'))
           return
         }
-        fileStream.end(() => resolve(destPath))
+        fileStream.end(() => safeResolve(destPath))
       })
 
       response.on('error', (err: Error) => {
@@ -120,20 +131,20 @@ export function download(
           fs.unlinkSync(destPath)
         } catch {}
         if (aborted) {
-          reject(new Error('Download cancelled'))
+          safeReject(new Error('Download cancelled'))
           return
         }
-        reject(err)
+        safeReject(err)
       })
     })
 
     request.on('error', (err: Error) => {
       cleanup()
       if (aborted) {
-        reject(new Error('Download cancelled'))
+        safeReject(new Error('Download cancelled'))
         return
       }
-      reject(err)
+      safeReject(err)
     })
     request.end()
   })

@@ -108,6 +108,11 @@ export function extract(
           return
         }
       }
+      // 7zip doesn't always output 100% — emit it on successful completion
+      if (onProgress) {
+        const elapsedSecs = (Date.now() - startTime) / 1000
+        onProgress({ percent: 100, elapsedSecs, etaSecs: 0 })
+      }
       resolve()
     })
   })

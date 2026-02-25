@@ -7,7 +7,6 @@ import * as releaseCache from '../lib/release-cache'
 import { deleteAction, untrackAction } from '../lib/actions'
 import { downloadAndExtract, downloadAndExtractMulti } from '../lib/installer'
 import { copyDirWithProgress } from '../lib/copy'
-import { deleteDir } from '../lib/delete'
 import { parseArgs, formatTime } from '../lib/util'
 import { t } from '../lib/i18n'
 import * as installations from '../installations'
@@ -95,6 +94,26 @@ async function codesignBinaries(dir: string): Promise<void> {
         })
       }
     }
+  }
+}
+
+const BULKY_PREFIXES = ['torch', 'nvidia', 'triton', 'cuda']
+
+async function stripMasterPackages(installPath: string): Promise<void> {
+  try {
+    const sitePackages = findSitePackages(path.join(installPath, 'standalone-env'))
+    if (!sitePackages || !fs.existsSync(sitePackages)) return
+
+    const entries = await fs.promises.readdir(sitePackages, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const lower = entry.name.toLowerCase()
+      if (BULKY_PREFIXES.some((prefix) => lower.startsWith(prefix))) {
+        await fs.promises.rm(path.join(sitePackages, entry.name), { recursive: true, force: true })
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to strip master packages:', err)
   }
 }
 
@@ -227,6 +246,7 @@ export const standalone: SourcePlugin = {
       { phase: 'download', label: t('common.download') },
       { phase: 'extract', label: t('common.extract') },
       { phase: 'setup', label: t('standalone.setupEnv') },
+      { phase: 'cleanup', label: t('standalone.cleanupEnv') },
     ]
   },
 
@@ -501,6 +521,8 @@ export const standalone: SourcePlugin = {
     })
     const envMethods = { ...(installation.envMethods as Record<string, string> | undefined), [DEFAULT_ENV]: ENV_METHOD }
     await update({ envMethods })
+    sendProgress('cleanup', { percent: -1, status: t('standalone.cleanupEnvStatus') })
+    await stripMasterPackages(installation.installPath)
   },
 
   probeInstallation(dirPath: string): Record<string, unknown> | null {
@@ -962,50 +984,6 @@ export const standalone: SourcePlugin = {
       return { ok: true, navigate: 'detail' }
     }
 
-    if (actionId === 'env-create') {
-      const envName = actionData?.env as string | undefined
-      if (!envName) return { ok: false, message: 'No environment name provided.' }
-      if (!/^[a-zA-Z0-9_-]+$/.test(envName)) return { ok: false, message: 'Environment name may only contain letters, numbers, hyphens, and underscores.' }
-      const envPath = path.join(installation.installPath, ENVS_DIR, envName)
-      if (fs.existsSync(envPath)) return { ok: false, message: `Environment "${envName}" already exists.` }
-      sendProgress('setup', { percent: 0, status: 'Creating virtual environment…' })
-      await createEnv(installation.installPath, envName, (copied, total, elapsedSecs, etaSecs) => {
-        const percent = Math.round((copied / total) * 100)
-        const elapsed = formatTime(elapsedSecs)
-        const eta = etaSecs >= 0 ? formatTime(etaSecs) : '—'
-        sendProgress('setup', { percent, status: `Copying packages… ${copied} / ${total} files  ·  ${elapsed} elapsed  ·  ${eta} remaining` })
-      })
-      const envMethods = { ...(installation.envMethods as Record<string, string> | undefined), [envName]: ENV_METHOD }
-      await update({ envMethods })
-      return { ok: true, navigate: 'detail' }
-    }
-    if (actionId === 'env-activate') {
-      const envName = actionData?.env as string | undefined
-      if (!envName) return { ok: false, message: 'No environment specified.' }
-      await update({ activeEnv: envName })
-      return { ok: true, navigate: 'detail' }
-    }
-    if (actionId === 'env-delete') {
-      const envName = actionData?.env as string | undefined
-      if (!envName) return { ok: false, message: 'No environment specified.' }
-      if (envName === ((installation.activeEnv as string | undefined) || DEFAULT_ENV)) return { ok: false, message: 'Cannot delete the active environment.' }
-      const envPath = path.join(installation.installPath, ENVS_DIR, envName)
-      if (fs.existsSync(envPath)) {
-        sendProgress('delete', { percent: 0, status: 'Counting files…' })
-        await deleteDir(envPath, (p) => {
-          const elapsed = formatTime(p.elapsedSecs)
-          const eta = p.etaSecs >= 0 ? formatTime(p.etaSecs) : '—'
-          sendProgress('delete', {
-            percent: p.percent,
-            status: `Deleting… ${p.deleted} / ${p.total} items  ·  ${elapsed} elapsed  ·  ${eta} remaining`,
-          })
-        })
-      }
-      const envMethods = { ...(installation.envMethods as Record<string, string> | undefined) }
-      delete envMethods[envName]
-      await update({ envMethods })
-      return { ok: true, navigate: 'detail' }
-    }
     return { ok: false, message: `Action "${actionId}" not yet implemented.` }
   },
 

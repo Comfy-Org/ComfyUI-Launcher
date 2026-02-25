@@ -154,4 +154,99 @@ async function detectMacGPU(): Promise<GpuId | null> {
   })
 }
 
-export { detectGPU }
+/**
+ * Minimum NVIDIA driver version for PyTorch 2.10 with CUDA 13.0 (cu130).
+ * Matches desktop's NVIDIA_DRIVER_MIN_VERSION.
+ * See: https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/
+ */
+const NVIDIA_DRIVER_MIN_VERSION = "580"
+
+export interface NvidiaDriverCheck {
+  driverVersion: string
+  minimumVersion: string
+  supported: boolean
+}
+
+/**
+ * Compare two dotted version strings numerically.
+ * Returns negative if a < b, positive if a > b, 0 if equal.
+ */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number)
+  const pb = b.split(".").map(Number)
+  const len = Math.max(pa.length, pb.length)
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] ?? 0
+    const nb = pb[i] ?? 0
+    if (na !== nb) return na - nb
+  }
+  return 0
+}
+
+/**
+ * Parse the NVIDIA driver version from nvidia-smi standard output.
+ * Matches "Driver Version: XXX.XX" from the table header.
+ */
+export function parseNvidiaDriverVersion(output: string): string | undefined {
+  const match = output.match(/driver version\s*:\s*([\d.]+)/i)
+  return match?.[1]
+}
+
+/**
+ * Query nvidia-smi for the driver version using the structured CSV flag.
+ * Works on both Windows and Linux.
+ */
+function getNvidiaDriverVersionQuery(): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile(
+      "nvidia-smi",
+      ["--query-gpu=driver_version", "--format=csv,noheader"],
+      { timeout: 5000, windowsHide: true },
+      (err: Error | null, stdout: string) => {
+        if (err) return resolve(undefined)
+        const version = stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .find(Boolean)
+        resolve(version || undefined)
+      },
+    )
+  })
+}
+
+/**
+ * Fallback: parse driver version from plain nvidia-smi output.
+ */
+function getNvidiaDriverVersionFallback(): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile(
+      "nvidia-smi",
+      { timeout: 5000, windowsHide: true },
+      (err: Error | null, stdout: string) => {
+        if (err) return resolve(undefined)
+        resolve(parseNvidiaDriverVersion(stdout))
+      },
+    )
+  })
+}
+
+/**
+ * Check whether the installed NVIDIA driver meets the minimum version.
+ * Returns null if no NVIDIA driver is detected (e.g. AMD/Intel/macOS).
+ * Works on Windows and Linux.
+ */
+async function checkNvidiaDriver(): Promise<NvidiaDriverCheck | null> {
+  if (process.platform === "darwin") return null
+
+  const driverVersion =
+    (await getNvidiaDriverVersionQuery()) ?? (await getNvidiaDriverVersionFallback())
+  if (!driverVersion) return null
+
+  return {
+    driverVersion,
+    minimumVersion: NVIDIA_DRIVER_MIN_VERSION,
+    supported: compareVersions(driverVersion, NVIDIA_DRIVER_MIN_VERSION) >= 0,
+  }
+}
+
+export { detectGPU, checkNvidiaDriver }
