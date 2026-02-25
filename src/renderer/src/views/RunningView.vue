@@ -3,20 +3,14 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { useInstallationStore } from '../stores/installationStore'
+import { useProgressStore } from '../stores/progressStore'
 import InstanceCard from '../components/InstanceCard.vue'
 import type { Installation } from '../types/ipc'
-
-interface Props {
-  getProgressInfo?: (id: string) => { status: string; percent: number } | null
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  getProgressInfo: undefined,
-})
 
 const { t } = useI18n()
 const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
+const progressStore = useProgressStore()
 
 const instMap = computed(() => {
   const map = new Map<string, Installation>()
@@ -28,9 +22,8 @@ const instMap = computed(() => {
 
 const cardProgress = computed(() => {
   const map = new Map<string, { status: string; percent: number }>()
-  if (!props.getProgressInfo) return map
   sessionStore.activeSessions.forEach((_session, id) => {
-    const info = props.getProgressInfo!(id)
+    const info = progressStore.getProgressInfo(id)
     if (info) map.set(id, info)
   })
   return map

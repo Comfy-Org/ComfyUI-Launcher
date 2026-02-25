@@ -4,20 +4,14 @@ import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { useInstallationStore } from '../stores/installationStore'
 import { useModal } from '../composables/useModal'
+import { useProgressStore } from '../stores/progressStore'
 import InstanceCard from '../components/InstanceCard.vue'
 import type { Installation, ListAction } from '../types/ipc'
-
-interface Props {
-  getProgressInfo?: (id: string) => { status: string; percent: number } | null
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  getProgressInfo: undefined,
-})
 
 const { t } = useI18n()
 const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
+const progressStore = useProgressStore()
 const modal = useModal()
 
 const filter = ref('all')
@@ -26,9 +20,8 @@ const dragSrcId = ref<string | null>(null)
 
 const cardProgress = computed(() => {
   const map = new Map<string, { status: string; percent: number }>()
-  if (!props.getProgressInfo) return map
   for (const inst of installationStore.installations) {
-    const info = props.getProgressInfo(inst.id)
+    const info = progressStore.getProgressInfo(inst.id)
     if (info) map.set(inst.id, info)
   }
   return map

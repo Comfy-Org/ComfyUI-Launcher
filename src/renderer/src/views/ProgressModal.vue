@@ -1,15 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, reactive, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, X, TriangleAlert } from 'lucide-vue-next'
 import { useModal } from '../composables/useModal'
-import { useSessionStore } from '../stores/sessionStore'
+import { useProgressStore } from '../stores/progressStore'
+import type { Operation } from '../stores/progressStore'
 import type {
   ActionResult,
-  ProgressData,
   ProgressStep,
-  ComfyOutputData,
-  Unsubscribe,
   KillResult
 } from '../types/ipc'
 
@@ -27,31 +25,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const modal = useModal()
-const sessionStore = useSessionStore()
-
-// --- Per-operation state ---
-interface Operation {
-  title: string
-  returnTo?: string
-  steps: ProgressStep[] | null
-  activePhase: string | null
-  activePercent: number
-  lastStatus: Record<string, string>
-  flatStatus: string
-  flatPercent: number
-  terminalOutput: string
-  done: boolean
-  error: string | null
-  finished: boolean
-  cancelRequested: boolean
-  result: ActionResult | null
-  unsubProgress: Unsubscribe | null
-  unsubOutput: Unsubscribe | null
-  apiCall: (() => Promise<ActionResult>) | null
-}
-
-// Module-level operations state — persists across mount/unmount cycles
-const operations = reactive(new Map<string, Operation>())
+const progressStore = useProgressStore()
 
 const currentId = ref<string | null>(null)
 const terminalRef = ref<HTMLDivElement | null>(null)
@@ -60,7 +34,7 @@ const isTerminalAtBottom = ref(true)
 const currentOp = computed(() => {
   const id = currentId.value ?? props.installationId
   if (!id) return null
-  return operations.get(id) ?? null
+  return progressStore.operations.get(id) ?? null
 })
 
 const displayId = computed(() => currentId.value ?? props.installationId)
@@ -93,33 +67,8 @@ watch(
   { immediate: true }
 )
 
-function isShowing(installationId: string): boolean {
-  return displayId.value === installationId && props.installationId !== null
-}
-
-function cleanupOperation(installationId: string): void {
-  const op = operations.get(installationId)
-  if (!op) return
-  if (op.unsubProgress) op.unsubProgress()
-  if (op.unsubOutput) op.unsubOutput()
-  op.unsubProgress = null
-  op.unsubOutput = null
-}
-
-function getProgressInfo(
-  installationId: string
-): { status: string; percent: number } | null {
-  const op = operations.get(installationId)
-  if (!op || op.finished) return null
-  if (op.steps && op.activePhase) {
-    const status = op.lastStatus[op.activePhase] || op.activePhase
-    return { status, percent: op.activePercent }
-  }
-  return { status: op.flatStatus || op.title, percent: op.flatPercent }
-}
-
 function showOperation(installationId: string): void {
-  const op = operations.get(installationId)
+  const op = progressStore.operations.get(installationId)
   if (!op) return
   currentId.value = installationId
 }
@@ -131,136 +80,36 @@ function startOperation(opts: {
   cancellable?: boolean
   returnTo?: string
 }): void {
-  const { installationId, title, apiCall, returnTo } = opts
-
-  cleanupOperation(installationId)
-  currentId.value = installationId
-
-  sessionStore.startSession(installationId)
-  const sessionLabel = title.split(' — ')[0] || t('progress.working')
-  sessionStore.setActiveSession(installationId, sessionLabel)
-
-  const op: Operation = {
-    title: title || t('progress.working'),
-    returnTo,
-    steps: null,
-    activePhase: null,
-    activePercent: -1,
-    lastStatus: {},
-    flatStatus: t('progress.starting'),
-    flatPercent: -1,
-    terminalOutput: '',
-    done: false,
-    error: null,
-    finished: false,
-    cancelRequested: false,
-    result: null,
-    unsubProgress: null,
-    unsubOutput: null,
-    apiCall
-  }
-  operations.set(installationId, op)
-  // Get the reactive proxy so callbacks trigger Vue re-renders
-  const rop = operations.get(installationId)!
-
-  // Subscribe to progress events
-  rop.unsubProgress = window.api.onInstallProgress((data: ProgressData) => {
-    if (data.installationId !== installationId) return
-
-    if (data.phase === 'steps' && data.steps) {
-      rop.steps = data.steps
-      rop.activePhase = null
-      rop.activePercent = -1
-      return
-    }
-
-    if (data.phase === 'done' && rop.steps) {
-      rop.done = true
-      return
-    }
-
-    if (rop.steps) {
-      const stepIndex = rop.steps.findIndex((s) => s.phase === data.phase)
-      if (stepIndex === -1) return
-      rop.activePhase = data.phase
-      rop.lastStatus[data.phase] = data.status || data.phase
-      rop.activePercent = data.percent ?? -1
-      return
-    }
-
-    // Flat mode
-    if (!rop.cancelRequested) {
-      rop.flatStatus = data.status || data.phase
-    }
-    if (data.percent !== undefined) {
-      rop.flatPercent = data.percent
-    }
-  })
-
-  // Subscribe to terminal output
-  rop.unsubOutput = window.api.onComfyOutput((data: ComfyOutputData) => {
-    if (data.installationId !== installationId) return
-    rop.terminalOutput += data.text
-  })
-
-  // Execute the API call
-  apiCall()
-    .then((result) => {
-      rop.finished = true
-      if (result.ok) rop.result = result
-      cleanupOperation(installationId)
-
-      if (result.ok) {
-        sessionStore.clearActiveSession(installationId)
-
-        // Window-mode launch: auto-close
-        if (result.mode === 'window') {
-          if (isShowing(installationId)) {
-            emit('close')
-          }
-          return
-        }
-
-        if (rop.steps) rop.done = true
-      } else if (result.portConflict) {
-        sessionStore.clearActiveSession(installationId)
-        // Port conflict state is stored in rop.result for template rendering
-      } else {
-        rop.error = result.message || t('progress.unknownError')
-        sessionStore.clearActiveSession(installationId)
-        sessionStore.errorInstances.set(installationId, {
-          installationName: rop.title,
-          message: rop.error,
-        })
-      }
-    })
-    .catch((err: Error) => {
-      rop.error = err.message
-      rop.finished = true
-      cleanupOperation(installationId)
-      sessionStore.clearActiveSession(installationId)
-      sessionStore.errorInstances.set(installationId, {
-        installationName: rop.title,
-        message: rop.error,
-      })
-    })
+  currentId.value = opts.installationId
+  progressStore.startOperation(opts)
 }
+
+// Auto-close modal on window-mode launch success
+watch(
+  () => {
+    const id = displayId.value
+    if (!id) return null
+    const op = progressStore.operations.get(id)
+    if (!op) return null
+    return op.finished && op.result?.ok && op.result.mode === 'window' ? id : null
+  },
+  (autoCloseId) => {
+    if (autoCloseId && displayId.value === autoCloseId && props.installationId !== null) {
+      emit('close')
+    }
+  }
+)
 
 function handleCancel(): void {
   const id = displayId.value
   if (!id) return
-  const op = operations.get(id)
-  if (!op) return
-  op.cancelRequested = true
-  op.flatStatus = t('progress.cancelling')
-  window.api.cancelOperation(id)
-  window.api.stopComfyUI(id)
+  progressStore.cancelOperation(id)
 }
 
 function handleDone(): void {
   const id = displayId.value
   if (!id) return
-  const op = operations.get(id)
+  const op = progressStore.operations.get(id)
   if (!op?.result) return
   emit('close')
   if (op.returnTo === 'detail' || op.result.navigate === 'detail') {
@@ -273,7 +122,7 @@ function handleDone(): void {
 function handleUseNextPort(nextPort: number): void {
   const id = displayId.value
   if (!id) return
-  const op = operations.get(id)
+  const op = progressStore.operations.get(id)
   if (!op) return
   startOperation({
     installationId: id,
@@ -286,7 +135,7 @@ function handleUseNextPort(nextPort: number): void {
 async function handleKillProcess(port: number): Promise<void> {
   const id = displayId.value
   if (!id) return
-  const op = operations.get(id)
+  const op = progressStore.operations.get(id)
   if (!op) return
 
   const confirmed = await modal.confirm({
@@ -391,7 +240,7 @@ function handleOverlayClick(event: MouseEvent): void {
   mouseDownOnOverlay.value = false
 }
 
-defineExpose({ startOperation, showOperation, getProgressInfo, operations })
+defineExpose({ startOperation, showOperation })
 </script>
 
 <template>

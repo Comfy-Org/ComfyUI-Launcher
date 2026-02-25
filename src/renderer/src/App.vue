@@ -3,6 +3,7 @@ import { ref, onMounted, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from './stores/sessionStore'
 import { useInstallationStore } from './stores/installationStore'
+import { useProgressStore } from './stores/progressStore'
 import { useModal } from './composables/useModal'
 import { useTheme } from './composables/useTheme'
 import type { Installation, ActionResult } from './types/ipc'
@@ -25,6 +26,7 @@ import { Box, Play, FolderOpen, Settings } from 'lucide-vue-next'
 const { t, setLocaleMessage, locale } = useI18n()
 const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
+const progressStore = useProgressStore()
 const modal = useModal()
 useTheme()
 
@@ -110,7 +112,7 @@ function showProgress(opts: {
   if (opts.returnTo === 'detail') closeDetail()
   progressInstallationId.value = opts.installationId
   // If an in-progress operation already exists for this ID, just show it
-  const existingOp = progressRef.value?.operations.get(opts.installationId)
+  const existingOp = progressStore.operations.get(opts.installationId)
   if (existingOp && !existingOp.finished) {
     progressRef.value!.showOperation(opts.installationId)
     return
@@ -122,10 +124,6 @@ function showProgress(opts: {
     cancellable: opts.cancellable,
     returnTo: opts.returnTo,
   })
-}
-
-function getProgressInfo(id: string): { status: string; percent: number } | null {
-  return progressRef.value?.getProgressInfo(id) ?? null
 }
 
 function closeProgress(): void {
@@ -213,7 +211,6 @@ onMounted(async () => {
       <InstallationList
         v-show="activeView === 'list'"
         ref="listRef"
-        :get-progress-info="getProgressInfo"
         @show-detail="openDetail"
         @show-console="openConsole"
         @show-progress="showProgress"
@@ -227,7 +224,6 @@ onMounted(async () => {
 
       <RunningView
         v-show="activeView === 'running'"
-        :get-progress-info="getProgressInfo"
         @show-detail="openDetail"
         @show-console="openConsole"
         @show-progress="showProgress"

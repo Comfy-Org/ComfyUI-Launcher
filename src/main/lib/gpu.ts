@@ -154,7 +154,11 @@ async function detectMacGPU(): Promise<GpuId | null> {
   })
 }
 
-/** Minimum NVIDIA driver version required for CUDA 13.0 (PyTorch cu130). */
+/**
+ * Minimum NVIDIA driver version for PyTorch 2.10 with CUDA 13.0 (cu130).
+ * Matches desktop's NVIDIA_DRIVER_MIN_VERSION.
+ * See: https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/
+ */
 const NVIDIA_DRIVER_MIN_VERSION = "580"
 
 export interface NvidiaDriverCheck {
