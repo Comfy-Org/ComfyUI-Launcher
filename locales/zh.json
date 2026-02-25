@@ -66,6 +66,7 @@
     "empty": "暂无安装。",
     "emptyHint": "安装或跟踪现有的 ComfyUI 版本。",
     "emptyFilter": "没有匹配此筛选条件的安装。",
+
     "view": "管理",
     "new": "新建",
     "running": "运行中",

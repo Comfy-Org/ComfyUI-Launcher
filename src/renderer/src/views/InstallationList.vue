@@ -307,6 +307,18 @@ defineExpose({ refresh })
             </button>
           </template>
         </InstanceCard>
+
+        <!-- Prompt to install when no local installations exist -->
+        <div
+          v-if="filteredInstallations.length > 0 && !hasLocal && (filter === 'all' || filter === 'local')"
+          class="empty-state"
+        >
+          <div style="font-weight: 700; color: var(--text-faint)">{{ $t('list.empty') }}</div>
+          <div style="margin-top: 4px">{{ $t('list.emptyHint') }}</div>
+          <button class="accent add-btn" style="margin-top: 8px" @click="emit('show-new-install')">
+            + {{ $t('list.newInstall') }}
+          </button>
+        </div>
       </div>
     </div>
 

@@ -67,6 +67,7 @@
     "empty": "No installations yet.",
     "emptyHint": "Install or track an existing version of ComfyUI.",
     "emptyFilter": "No installations match this filter.",
+
     "view": "Manage",
     "new": "New",
     "running": "Running",
