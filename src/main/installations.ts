@@ -36,7 +36,7 @@ export async function list(): Promise<InstallationRecord[]> {
 export function uniqueName(baseName: string, existing: InstallationRecord[], excludeId?: string): string {
   const names = new Set(existing.filter((i) => i.id !== excludeId).map((i) => i.name))
   if (!names.has(baseName)) return baseName
-  let suffix = 2
+  let suffix = 1
   while (names.has(`${baseName} (${suffix})`)) suffix++
   return `${baseName} (${suffix})`
 }

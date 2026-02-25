@@ -278,9 +278,9 @@ async function handleSave(): Promise<void> {
   }
 
   const instData = await window.api.buildInstallation(source.id, rawSelections())
-  const name =
-    instName.value.trim() ||
-    `ComfyUI (${(instData as Record<string, unknown>).version || source.label})`
+  const baseName = instName.value.trim() ||
+    (source.id === 'standalone' ? 'ComfyUI' : `ComfyUI (${source.label})`)
+  const name = await window.api.getUniqueName(baseName)
 
   if (source.skipInstall) {
     const result = await window.api.addInstallation({

@@ -134,6 +134,7 @@ function showProgress(opts: {
 
 function closeProgress(): void {
   progressInstallationId.value = null
+  listRef.value?.refresh()
 }
 
 function handleNavigateList(): void {
@@ -288,12 +289,14 @@ onMounted(async () => {
     ref="newInstallRef"
     @close="closeNewInstall"
     @show-progress="showProgress"
+    @navigate-list="handleNavigateList"
   />
 
   <TrackModal
     v-if="showTrack"
     ref="trackRef"
     @close="closeTrack"
+    @navigate-list="handleNavigateList"
   />
 
   <!-- Global modal dialog (alerts/confirms/prompts/selects) -->

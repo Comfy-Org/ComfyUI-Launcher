@@ -82,6 +82,11 @@ async function findDuplicatePath(installPath: string): Promise<InstallationRecor
   return (await installations.list()).find((i) => i.installPath && path.resolve(i.installPath) === normalized) ?? null
 }
 
+async function uniqueName(baseName: string): Promise<string> {
+  const all = await installations.list()
+  return installations.uniqueName(baseName, all)
+}
+
 interface SessionInfo {
   proc: ChildProcess | null
   port: number
@@ -164,9 +169,10 @@ async function performCopy(
     }
 
     const { id: _id, name: _name, installPath: _path, createdAt: _created, seen: _seen, status: _status, ...inherited } = inst
+    const finalName = await uniqueName(name)
     const entry = await installations.add({
       ...inherited,
-      name,
+      name: finalName,
       installPath: destPath,
       status: 'installed',
       seen: false,
@@ -395,7 +401,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     })
   })
 
+  ipcMain.handle('get-unique-name', async (_event, baseName: string) => {
+    return uniqueName(baseName)
+  })
+
   ipcMain.handle('add-installation', async (_event, data: Record<string, unknown>) => {
+    data.name = await uniqueName((data.name as string) || 'ComfyUI')
     if (data.installPath) {
       const dirName = (data.name as string).replace(/[<>:"/\\|?*]+/g, '_').trim() || 'ComfyUI'
       let installPath = path.join(data.installPath as string, dirName)
@@ -960,11 +971,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         const cache = createCache(settings.get('cacheDir') as string, settings.get('maxCachedFiles') as number)
         await source.install!(installRecord, { sendProgress, download, cache, extract, signal: abort.signal })
 
+        const finalName = await uniqueName(name)
         entry = await installations.add({
           sourceId: inst.sourceId,
           sourceLabel: source.label,
           ...installData,
-          name,
+          name: finalName,
           installPath: destPath,
           status: 'installed',
           seen: false,

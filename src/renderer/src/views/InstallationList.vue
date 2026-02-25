@@ -201,6 +201,17 @@ function filterLabel(f: string): string {
   return t(`list.filter${f.charAt(0).toUpperCase() + f.slice(1)}`)
 }
 
+const filterStats = computed(() => {
+  const stats: Record<string, { count: number; hasNew: boolean }> = {}
+  for (const f of filterKeys) {
+    const list = f === 'all'
+      ? installationStore.installations
+      : installationStore.installations.filter((i) => i.sourceCategory === f)
+    stats[f] = { count: list.length, hasNew: list.some((i) => i.seen === false) }
+  }
+  return stats
+})
+
 const emit = defineEmits<{
   'show-detail': [inst: Installation]
   'show-console': [installationId: string]
@@ -239,7 +250,7 @@ defineExpose({ refresh })
         :class="{ active: filter === f }"
         @click="setFilter(f)"
       >
-        {{ filterLabel(f) }}
+        {{ filterLabel(f) }}<span v-if="filterStats[f].count > 0" class="filter-count" :class="{ 'has-new': filterStats[f].hasNew }">{{ filterStats[f].count }}</span>
       </button>
     </div>
 

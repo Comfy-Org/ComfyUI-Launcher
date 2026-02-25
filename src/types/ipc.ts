@@ -340,6 +340,7 @@ export interface ElectronApi {
   getSettingsSections(): Promise<SettingsSection[]>
   getModelsSections(): Promise<ModelsResult>
   getMediaSections(): Promise<SettingsSection[]>
+  getUniqueName(baseName: string): Promise<string>
   setSetting(key: string, value: unknown): Promise<void>
   getSetting(key: string): Promise<unknown>
 
