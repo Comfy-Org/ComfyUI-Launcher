@@ -12,6 +12,9 @@ files:
   - '!{.env,.env.*,.npmrc}'
   - '!docs/*'
   - '!reference/*'
+extraResources:
+  - from: lib
+    to: lib
 asarUnpack:
   - node_modules/7zip-bin/**/*
 publish:

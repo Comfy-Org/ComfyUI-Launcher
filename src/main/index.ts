@@ -18,8 +18,8 @@ const comfyWindows = new Map<string, BrowserWindow>()
 
 function createLauncherWindow(): void {
   launcherWindow = new BrowserWindow({
-    width: 1050,
-    height: 700,
+    width: 1470,
+    height: 840,
     minWidth: 650,
     minHeight: 500,
     icon: APP_ICON,

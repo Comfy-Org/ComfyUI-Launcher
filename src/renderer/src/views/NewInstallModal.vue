@@ -98,9 +98,9 @@ let loadGeneration = 0
 
 /** Map GPU vendor key (from variantId) to a logo image path */
 const variantImages: Record<string, string> = {
-  nvidia: '/images/nvidia-logo.jpg',
-  amd: '/images/amd-logo.png',
-  mps: '/images/apple-mps-logo.png',
+  nvidia: './images/nvidia-logo.jpg',
+  amd: './images/amd-logo.png',
+  mps: './images/apple-mps-logo.png',
 }
 
 /** Preferred display order for variant cards */

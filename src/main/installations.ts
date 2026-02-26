@@ -86,6 +86,17 @@ export async function reorder(orderedIds: string[]): Promise<void> {
   await save(reordered)
 }
 
+export async function ensureExists(sourceId: string, data: Record<string, unknown>): Promise<void> {
+  const existing = await load()
+  if (existing.some((i) => i.sourceId === sourceId)) return
+  existing.push({
+    id: `inst-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    ...data,
+  } as InstallationRecord)
+  await save(existing)
+}
+
 export async function seedDefaults(defaults: Record<string, unknown>[]): Promise<void> {
   const installations = await load()
   if (installations.length > 0) return

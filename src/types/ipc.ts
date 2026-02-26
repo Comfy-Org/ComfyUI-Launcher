@@ -4,6 +4,10 @@
 // Unsubscribe function returned by event listeners
 export type Unsubscribe = () => void
 
+// Theme identifiers
+export type Theme = 'system' | 'dark' | 'light' | 'solarized' | 'nord' | 'arc' | 'github'
+export type ResolvedTheme = Exclude<Theme, 'system'>
+
 // --- Installation types ---
 export interface Installation {
   id: string
@@ -19,6 +23,7 @@ export interface Installation {
   hasConsole?: boolean
   installPath?: string
   status?: string
+  lastLaunchedAt?: number
   [key: string]: unknown // allow extra fields from sources
 }
 
@@ -77,13 +82,21 @@ export interface DetailItem {
   actions?: ActionDef[]
 }
 
+export interface DetailFieldOption {
+  value: string
+  label: string
+  description?: string
+  recommended?: boolean
+  data?: Record<string, unknown>
+}
+
 export interface DetailField {
   id: string
   label: string
   value: string | boolean | number | null
   editable?: boolean
-  editType?: 'select' | 'boolean' | 'text'
-  options?: { value: string; label: string }[]
+  editType?: 'select' | 'boolean' | 'text' | 'track-cards'
+  options?: DetailFieldOption[]
   refreshSection?: boolean
   onChangeAction?: string
 }
@@ -357,7 +370,7 @@ export interface ElectronApi {
   getSetting(key: string): Promise<unknown>
 
   // Theme
-  getResolvedTheme(): Promise<string>
+  getResolvedTheme(): Promise<ResolvedTheme>
 
   // App
   quitApp(): Promise<void>
@@ -374,7 +387,7 @@ export interface ElectronApi {
   onComfyExited(callback: (data: ComfyExitedData) => void): Unsubscribe
   onInstanceStarted(callback: (data: RunningInstance) => void): Unsubscribe
   onInstanceStopped(callback: (data: { installationId: string }) => void): Unsubscribe
-  onThemeChanged(callback: (theme: string) => void): Unsubscribe
+  onThemeChanged(callback: (theme: ResolvedTheme) => void): Unsubscribe
   onLocaleChanged(callback: (messages: Record<string, unknown>) => void): Unsubscribe
   onConfirmQuit(callback: () => void): Unsubscribe
   onInstallationsChanged(callback: () => void): Unsubscribe

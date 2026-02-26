@@ -1,4 +1,3 @@
-import { untrackAction } from '../lib/actions'
 import { parseUrl } from '../lib/util'
 import { t } from '../lib/i18n'
 import type { InstallationRecord } from '../installations'
@@ -63,7 +62,7 @@ export const cloud: SourcePlugin = {
         title: t('remote.connectionInfo'),
         fields: [
           { label: t('common.installMethod'), value: installation.sourceLabel as string },
-          { id: 'remoteUrl', label: t('remote.url'), value: (installation.remoteUrl as string) || '—', editable: true },
+          { label: t('remote.url'), value: (installation.remoteUrl as string) || '—' },
           { label: t('remote.added'), value: new Date(installation.createdAt).toLocaleDateString() },
         ],
       },
@@ -83,7 +82,6 @@ export const cloud: SourcePlugin = {
         actions: [
           { id: 'launch', label: t('actions.connect'), style: 'primary', enabled: installation.status === 'installed',
             showProgress: true, progressTitle: t('actions.connecting'), cancellable: true },
-          untrackAction(),
         ],
       },
     ]
