@@ -199,6 +199,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .path-input input[type="text"] { flex: 1; margin-top: 0; }
 .path-input button { flex-shrink: 0; }
 .field-error { font-size: 13px; color: var(--danger); margin-top: 4px; min-height: 0; }
+.disk-space-info { font-size: 13px; color: var(--text-faint); margin-top: 4px; min-height: 18px; }
 
 /* Filter tabs */
 .filter-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }

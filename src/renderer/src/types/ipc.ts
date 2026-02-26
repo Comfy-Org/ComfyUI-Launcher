@@ -33,6 +33,8 @@ export type {
   ComfyOutputData,
   ComfyExitedData,
   GPUInfo,
+  DiskSpaceInfo,
+  PathIssue,
   UpdateInfo,
   UpdateDownloadProgress,
   TrackResult,

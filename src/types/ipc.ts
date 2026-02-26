@@ -268,6 +268,13 @@ export interface GPUInfo {
   label: string
 }
 
+export interface DiskSpaceInfo {
+  free: number
+  total: number
+}
+
+export type PathIssue = 'insideAppBundle' | 'oneDrive' | 'insideSharedDir' | 'insideExistingInstall'
+
 // --- Update types ---
 export interface UpdateInfo {
   version: string
@@ -305,6 +312,8 @@ export interface ElectronApi {
   browseFolder(defaultPath?: string): Promise<string | null>
   openPath(targetPath: string): Promise<void>
   openExternal(url: string): Promise<void>
+  getDiskSpace(targetPath: string): Promise<DiskSpaceInfo>
+  validateInstallPath(targetPath: string): Promise<PathIssue[]>
 
   // Locale
   getLocaleMessages(): Promise<Record<string, unknown>>

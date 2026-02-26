@@ -16,6 +16,8 @@ const api: ElectronApi = {
   browseFolder: (defaultPath?) => ipcRenderer.invoke('browse-folder', defaultPath),
   openPath: (targetPath) => ipcRenderer.invoke('open-path', targetPath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  getDiskSpace: (targetPath) => ipcRenderer.invoke('get-disk-space', targetPath),
+  validateInstallPath: (targetPath) => ipcRenderer.invoke('validate-install-path', targetPath),
 
   // Locale
   getLocaleMessages: () => ipcRenderer.invoke('get-locale-messages'),

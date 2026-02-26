@@ -46,6 +46,7 @@
   "common": {
     "back": "返回",
     "browse": "浏览…",
+    "resetDefault": "重置",
     "cancel": "取消",
     "name": "名称",
     "namePlaceholder": "例如 ComfyUI 主程序",
@@ -110,6 +111,26 @@
     "nameLocation": "名称和位置",
     "next": "下一步",
     "recommended": "推荐"
+  },
+
+  "diskSpace": {
+    "free": "{size} 可用",
+    "checking": "正在检查磁盘空间…",
+    "warningTitle": "磁盘空间不足",
+    "warningMessage": "目标驱动器仅剩 {free} 可用空间。此操作大约需要 {required}。过程中可能会耗尽空间。",
+    "warningMessageGeneric": "目标驱动器仅剩 {free} 可用空间。过程中可能会耗尽空间。",
+    "continueAnyway": "仍然继续"
+  },
+
+  "pathValidation": {
+    "insideAppBundleTitle": "不安全的安装位置",
+    "insideAppBundleMessage": "此路径位于启动器的应用程序目录内。启动器更新时这里的文件将被删除。请选择其他位置。",
+    "oneDriveTitle": "OneDrive 位置",
+    "oneDriveMessage": "此路径位于 OneDrive 内。云同步可能导致大型 Python 环境出现性能问题和文件损坏。请选择 OneDrive 以外的位置。",
+    "insideSharedDirTitle": "共享目录位置",
+    "insideSharedDirMessage": "此路径位于共享的模型、输入或输出目录内。在此安装可能会损坏共享数据。请选择其他位置。",
+    "insideExistingInstallTitle": "安装路径重叠",
+    "insideExistingInstallMessage": "此路径与现有安装重叠。在此安装可能会导致冲突和数据损坏。请选择其他位置。"
   },
 
   "detail": {},

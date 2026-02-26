@@ -19,6 +19,7 @@ import {
   findAvailablePort, writePortLock, readPortLock, removePortLock,
 } from './process'
 import { detectGPU } from './gpu'
+import { getDiskSpace, validateInstallPath } from './disk'
 import type { GpuInfo } from './gpu'
 import { formatTime } from './util'
 import * as releaseCache from './release-cache'
@@ -418,6 +419,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   ipcMain.handle('open-path', (_event, targetPath: string) => openPath(targetPath))
   ipcMain.handle('open-external', (_event, url: string) => shell.openExternal(url))
+  ipcMain.handle('get-disk-space', (_event, targetPath: string) => getDiskSpace(targetPath))
+  ipcMain.handle('validate-install-path', (_event, targetPath: string) => validateInstallPath(targetPath))
 
   // Installations
   ipcMain.handle('get-installations', async () => {

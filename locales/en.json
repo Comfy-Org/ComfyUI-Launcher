@@ -47,6 +47,7 @@
   "common": {
     "back": "Back",
     "browse": "Browse…",
+    "resetDefault": "Reset",
     "cancel": "Cancel",
     "name": "Name",
     "namePlaceholder": "e.g. ComfyUI Main",
@@ -111,6 +112,26 @@
     "nameLocation": "Name & Location",
     "next": "Next",
     "recommended": "Recommended"
+  },
+
+  "diskSpace": {
+    "free": "{size} free",
+    "checking": "Checking disk space…",
+    "warningTitle": "Low Disk Space",
+    "warningMessage": "The target drive only has {free} free. This operation may require approximately {required}. You may run out of space during the process.",
+    "warningMessageGeneric": "The target drive only has {free} free. You may run out of space during the process.",
+    "continueAnyway": "Continue Anyway"
+  },
+
+  "pathValidation": {
+    "insideAppBundleTitle": "Unsafe Install Location",
+    "insideAppBundleMessage": "This path is inside the Launcher's application directory. Files here will be deleted when the Launcher is updated. Please choose a different location.",
+    "oneDriveTitle": "OneDrive Location",
+    "oneDriveMessage": "This path is inside OneDrive. Cloud sync can cause performance issues and file corruption with large Python environments. Please choose a location outside OneDrive.",
+    "insideSharedDirTitle": "Shared Directory Location",
+    "insideSharedDirMessage": "This path is inside a shared models, input, or output directory. Installing here can corrupt shared data. Please choose a different location.",
+    "insideExistingInstallTitle": "Overlapping Installation",
+    "insideExistingInstallMessage": "This path overlaps with an existing installation. Installing here can cause conflicts and data corruption. Please choose a different location."
   },
 
   "detail": {},

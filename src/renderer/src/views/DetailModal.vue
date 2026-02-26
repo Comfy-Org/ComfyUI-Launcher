@@ -8,7 +8,8 @@ import type {
   ActionDef,
   DetailSection,
   FieldOption,
-  ActionResult
+  ActionResult,
+  DiskSpaceInfo
 } from '../types/ipc'
 
 interface Props {
@@ -233,6 +234,26 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
         confirmStyle: mutableAction.style || 'danger'
       })
       if (!confirmed) return
+    }
+  }
+
+  // Disk space check for actions that write significant data
+  const diskCheckActions = new Set(['copy', 'copy-update', 'release-update'])
+  if (diskCheckActions.has(mutableAction.id) && props.installation?.installPath) {
+    try {
+      const space: DiskSpaceInfo = await window.api.getDiskSpace(props.installation.installPath)
+      if (space.free < 1073741824) {
+        const freeStr = `${(space.free / 1048576).toFixed(0)} MB`
+        const ok = await modal.confirm({
+          title: t('diskSpace.warningTitle'),
+          message: t('diskSpace.warningMessageGeneric', { free: freeStr }),
+          confirmLabel: t('diskSpace.continueAnyway'),
+          confirmStyle: 'primary',
+        })
+        if (!ok) return
+      }
+    } catch {
+      // If disk space check fails, proceed anyway
     }
   }
 

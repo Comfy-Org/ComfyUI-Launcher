@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, toRaw } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
-import type { Source, SourceField, FieldOption } from '../types/ipc'
+import type { Source, SourceField, FieldOption, DiskSpaceInfo, PathIssue } from '../types/ipc'
 
 const emit = defineEmits<{
   close: []
@@ -26,6 +26,7 @@ const currentSource = ref<Source | null>(null)
 const selections = ref<Record<string, FieldOption>>({})
 const instName = ref('')
 const instPath = ref('')
+const defaultInstPath = ref('')
 const detectedGpu = ref('')
 const saveDisabled = ref(true)
 const sourcesLoading = ref(false)
@@ -36,6 +37,61 @@ const fieldOptions = ref(new Map<string, FieldOption[]>())
 const fieldLoading = ref(new Map<string, boolean>())
 const fieldErrors = ref(new Map<string, string>())
 const textFieldValues = ref(new Map<string, string>())
+
+// Disk space and path validation
+const diskSpace = ref<DiskSpaceInfo | null>(null)
+const diskSpaceLoading = ref(false)
+const pathIssues = ref<PathIssue[]>([])
+let diskSpaceTimer: ReturnType<typeof setTimeout> | null = null
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`
+  return `${(bytes / 1048576).toFixed(0)} MB`
+}
+
+let diskSpaceGeneration = 0
+
+function fetchDiskSpace(targetPath: string): void {
+  if (diskSpaceTimer) clearTimeout(diskSpaceTimer)
+  diskSpaceTimer = setTimeout(async () => {
+    if (!targetPath) {
+      diskSpace.value = null
+      pathIssues.value = []
+      return
+    }
+    const gen = ++diskSpaceGeneration
+    diskSpaceLoading.value = true
+    try {
+      const [space, issues] = await Promise.all([
+        window.api.getDiskSpace(targetPath),
+        window.api.validateInstallPath(targetPath),
+      ])
+      if (gen !== diskSpaceGeneration) return
+      diskSpace.value = space
+      pathIssues.value = issues
+    } catch {
+      if (gen !== diskSpaceGeneration) return
+      diskSpace.value = null
+      pathIssues.value = []
+    } finally {
+      if (gen === diskSpaceGeneration) {
+        diskSpaceLoading.value = false
+      }
+    }
+  }, 300)
+}
+
+watch(instPath, (newPath) => {
+  diskSpace.value = null
+  pathIssues.value = []
+  if (currentStep.value >= 3 || currentSource.value?.skipInstall) {
+    fetchDiskSpace(newPath)
+  }
+})
+
+onUnmounted(() => {
+  if (diskSpaceTimer) clearTimeout(diskSpaceTimer)
+})
 
 /** Generation counter — incremented on each open/source change to discard stale responses */
 let loadGeneration = 0
@@ -96,6 +152,7 @@ const canProceed = computed(() => {
     if (currentSource.value?.skipInstall) return true
     return !saveDisabled.value
   }
+  if (currentStep.value === 3) return pathIssues.value.length === 0
   return true
 })
 
@@ -144,10 +201,14 @@ async function open(): Promise<void> {
   textFieldValues.value.clear()
 
   detectedGpu.value = t('newInstall.detectingGpu')
+  diskSpace.value = null
+  diskSpaceLoading.value = false
+  pathIssues.value = []
 
   const [, installDir] = await Promise.all([loadSources(), installDirPromise])
 
-  instPath.value = installDir ?? ''
+  defaultInstPath.value = installDir ?? ''
+  instPath.value = defaultInstPath.value
 
   // Preselect standalone if available
   const standalone = sources.value.find((s) => s.id === 'standalone')
@@ -351,9 +412,14 @@ async function handleBrowse(): Promise<void> {
   if (chosen) instPath.value = chosen
 }
 
+function resetInstPath(): void {
+  instPath.value = defaultInstPath.value
+}
+
 function nextStep(): void {
   if (currentStep.value < totalSteps.value && canProceed.value) {
     currentStep.value++
+    if (instPath.value) fetchDiskSpace(instPath.value)
   }
 }
 
@@ -397,6 +463,86 @@ async function handleSave(): Promise<void> {
     emit('close')
     emit('navigate-list')
     return
+  }
+
+  // Validate install path against restricted locations
+  if (instPath.value) {
+    try {
+      const issues = await window.api.validateInstallPath(instPath.value)
+      for (const issue of issues) {
+        if (issue === 'insideAppBundle') {
+          await modal.alert({
+            title: t('pathValidation.insideAppBundleTitle'),
+            message: t('pathValidation.insideAppBundleMessage'),
+          })
+          return
+        }
+        if (issue === 'oneDrive') {
+          await modal.alert({
+            title: t('pathValidation.oneDriveTitle'),
+            message: t('pathValidation.oneDriveMessage'),
+          })
+          return
+        }
+        if (issue === 'insideSharedDir') {
+          await modal.alert({
+            title: t('pathValidation.insideSharedDirTitle'),
+            message: t('pathValidation.insideSharedDirMessage'),
+          })
+          return
+        }
+        if (issue === 'insideExistingInstall') {
+          await modal.alert({
+            title: t('pathValidation.insideExistingInstallTitle'),
+            message: t('pathValidation.insideExistingInstallMessage'),
+          })
+          return
+        }
+      }
+    } catch {
+      // If validation fails, proceed anyway
+    }
+  }
+
+  // Check disk space before proceeding
+  if (instPath.value) {
+    try {
+      const space = await window.api.getDiskSpace(instPath.value)
+      // Estimate required space: download files indicate compressed size; extracted is ~2x
+      const downloadFiles = selections.value.variant?.data?.downloadFiles as
+        Array<{ size: number }> | undefined
+      const downloadBytes = downloadFiles
+        ? downloadFiles.reduce((sum, f) => sum + f.size, 0)
+        : 0
+      // Estimate extracted size as ~2x compressed download size
+      const estimatedRequired = downloadBytes > 0 ? downloadBytes * 2 : 0
+
+      if (estimatedRequired > 0 && space.free < estimatedRequired) {
+        const ok = await modal.confirm({
+          title: t('diskSpace.warningTitle'),
+          message: t('diskSpace.warningMessage', {
+            free: formatBytes(space.free),
+            required: formatBytes(estimatedRequired),
+          }),
+          confirmLabel: t('diskSpace.continueAnyway'),
+          confirmStyle: 'primary',
+        })
+        if (!ok) return
+      } else if (space.free < 1073741824) {
+        // Warn if less than 1 GB free even without an estimate
+        const ok = await modal.confirm({
+          title: t('diskSpace.warningTitle'),
+          message: t('diskSpace.warningMessageGeneric', {
+            free: formatBytes(space.free),
+          }),
+          confirmLabel: t('diskSpace.continueAnyway'),
+          confirmStyle: 'primary',
+        })
+        if (!ok) return
+      }
+    } catch {
+      // If disk space check fails, proceed anyway
+    }
   }
 
   const result = await window.api.addInstallation({
@@ -699,6 +845,30 @@ defineExpose({ open })
                   type="text"
                 />
                 <button @click="handleBrowse">{{ $t('common.browse') }}</button>
+                <button
+                  v-if="instPath !== defaultInstPath"
+                  @click="resetInstPath"
+                >{{ $t('common.resetDefault') }}</button>
+              </div>
+              <div v-if="pathIssues.includes('insideAppBundle')" class="field-error">
+                {{ $t('pathValidation.insideAppBundleMessage') }}
+              </div>
+              <div v-else-if="pathIssues.includes('oneDrive')" class="field-error">
+                {{ $t('pathValidation.oneDriveMessage') }}
+              </div>
+              <div v-else-if="pathIssues.includes('insideSharedDir')" class="field-error">
+                {{ $t('pathValidation.insideSharedDirMessage') }}
+              </div>
+              <div v-else-if="pathIssues.includes('insideExistingInstall')" class="field-error">
+                {{ $t('pathValidation.insideExistingInstallMessage') }}
+              </div>
+              <div class="disk-space-info">
+                <template v-if="diskSpaceLoading">
+                  {{ $t('diskSpace.checking') }}
+                </template>
+                <template v-else-if="diskSpace">
+                  {{ $t('diskSpace.free', { size: formatBytes(diskSpace.free) }) }}
+                </template>
               </div>
             </div>
           </div>
