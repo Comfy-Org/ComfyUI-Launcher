@@ -28,7 +28,8 @@
     "format": "prettier --write \"src/**/*.{ts,vue}\" \"*.{json,ts,yml}\"",
     "format:check": "prettier --check \"src/**/*.{ts,vue}\" \"*.{json,ts,yml}\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "husky"
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",
@@ -51,6 +52,7 @@
     "eslint-plugin-vue": "^10.8.0",
     "globals": "^17.3.0",
     "happy-dom": "^20.7.0",
+    "husky": "^9.1.7",
     "jiti": "^2.6.1",
     "lucide-vue-next": "^0.525.0",
     "pinia": "^3.0.3",

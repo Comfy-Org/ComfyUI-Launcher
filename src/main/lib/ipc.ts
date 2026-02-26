@@ -29,6 +29,7 @@ import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
 import type { FieldOption, SourcePlugin } from '../types/sources'
+import type { Theme, ResolvedTheme } from '../../types/ipc'
 import type { LaunchCmd } from './process'
 
 const MARKER_FILE = '.comfyui-launcher'
@@ -289,8 +290,8 @@ async function migrateDefaults(): Promise<void> {
   }
 }
 
-function resolveTheme(): string {
-  const theme = (settings.get('theme') as string | undefined) || 'system'
+function resolveTheme(): ResolvedTheme {
+  const theme = (settings.get('theme') as Theme | undefined) || 'system'
   return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
 }
 
@@ -657,6 +658,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               { value: 'system', label: i18n.t('settings.themeSystem') },
               { value: 'dark', label: i18n.t('settings.themeDark') },
               { value: 'light', label: i18n.t('settings.themeLight') },
+              { value: 'solarized', label: i18n.t('settings.themeSolarized') },
+              { value: 'nord', label: i18n.t('settings.themeNord') },
+              { value: 'arc', label: i18n.t('settings.themeArc') },
+              { value: 'github', label: i18n.t('settings.themeGithub') },
             ] },
           { id: 'autoUpdate', label: i18n.t('settings.autoUpdate'), type: 'boolean', value: s.autoUpdate !== false },
           { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || 'quit',
@@ -802,10 +807,26 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const inst = await resolveInstallation(installationId)
     if (actionId === 'remove') {
       await installations.remove(installationId)
+      const pinned = (settings.get('pinnedInstallIds') as string[] | undefined) ?? []
+      if (pinned.includes(installationId)) {
+        settings.set('pinnedInstallIds', pinned.filter((id) => id !== installationId))
+      }
       return { ok: true, navigate: 'list' }
     }
     if (actionId === 'set-primary-install') {
       settings.set('primaryInstallId', installationId)
+      return { ok: true }
+    }
+    if (actionId === 'pin-install') {
+      const pinned = (settings.get('pinnedInstallIds') as string[] | undefined) ?? []
+      if (!pinned.includes(installationId)) {
+        settings.set('pinnedInstallIds', [...pinned, installationId])
+      }
+      return { ok: true }
+    }
+    if (actionId === 'unpin-install') {
+      const pinned = (settings.get('pinnedInstallIds') as string[] | undefined) ?? []
+      settings.set('pinnedInstallIds', pinned.filter((id) => id !== installationId))
       return { ok: true }
     }
     if (actionId === 'delete') {

@@ -5,8 +5,11 @@ import { useInstallationStore } from '../stores/installationStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useModal } from '../composables/useModal'
 import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
-import { Download, Star, Clock, Cloud } from 'lucide-vue-next'
+import { useLauncherPrefs } from '../composables/useLauncherPrefs'
+import { useInstallContextMenu } from '../composables/useInstallContextMenu'
+import { Download, Star, Clock, Cloud, Pin } from 'lucide-vue-next'
 import DashboardCard from '../components/DashboardCard.vue'
+import ContextMenu from '../components/ContextMenu.vue'
 import type { Installation, ListAction } from '../types/ipc'
 
 const props = defineProps<{
@@ -18,6 +21,7 @@ const installationStore = useInstallationStore()
 const sessionStore = useSessionStore()
 const modal = useModal()
 const localInstanceGuard = useLocalInstanceGuard()
+const prefs = useLauncherPrefs()
 
 const emit = defineEmits<{
   'show-new-install': []
@@ -32,21 +36,16 @@ const emit = defineEmits<{
   'show-list': []
 }>()
 
-// --- Primary install ---
-const primaryInstallId = ref<string | null>(null)
-
-onMounted(async () => {
-  const stored = await window.api.getSetting('primaryInstallId') as string | null
-  if (stored) primaryInstallId.value = stored
-})
+const { ctxMenu, ctxMenuItems, openCardMenu, handleCtxMenuSelect, closeMenu } =
+  useInstallContextMenu((inst) => emit('show-detail', inst))
 
 const localInstalls = computed(() =>
   installationStore.installations.filter((i) => i.sourceCategory === 'local')
 )
 
 const primaryInstall = computed(() => {
-  if (primaryInstallId.value) {
-    const found = localInstalls.value.find((i) => i.id === primaryInstallId.value)
+  if (prefs.primaryInstallId.value) {
+    const found = localInstalls.value.find((i) => i.id === prefs.primaryInstallId.value)
     if (found) return found
   }
   return localInstalls.value[0] ?? null
@@ -72,6 +71,17 @@ const cloudInstall = computed(() =>
   installationStore.installations.find((i) => i.sourceCategory === 'cloud') ?? null
 )
 
+// --- Pinned installs (exclude cloud, primary, latest) ---
+const pinnedInstalls = computed(() => {
+  const excludeIds = new Set<string>()
+  if (primaryInstall.value) excludeIds.add(primaryInstall.value.id)
+  if (showLatestCard.value && latestInstall.value) excludeIds.add(latestInstall.value.id)
+
+  return prefs.pinnedInstallIds.value
+    .map((id) => installationStore.installations.find((i) => i.id === id))
+    .filter((i): i is Installation => !!i && i.sourceCategory !== 'cloud' && !excludeIds.has(i.id))
+})
+
 // --- Non-cloud installs for summary ---
 const nonCloudInstalls = computed(() =>
   installationStore.installations.filter((i) => i.sourceCategory !== 'cloud')
@@ -81,10 +91,12 @@ const nonCloudInstalls = computed(() =>
 const primaryActions = ref<ListAction[]>([])
 const latestActions = ref<ListAction[]>([])
 const cloudActions = ref<ListAction[]>([])
+const pinnedActionsById = ref<Record<string, ListAction[]>>({})
 
 let primaryGen = 0
 let latestGen = 0
 let cloudGen = 0
+const pinnedGenById = new Map<string, number>()
 
 const sessionDeps = [
   () => sessionStore.runningInstances.size,
@@ -148,6 +160,30 @@ watch(
     } else {
       cloudActions.value = []
     }
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => pinnedInstalls.value.map((i) => i.id).join(','), () => props.visible, ...sessionDeps],
+  async () => {
+    if (!props.visible) { pinnedActionsById.value = {}; return }
+    const result: Record<string, ListAction[]> = {}
+    for (const inst of pinnedInstalls.value) {
+      const gen = (pinnedGenById.get(inst.id) ?? 0) + 1
+      pinnedGenById.set(inst.id, gen)
+      if (
+        !sessionStore.isRunning(inst.id) &&
+        !sessionStore.activeSessions.has(inst.id) &&
+        !sessionStore.errorInstances.has(inst.id)
+      ) {
+        const actions = await window.api.getListActions(inst.id)
+        if (pinnedGenById.get(inst.id) === gen) result[inst.id] = actions
+      } else {
+        result[inst.id] = []
+      }
+    }
+    pinnedActionsById.value = result
   },
   { immediate: true }
 )
@@ -228,10 +264,10 @@ async function changePrimary(): Promise<void> {
     items,
   })
   if (selected) {
-    primaryInstallId.value = selected
-    await window.api.runAction(selected, 'set-primary-install')
+    await prefs.setPrimary(selected)
   }
 }
+
 </script>
 
 <template>
@@ -255,7 +291,7 @@ async function changePrimary(): Promise<void> {
         <div class="dashboard-section-label">{{ $t('dashboard.quickLaunch') }}</div>
         <div class="dashboard-quick-launch">
           <!-- Latest card -->
-          <div v-if="showLatestCard && latestInstall" class="dashboard-card">
+          <div v-if="showLatestCard && latestInstall" class="dashboard-card" @contextmenu.prevent="openCardMenu($event, latestInstall!)">
             <div class="dashboard-card-badge">
               <Clock :size="14" />
               {{ $t('dashboard.latest') }}
@@ -277,7 +313,7 @@ async function changePrimary(): Promise<void> {
           </div>
 
           <!-- Primary card -->
-          <div class="dashboard-card">
+          <div class="dashboard-card" @contextmenu.prevent="openCardMenu($event, primaryInstall!)">
             <div class="dashboard-card-badge dashboard-card-badge-primary">
               <Star :size="14" />
               {{ $t('dashboard.primary') }}
@@ -301,6 +337,38 @@ async function changePrimary(): Promise<void> {
               </template>
             </DashboardCard>
           </div>
+
+        </div>
+      </div>
+
+      <!-- Pinned section -->
+      <div v-if="pinnedInstalls.length > 0" class="dashboard-section">
+        <div class="dashboard-section-label">
+          <Pin :size="14" style="vertical-align: -2px; margin-right: 4px;" />
+          {{ $t('dashboard.pinned') }}
+        </div>
+        <div class="dashboard-quick-launch">
+          <div
+            v-for="pinned in pinnedInstalls"
+            :key="pinned.id"
+            class="dashboard-card"
+            @contextmenu.prevent="openCardMenu($event, pinned)"
+          >
+            <DashboardCard
+              :installation="pinned"
+              :actions="pinnedActionsById[pinned.id] ?? []"
+              @launch="handleLaunch"
+              @show-detail="(inst) => emit('show-detail', inst)"
+              @show-console="(id) => emit('show-console', id)"
+              @show-progress="(opts) => emit('show-progress', opts)"
+            >
+              <template #detail>
+                <div v-if="typeof pinned.lastLaunchedAt === 'number'" class="dashboard-card-detail">
+                  {{ $t('dashboard.launchedAgo', { time: timeAgo(pinned.lastLaunchedAt as number) }) }}
+                </div>
+              </template>
+            </DashboardCard>
+          </div>
         </div>
       </div>
 
@@ -310,7 +378,7 @@ async function changePrimary(): Promise<void> {
           <Cloud :size="14" style="vertical-align: -2px; margin-right: 4px;" />
           {{ $t('dashboard.cloudSection') }}
         </div>
-        <div class="dashboard-cloud-card">
+        <div class="dashboard-cloud-card" @contextmenu.prevent="openCardMenu($event, cloudInstall!)">
           <DashboardCard
             :installation="cloudInstall"
             :actions="cloudActions"
@@ -326,13 +394,20 @@ async function changePrimary(): Promise<void> {
       <div v-if="nonCloudInstalls.length > 0" class="dashboard-section">
         <div class="dashboard-section-label">{{ $t('dashboard.allInstalls') }}</div>
         <div class="dashboard-summary-card">
-          <div class="dashboard-summary-info">
-            <span class="dashboard-summary-count">{{ nonCloudInstalls.length }}</span>
-            <span class="dashboard-summary-text">{{ $t('dashboard.installCount', nonCloudInstalls.length) }}</span>
-          </div>
+          <span class="dashboard-summary-count">{{ $t('dashboard.installCount', nonCloudInstalls.length) }}</span>
           <button @click="emit('show-list')">{{ $t('dashboard.viewAllInstalls') }}</button>
         </div>
       </div>
     </div>
+
+    <!-- Context menu -->
+    <ContextMenu
+      :open="ctxMenu.open"
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :items="ctxMenuItems"
+      @close="closeMenu"
+      @select="handleCtxMenuSelect"
+    />
   </div>
 </template>

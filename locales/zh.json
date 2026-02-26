@@ -6,7 +6,21 @@
     "welcome": "欢迎使用 ComfyUI",
     "welcomeDesc": "开始在您的设备上安装 ComfyUI。",
     "installComfyUI": "安装 ComfyUI",
-    "primaryInstall": "主要安装"
+    "primaryInstall": "主要安装",
+    "quickLaunch": "快速启动",
+    "latest": "最近",
+    "primary": "主要",
+    "launchedAgo": "已启动 {time}",
+    "neverLaunched": "尚未启动",
+    "changePrimary": "更改",
+    "setPrimary": "设为主要",
+    "cloudSection": "ComfyUI 云",
+    "allInstalls": "所有安装",
+    "viewAllInstalls": "查看全部",
+    "installCount": "{count} 个安装",
+    "pinned": "已固定",
+    "pinToDashboard": "固定到仪表盘",
+    "unpinFromDashboard": "从仪表盘取消固定"
   },
 
   "sidebar": {
@@ -189,6 +203,10 @@
     "themeSystem": "跟随系统",
     "themeDark": "深色",
     "themeLight": "浅色",
+    "themeSolarized": "Solarized",
+    "themeNord": "Nord",
+    "themeArc": "Arc",
+    "themeGithub": "GitHub",
     "onLauncherClose": "关闭启动器时",
     "closeTray": "最小化到托盘（保持实例运行）",
     "closeQuit": "停止所有实例并退出",

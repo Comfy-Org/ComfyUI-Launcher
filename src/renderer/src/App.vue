@@ -6,6 +6,7 @@ import { useInstallationStore } from './stores/installationStore'
 import { useProgressStore } from './stores/progressStore'
 import { useModal } from './composables/useModal'
 import { useTheme } from './composables/useTheme'
+import { useLauncherPrefs } from './composables/useLauncherPrefs'
 import type { Installation, ActionResult } from './types/ipc'
 
 import ModalDialog from './components/ModalDialog.vue'
@@ -30,6 +31,7 @@ const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
 const progressStore = useProgressStore()
 const modal = useModal()
+const launcherPrefs = useLauncherPrefs()
 useTheme()
 
 // --- View state ---
@@ -178,6 +180,7 @@ function setupLocaleListener(): void {
 onMounted(async () => {
   await loadLocale()
   await sessionStore.init()
+  launcherPrefs.loadPrefs()
   setupQuitConfirmation()
   setupLocaleListener()
   listRef.value?.refresh()

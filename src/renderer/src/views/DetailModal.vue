@@ -2,7 +2,9 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
+import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import DetailSectionComponent from '../components/DetailSection.vue'
+import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
   ActionDef,
@@ -35,6 +37,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const modal = useModal()
+const prefs = useLauncherPrefs()
+
+const isLocal = computed(() => props.installation?.sourceCategory === 'local')
+const isCloud = computed(() => props.installation?.sourceCategory === 'cloud')
+const isPrimary = computed(() => props.installation ? prefs.isPrimary(props.installation.id) : false)
+const isPinned = computed(() => props.installation ? prefs.isPinned(props.installation.id) : false)
 
 const contentRef = ref<HTMLDivElement | null>(null)
 const scrollRef = ref<HTMLDivElement | null>(null)
@@ -336,6 +344,27 @@ function handleOverlayClick(event: MouseEvent): void {
           @keydown.enter.prevent="($event.target as HTMLElement).blur()"
         >
           {{ installation.name }}
+        </div>
+        <div class="detail-header-actions">
+          <button
+            v-if="isLocal"
+            class="detail-header-btn"
+            :class="{ active: isPrimary }"
+            :disabled="isPrimary"
+            :title="$t('dashboard.setPrimary')"
+            @click="prefs.setPrimary(installation!.id)"
+          >
+            <Star :size="16" />
+          </button>
+          <button
+            v-if="!isCloud"
+            class="detail-header-btn"
+            :class="{ active: isPinned }"
+            :title="isPinned ? $t('dashboard.unpinFromDashboard') : $t('dashboard.pinToDashboard')"
+            @click="isPinned ? prefs.unpinInstall(installation!.id) : prefs.pinInstall(installation!.id)"
+          >
+            <Pin :size="16" />
+          </button>
         </div>
         <button class="view-modal-close" @click="emit('close')">✕</button>
       </div>

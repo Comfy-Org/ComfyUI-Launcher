@@ -23,7 +23,8 @@ const mockInstallations: Installation[] = [
 vi.stubGlobal('window', {
   ...window,
   api: {
-    getInstallations: vi.fn()
+    getInstallations: vi.fn(),
+    onInstallationsChanged: vi.fn()
   }
 })
 

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
-import type { ElectronApi } from '../types/ipc'
+import type { ElectronApi, ResolvedTheme } from '../types/ipc'
 
 const api: ElectronApi = {
   // Sources / New Install
@@ -100,7 +100,7 @@ const api: ElectronApi = {
     return () => ipcRenderer.removeListener('instance-stopped', handler)
   },
   onThemeChanged: (callback) => {
-    const handler = (_event: IpcRendererEvent, theme: unknown) => callback(theme as string)
+    const handler = (_event: IpcRendererEvent, theme: unknown) => callback(theme as ResolvedTheme)
     ipcRenderer.on('theme-changed', handler)
     return () => ipcRenderer.removeListener('theme-changed', handler)
   },

@@ -7,50 +7,119 @@
  */
 
 @theme {
-  --color-bg: #171718;
+  --color-bg: #202020;
   --color-text: #ffffff;
-  --color-text-muted: #9c9eab;
+  --color-text-muted: #8a8a8a;
   --color-text-faint: #55565e;
-  --color-accent: #0b8ce9;
-  --color-accent-hover: #31b9f4;
+  --color-accent: #60a5fa;
+  --color-accent-hover: #93c5fd;
   --color-surface: #262729;
-  --color-border: #3c3d42;
-  --color-border-hover: #494a50;
+  --color-border: #494a50;
+  --color-border-hover: #3c3d42;
   --color-danger: #b33a3a;
   --color-terminal-bg: #111112;
 }
 
-/* Theme definitions — matched to ComfyUI frontend */
+/* Theme definitions — matched to ComfyUI frontend design system */
 [data-theme="dark"] {
-  --bg: #171718;
+  --bg: #202020;
   --text: #ffffff;
-  --text-muted: #9c9eab;
+  --text-muted: #8a8a8a;
   --text-faint: #55565e;
-  --accent: #0b8ce9;
-  --accent-hover: #31b9f4;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
   --surface: #262729;
-  --border: #3c3d42;
-  --border-hover: #494a50;
+  --border: #494a50;
+  --border-hover: #3c3d42;
   --danger: #b33a3a;
-  --warning: #ca8a04;
-  --success: #16a34a;
+  --warning: #fd9903;
+  --success: #00cd72;
   --terminal-bg: #111112;
   --overlay-bg: rgba(0, 0, 0, 0.55);
 }
 
+/* Additional dark themes — matched to ComfyUI frontend color palettes */
+[data-theme="solarized"] {
+  --bg: #002b36;
+  --text: #fdf6e3;
+  --text-muted: #93a1a1;
+  --text-faint: #586e75;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
+  --surface: #073642;
+  --border: #657b83;
+  --border-hover: #586e75;
+  --danger: #dc322f;
+  --warning: #fd9903;
+  --success: #00cd72;
+  --terminal-bg: #001a22;
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="nord"] {
+  --bg: #161b22;
+  --text: #e5eaf0;
+  --text-muted: #bcc2c8;
+  --text-faint: #545d70;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
+  --surface: #2e3440;
+  --border: #545d70;
+  --border-hover: #434c5e;
+  --danger: #bf616a;
+  --warning: #fd9903;
+  --success: #00cd72;
+  --terminal-bg: #0d1117;
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="arc"] {
+  --bg: #242730;
+  --text: #ffffff;
+  --text-muted: #b2b7bd;
+  --text-faint: #5c626d;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
+  --surface: #2b2f38;
+  --border: #6e7581;
+  --border-hover: #5c626d;
+  --danger: #b33a3a;
+  --warning: #fd9903;
+  --success: #00cd72;
+  --terminal-bg: #1a1d24;
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="github"] {
+  --bg: #13171d;
+  --text: #e5eaf0;
+  --text-muted: #bcc2c8;
+  --text-faint: #30363d;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
+  --surface: #161b22;
+  --border: #30363d;
+  --border-hover: #262c33;
+  --danger: #b33a3a;
+  --warning: #fd9903;
+  --success: #00cd72;
+  --terminal-bg: #0d1117;
+  --overlay-bg: rgba(0, 0, 0, 0.65);
+}
+
 [data-theme="light"] {
   --bg: #ffffff;
-  --text: #444444;
-  --text-muted: #828282;
+  --text: #202121;
+  --text-muted: #a0a0a0;
   --text-faint: #b4b4b4;
-  --accent: #31b9f4;
-  --accent-hover: #185a8b;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
   --surface: #e9e9e9;
-  --border: #d9d9d9;
-  --border-hover: #b4b4b4;
-  --danger: #c02323;
-  --warning: #a16207;
-  --success: #15803d;
+  --border: #b4b4b4;
+  --border-hover: #d9d9d9;
+  --danger: #f75951;
+  --warning: #fcbf64;
+  --success: #00cd72;
   --terminal-bg: #f3f3f3;
   --overlay-bg: rgba(0, 0, 0, 0.35);
 }
@@ -562,6 +631,14 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   text-transform: none; letter-spacing: 0; font-weight: 500;
 }
 .dashboard-change-btn:hover { color: var(--text); border-color: var(--border-hover); background: none; }
+.dashboard-card-badge-pinned { color: var(--text-muted); }
+
+/* Primary/Pinned card indicators */
+.card-indicator {
+  display: inline-block; vertical-align: -2px; margin-left: 4px;
+}
+.card-indicator-primary { color: var(--accent); }
+.card-indicator-pinned { color: var(--text-muted); }
 
 /* Cloud card */
 .dashboard-cloud-card {
@@ -576,12 +653,10 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   border-radius: 10px; padding: 14px 20px;
   display: flex; justify-content: space-between; align-items: center;
 }
-.dashboard-summary-info { display: flex; align-items: center; gap: 10px; }
 .dashboard-summary-count {
-  font-size: 24px; font-weight: 700; color: var(--text);
+  font-size: 20px; font-weight: 700; color: var(--text);
   line-height: 1;
 }
-.dashboard-summary-text { font-size: 14px; color: var(--text-muted); }
 
 /* Model directory cards */
 .dir-card-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
@@ -702,3 +777,49 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   width: 24px; border-radius: 4px; background: var(--accent);
 }
 .wizard-dot.completed { background: var(--accent); }
+
+/* Context menu */
+.context-menu {
+  position: fixed; z-index: 10000;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 0;
+  min-width: 180px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.context-menu-item {
+  display: block; width: 100%;
+  padding: 8px 16px; font-size: 13px;
+  color: var(--text); background: none; border: none;
+  text-align: left; cursor: pointer; border-radius: 0;
+}
+.context-menu-item:hover:not(:disabled) { background: var(--border); }
+.context-menu-item:disabled, .context-menu-item.disabled {
+  color: var(--text-faint); cursor: default;
+}
+.context-menu-separator {
+  height: 1px; background: var(--border); margin: 4px 8px;
+}
+
+/* Detail modal header actions */
+.detail-header-actions {
+  display: flex; gap: 4px; flex-shrink: 0;
+}
+button.detail-header-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0;
+  border-radius: 6px;
+  background: none; border: 1px solid transparent;
+  color: var(--text-faint); cursor: pointer;
+  transition: all 0.15s; font-size: 0;
+}
+button.detail-header-btn:hover:not(:disabled) {
+  color: var(--text); border-color: var(--border-hover); background: none;
+}
+button.detail-header-btn.active {
+  color: var(--accent); border-color: transparent;
+}
+button.detail-header-btn.active:hover:not(:disabled) {
+  color: var(--accent-hover); border-color: var(--border-hover); background: none;
+}
+button.detail-header-btn:disabled {
+  cursor: default; opacity: 0.4;
+}

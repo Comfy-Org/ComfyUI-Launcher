@@ -5,9 +5,11 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useInstallationStore } from '../stores/installationStore'
 import { useModal } from '../composables/useModal'
 import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
+import { useInstallContextMenu } from '../composables/useInstallContextMenu'
 import { useProgressStore } from '../stores/progressStore'
 import { DraggableList } from '../lib/draggableList'
 import InstanceCard from '../components/InstanceCard.vue'
+import ContextMenu from '../components/ContextMenu.vue'
 import type { Installation, ListAction } from '../types/ipc'
 
 const { t } = useI18n()
@@ -231,6 +233,10 @@ const emit = defineEmits<{
   'show-track': []
 }>()
 
+// --- Context menu ---
+const { ctxMenu, ctxMenuItems, openCardMenu, handleCtxMenuSelect, closeMenu } =
+  useInstallContextMenu((inst) => emit('show-detail', inst))
+
 defineExpose({ refresh })
 </script>
 
@@ -282,8 +288,10 @@ defineExpose({ refresh })
           :key="inst.id"
           :installation-id="inst.id"
           :name="inst.name"
+          :source-category="inst.sourceCategory"
           :draggable="true"
           @mousedown="markSeen(inst)"
+          @contextmenu.prevent="openCardMenu($event, inst)"
         >
           <template #meta>
             <template v-for="(part, i) in getMetaParts(inst)" :key="i">
@@ -389,5 +397,14 @@ defineExpose({ refresh })
     </div>
 
     <slot name="update-banner" />
+
+    <ContextMenu
+      :open="ctxMenu.open"
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :items="ctxMenuItems"
+      @close="closeMenu"
+      @select="handleCtxMenuSelect"
+    />
   </div>
 </template>

@@ -2,7 +2,8 @@
 import { computed } from 'vue'
 import { useSessionStore } from '../stores/sessionStore'
 import { useProgressStore } from '../stores/progressStore'
-import { Play, ExternalLink, Square } from 'lucide-vue-next'
+import { useLauncherPrefs } from '../composables/useLauncherPrefs'
+import { Play, ExternalLink, Square, Star, Pin } from 'lucide-vue-next'
 import type { Installation, ListAction } from '../types/ipc'
 
 const props = defineProps<{
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 
 const sessionStore = useSessionStore()
 const progressStore = useProgressStore()
+const prefs = useLauncherPrefs()
 
 const running = computed(() =>
   sessionStore.runningInstances.get(props.installation.id) ?? null
@@ -50,7 +52,11 @@ function stopComfyUI(): void {
 
 <template>
   <div class="dashboard-card-info">
-    <div class="dashboard-card-name">{{ installation.name }}</div>
+    <div class="dashboard-card-name">
+      {{ installation.name }}
+      <Star v-if="installation.sourceCategory === 'local' && prefs.isPrimary(installation.id)" :size="14" class="card-indicator card-indicator-primary" :title="$t('dashboard.primary')" />
+      <Pin v-if="prefs.isPinned(installation.id)" :size="14" class="card-indicator card-indicator-pinned" :title="$t('dashboard.pinned')" />
+    </div>
     <div class="dashboard-card-meta">
       <span>{{ installation.listPreview || installation.sourceLabel }}</span>
       <template v-if="installation.version && !installation.listPreview">
