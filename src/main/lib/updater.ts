@@ -1,8 +1,7 @@
 import { app, ipcMain, BrowserWindow, shell } from 'electron'
 import { fetchJSON } from './fetch'
 import * as settings from '../settings'
-import type { AppUpdater } from 'electron-updater'
-import type { ProgressInfo } from 'builder-util-runtime'
+import type { AppUpdater, ProgressInfo } from 'electron-updater'
 
 const REPO = 'Comfy-Org/ComfyUI-Launcher'
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`

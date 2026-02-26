@@ -32,30 +32,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          pnpm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Compile
-        run: npm run build
+        run: pnpm run build
 
       - name: Package
-        run: npx electron-builder ${{ matrix.args }} --publish never
+        run: pnpm exec electron-builder ${{ matrix.args }} --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

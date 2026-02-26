@@ -31,6 +31,7 @@ chmod +x ComfyUI-Launcher-*.AppImage
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) **v22 LTS** or later
+- [pnpm](https://pnpm.io/) **v10** or later (via Corepack recommended)
 
 We recommend using [nvm](https://github.com/nvm-sh/nvm) (or [nvm-windows](https://github.com/coreybutler/nvm-windows)) to manage Node versions:
 
@@ -41,6 +42,10 @@ nvm use 22
 
 # Verify
 node --version   # should print v22.x.x
+
+# Enable pnpm via Corepack (bundled with Node)
+corepack enable
+pnpm --version
 ```
 
 ### Stack
@@ -77,14 +82,14 @@ sources/         # Installation source plugins
 ```bash
 git clone https://github.com/Comfy-Org/ComfyUI-Launcher.git
 cd ComfyUI-Launcher
-npm install
+pnpm install
 ```
 
 ### Run in development
 
 **Windows / macOS:**
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 **Linux:**
@@ -95,34 +100,34 @@ npm run dev
 ### Type checking
 
 ```bash
-npm run typecheck          # both main + renderer
-npm run typecheck:node     # main process only
-npm run typecheck:web      # renderer only
+pnpm run typecheck          # both main + renderer
+pnpm run typecheck:node     # main process only
+pnpm run typecheck:web      # renderer only
 ```
 
 ### Linting
 
 ```bash
-npm run lint           # check for lint errors
-npm run lint:fix       # auto-fix lint errors
-npm run format         # format with Prettier
-npm run format:check   # check formatting without writing
+pnpm run lint           # check for lint errors
+pnpm run lint:fix       # auto-fix lint errors
+pnpm run format         # format with Prettier
+pnpm run format:check   # check formatting without writing
 ```
 
 ### Testing
 
 ```bash
-npm test               # run all unit tests
-npm run test:watch     # run in watch mode
+pnpm test               # run all unit tests
+pnpm run test:watch     # run in watch mode
 ```
 
 ### Build for distribution
 
 ```bash
 # Platform-specific
-npm run build:win      # Windows (NSIS installer)
-npm run build:mac      # macOS (DMG)
-npm run build:linux    # Linux (AppImage, .deb)
+pnpm run build:win      # Windows (NSIS installer)
+pnpm run build:mac      # macOS (DMG)
+pnpm run build:linux    # Linux (AppImage, .deb)
 ```
 
 Build output is written to the `dist/` directory.
