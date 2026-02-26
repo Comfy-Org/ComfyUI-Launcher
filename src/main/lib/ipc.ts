@@ -224,7 +224,9 @@ function _broadcastToRenderer(channel: string, data: Record<string, unknown>): v
 function _addSession(installationId: string, { proc, port, url, mode, installationName }: Omit<SessionInfo, 'startedAt'>): void {
   _runningSessions.set(installationId, { proc, port, url, mode, installationName, startedAt: Date.now() })
   _broadcastToRenderer('instance-started', { installationId, port, url, mode, installationName })
-  installations.update(installationId, { lastLaunchedAt: Date.now() }).catch(() => {})
+  installations.update(installationId, { lastLaunchedAt: Date.now() }).catch((err) => {
+    console.error('Failed to update lastLaunchedAt:', err)
+  })
 }
 
 function _removeSession(installationId: string): void {
@@ -341,6 +343,15 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       browserPartition: 'shared',
     },
   ])
+  installations.ensureExists('cloud', {
+    name: 'Comfy Cloud',
+    sourceId: 'cloud',
+    version: 'cloud',
+    remoteUrl: 'https://cloud.comfy.org/',
+    launchMode: 'window',
+    browserPartition: 'shared',
+    status: 'installed',
+  })
   migrateDefaults()
 
   // Sweep empty/broken local installations on startup

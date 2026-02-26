@@ -19,6 +19,7 @@ export interface Installation {
   hasConsole?: boolean
   installPath?: string
   status?: string
+  lastLaunchedAt?: number
   [key: string]: unknown // allow extra fields from sources
 }
 
