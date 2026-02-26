@@ -328,24 +328,28 @@ export const standalone: SourcePlugin = {
     const hasGit = installed && installation.installPath && fs.existsSync(path.join(installation.installPath, 'ComfyUI', '.git'))
     const track = (installation.updateTrack as string | undefined) || 'stable'
     const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, track, installation)
+
+    // Build per-track preview info for cards
+    const trackOptions = [
+      { value: 'stable', label: t('standalone.trackStable'), description: t('standalone.trackStableDesc'), recommended: true },
+      { value: 'latest', label: t('standalone.trackLatest'), description: t('standalone.trackLatestDesc') },
+    ].map((opt) => {
+      const trackInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
+      return {
+        ...opt,
+        data: trackInfo ? {
+          installedVersion: (installation.version as string | undefined) || trackInfo.installedTag || 'unknown',
+          latestVersion: trackInfo.releaseName || trackInfo.latestTag || '—',
+          lastChecked: trackInfo.checkedAt ? new Date(trackInfo.checkedAt).toLocaleString() : '—',
+          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, trackInfo),
+        } : undefined,
+      }
+    })
+
     const updateFields: Record<string, unknown>[] = [
       { id: 'updateTrack', label: t('standalone.updateTrack'), value: track, editable: true,
-        refreshSection: true, onChangeAction: 'check-update', editType: 'select', options: [
-          { value: 'stable', label: t('standalone.trackStable') },
-          { value: 'latest', label: t('standalone.trackLatest') },
-        ] },
+        refreshSection: true, onChangeAction: 'check-update', editType: 'track-cards', options: trackOptions },
     ]
-    if (info) {
-      const installedDisplay = (installation.version as string | undefined) || info.installedTag || 'unknown'
-      const latestDisplay = info.releaseName || info.latestTag || '—'
-      const updateAvail = releaseCache.isUpdateAvailable(installation, track, info)
-      updateFields.push(
-        { label: t('standalone.installedVersion'), value: installedDisplay },
-        { label: t('standalone.latestVersion'), value: latestDisplay },
-        { label: t('standalone.lastChecked'), value: info.checkedAt ? new Date(info.checkedAt).toLocaleString() : '—' },
-        { label: t('standalone.updateStatus'), value: updateAvail ? t('standalone.updateAvailable') : t('standalone.upToDate') },
-      )
-    }
     const updateActions: Record<string, unknown>[] = []
     if (info && releaseCache.isUpdateAvailable(installation, track, info) && hasGit) {
       const installedDisplay = (installation.version as string | undefined) || info.installedTag || 'unknown'

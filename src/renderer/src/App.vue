@@ -268,7 +268,7 @@ onMounted(async () => {
     @close="closeDetail"
     @show-progress="showProgress"
     @navigate-list="handleNavigateList"
-    @update:installation="(inst) => detailInstallation = inst"
+    @update:installation="(inst) => { detailInstallation = inst; installationStore.fetchInstallations() }"
   />
 
   <ConsoleModal

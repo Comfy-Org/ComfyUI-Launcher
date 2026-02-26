@@ -293,6 +293,38 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .detail-field-value { font-size: 15px; margin-top: 1px; }
 .detail-field-input { width: 100%; margin-top: 4px; padding: 6px 8px; font-size: 14px; }
 .detail-section-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; }
+
+/* Track cards */
+.track-cards-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px; margin-top: 6px;
+}
+.track-card {
+  display: flex; flex-direction: column; text-align: left;
+  padding: 12px 14px; background: var(--surface);
+  border: 2px solid var(--border); border-radius: 8px;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.track-card:hover { border-color: var(--border-hover); }
+.track-card.selected { border-color: var(--accent); }
+.track-card.current:not(.selected) { border-color: var(--border-hover); }
+.track-card-header { display: flex; align-items: center; gap: 8px; }
+.track-card-label { font-size: 14px; font-weight: 600; color: var(--text); }
+.track-card-badge {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  color: var(--accent); letter-spacing: 0.5px;
+}
+.track-card-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.track-preview {
+  margin-top: 10px; padding: 10px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+}
+.track-preview-empty { font-size: 13px; color: var(--text-muted); }
+.track-preview-row { display: flex; justify-content: space-between; padding: 3px 0; }
+.track-preview-label { font-size: 13px; color: var(--text-muted); }
+.track-preview-value { font-size: 13px; color: var(--text); }
+.track-switch-btn { margin-top: 10px; }
 .detail-item-list {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; margin-bottom: 8px;

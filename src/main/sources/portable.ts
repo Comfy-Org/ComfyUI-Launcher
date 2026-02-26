@@ -135,21 +135,28 @@ export const portable: SourcePlugin = {
     // Updates section
     const track = (installation.updateTrack as string | undefined) || 'stable'
     const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, track, installation)
+
+    // Build per-track preview info for cards
+    const trackOptions = [
+      { value: 'stable', label: t('portable.trackStable'), description: t('portable.trackStableDesc'), recommended: true },
+      { value: 'latest', label: t('portable.trackLatest'), description: t('portable.trackLatestDesc') },
+    ].map((opt) => {
+      const trackInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
+      return {
+        ...opt,
+        data: trackInfo ? {
+          installedVersion: trackInfo.installedTag || (installation.version as string | undefined) || 'unknown',
+          latestVersion: trackInfo.releaseName || trackInfo.latestTag || '—',
+          lastChecked: trackInfo.checkedAt ? new Date(trackInfo.checkedAt).toLocaleString() : '—',
+          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, trackInfo),
+        } : undefined,
+      }
+    })
+
     const updateFields: Record<string, unknown>[] = [
       { id: 'updateTrack', label: t('portable.updateTrack'), value: track, editable: true,
-        refreshSection: true, editType: 'select', options: [
-          { value: 'stable', label: t('portable.trackStable') },
-          { value: 'latest', label: t('portable.trackLatest') },
-        ] },
+        refreshSection: true, onChangeAction: 'check-update', editType: 'track-cards', options: trackOptions },
     ]
-    if (info) {
-      updateFields.push(
-        { label: t('portable.installedVersion'), value: info.installedTag || installation.version },
-        { label: t('portable.latestVersion'), value: info.releaseName || info.latestTag || '—' },
-        { label: t('portable.lastChecked'), value: info.checkedAt ? new Date(info.checkedAt).toLocaleString() : '—' },
-        { label: t('portable.updateStatus'), value: releaseCache.isUpdateAvailable(installation, track, info) ? t('portable.updateAvailable') : t('portable.upToDate') },
-      )
-    }
     const updateActions: Record<string, unknown>[] = []
     if (info && releaseCache.isUpdateAvailable(installation, track, info)) {
       const msgKey = track === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'

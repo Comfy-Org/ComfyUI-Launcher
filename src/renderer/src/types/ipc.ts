@@ -10,6 +10,7 @@ export type {
   DetailSection,
   DetailItem,
   DetailField,
+  DetailFieldOption,
   ActionDef,
   ConfirmDef,
   ConfirmOption,

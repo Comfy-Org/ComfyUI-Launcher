@@ -77,13 +77,21 @@ export interface DetailItem {
   actions?: ActionDef[]
 }
 
+export interface DetailFieldOption {
+  value: string
+  label: string
+  description?: string
+  recommended?: boolean
+  data?: Record<string, unknown>
+}
+
 export interface DetailField {
   id: string
   label: string
   value: string | boolean | number | null
   editable?: boolean
-  editType?: 'select' | 'boolean' | 'text'
-  options?: { value: string; label: string }[]
+  editType?: 'select' | 'boolean' | 'text' | 'track-cards'
+  options?: DetailFieldOption[]
   refreshSection?: boolean
   onChangeAction?: string
 }
