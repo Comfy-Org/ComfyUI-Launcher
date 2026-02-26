@@ -7,50 +7,119 @@
  */
 
 @theme {
-  --color-bg: #171718;
+  --color-bg: #202020;
   --color-text: #ffffff;
-  --color-text-muted: #9c9eab;
+  --color-text-muted: #8a8a8a;
   --color-text-faint: #55565e;
-  --color-accent: #0b8ce9;
-  --color-accent-hover: #31b9f4;
+  --color-accent: #60a5fa;
+  --color-accent-hover: #93c5fd;
   --color-surface: #262729;
-  --color-border: #3c3d42;
-  --color-border-hover: #494a50;
+  --color-border: #494a50;
+  --color-border-hover: #3c3d42;
   --color-danger: #b33a3a;
   --color-terminal-bg: #111112;
 }
 
-/* Theme definitions — matched to ComfyUI frontend */
+/* Theme definitions — matched to ComfyUI frontend design system */
 [data-theme="dark"] {
-  --bg: #171718;
+  --bg: #202020;
   --text: #ffffff;
-  --text-muted: #9c9eab;
+  --text-muted: #8a8a8a;
   --text-faint: #55565e;
-  --accent: #0b8ce9;
-  --accent-hover: #31b9f4;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
   --surface: #262729;
-  --border: #3c3d42;
-  --border-hover: #494a50;
+  --border: #494a50;
+  --border-hover: #3c3d42;
   --danger: #b33a3a;
-  --warning: #ca8a04;
-  --success: #16a34a;
+  --warning: #fd9903;
+  --success: #00cd72;
   --terminal-bg: #111112;
   --overlay-bg: rgba(0, 0, 0, 0.55);
 }
 
+/* Additional dark themes — matched to ComfyUI frontend color palettes */
+[data-theme="solarized"] {
+  --bg: #002b36;
+  --text: #fdf6e3;
+  --text-muted: #93a1a1;
+  --text-faint: #586e75;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
+  --surface: #073642;
+  --border: #657b83;
+  --border-hover: #586e75;
+  --danger: #dc322f;
+  --warning: #fd9903;
+  --success: #00cd72;
+  --terminal-bg: #001a22;
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="nord"] {
+  --bg: #2e3440;
+  --text: #e5eaf0;
+  --text-muted: #bcc2c8;
+  --text-faint: #545d70;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
+  --surface: #161b22;
+  --border: #545d70;
+  --border-hover: #434c5e;
+  --danger: #bf616a;
+  --warning: #fd9903;
+  --success: #00cd72;
+  --terminal-bg: #0d1117;
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="arc"] {
+  --bg: #2b2f38;
+  --text: #ffffff;
+  --text-muted: #b2b7bd;
+  --text-faint: #5c626d;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
+  --surface: #242730;
+  --border: #6e7581;
+  --border-hover: #5c626d;
+  --danger: #b33a3a;
+  --warning: #fd9903;
+  --success: #00cd72;
+  --terminal-bg: #1a1d24;
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="github"] {
+  --bg: #161b22;
+  --text: #e5eaf0;
+  --text-muted: #bcc2c8;
+  --text-faint: #30363d;
+  --accent: #60a5fa;
+  --accent-hover: #93c5fd;
+  --surface: #13171d;
+  --border: #30363d;
+  --border-hover: #262c33;
+  --danger: #b33a3a;
+  --warning: #fd9903;
+  --success: #00cd72;
+  --terminal-bg: #0d1117;
+  --overlay-bg: rgba(0, 0, 0, 0.65);
+}
+
 [data-theme="light"] {
   --bg: #ffffff;
-  --text: #444444;
-  --text-muted: #828282;
+  --text: #202121;
+  --text-muted: #a0a0a0;
   --text-faint: #b4b4b4;
-  --accent: #31b9f4;
-  --accent-hover: #185a8b;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
   --surface: #e9e9e9;
-  --border: #d9d9d9;
-  --border-hover: #b4b4b4;
-  --danger: #c02323;
-  --warning: #a16207;
-  --success: #15803d;
+  --border: #b4b4b4;
+  --border-hover: #d9d9d9;
+  --danger: #f75951;
+  --warning: #fcbf64;
+  --success: #00cd72;
   --terminal-bg: #f3f3f3;
   --overlay-bg: rgba(0, 0, 0, 0.35);
 }
