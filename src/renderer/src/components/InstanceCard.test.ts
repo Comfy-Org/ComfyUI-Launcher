@@ -1,8 +1,19 @@
+import { createTestingPinia } from '@pinia/testing'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createI18n } from 'vue-i18n'
 
 import InstanceCard from './InstanceCard.vue'
+
+vi.stubGlobal('window', {
+  ...window,
+  api: {
+    getInstallations: vi.fn(),
+    onInstallationsChanged: vi.fn(),
+    getSetting: vi.fn().mockResolvedValue(null),
+    runAction: vi.fn().mockResolvedValue(undefined),
+  }
+})
 
 const i18n = createI18n({
   legacy: false,
@@ -14,7 +25,7 @@ const i18n = createI18n({
 
 const mountComponent = (props = {}, options = {}) => {
   return mount(InstanceCard, {
-    global: { plugins: [i18n] },
+    global: { plugins: [i18n, createTestingPinia()] },
     props: { name: 'Test Install', ...props },
     ...options
   })
