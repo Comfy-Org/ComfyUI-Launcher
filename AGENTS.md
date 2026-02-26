@@ -5,6 +5,6 @@
 Run typecheck and lint before every commit and push:
 
 ```sh
-npm run typecheck
-npm run lint
+pnpm run typecheck
+pnpm run lint
 ```

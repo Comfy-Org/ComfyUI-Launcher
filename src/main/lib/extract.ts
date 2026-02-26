@@ -27,7 +27,7 @@ function get7zBin(): string {
   let binPath: string = path7za
   // In packaged Electron apps, native binaries are in app.asar.unpacked
   binPath = binPath.replace('app.asar', 'app.asar.unpacked')
-  // Ensure execute permission on non-Windows (npm doesn't always preserve it)
+  // Ensure execute permission on non-Windows (package managers don't always preserve it)
   if (process.platform !== 'win32') {
     try { fs.chmodSync(binPath, 0o755) } catch {}
   }
