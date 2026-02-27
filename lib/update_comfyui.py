@@ -147,7 +147,12 @@ def main():
             refspecs = ["+refs/heads/master:refs/remotes/origin/master"]
             if stable:
                 refspecs.append("+refs/tags/*:refs/tags/*")
-            remote.fetch(refspecs)
+            try:
+                remote.fetch(refspecs)
+            except Exception as e:
+                print("[ERROR] Failed to fetch from origin: %s" % e)
+                print("Check your internet connection and try again.")
+                sys.exit(1)
             break
 
     # Checkout master — create local branch if needed

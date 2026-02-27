@@ -161,6 +161,7 @@ export function waitForUrl(url: string, { timeoutMs = 60000, intervalMs = 500, o
 }
 
 export function getProcessInfo(pid: number): Promise<ProcessInfo | null> {
+  if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve(null)
   return new Promise((resolve) => {
     if (process.platform === "win32") {
       // Use PowerShell Get-CimInstance with JSON output (wmic is deprecated/removed on modern Windows)
