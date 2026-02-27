@@ -7,6 +7,7 @@
     "email": "kosinkadink@users.noreply.github.com"
   },
   "repository": "github:Comfy-Org/ComfyUI-Launcher",
+  "homepage": "https://github.com/Comfy-Org/ComfyUI-Launcher",
   "engines": {
     "node": ">=22",
     "pnpm": ">=10"
@@ -46,7 +47,7 @@
     "@vitejs/plugin-vue": "^6.0.2",
     "@vue/test-utils": "^2.4.6",
     "@vueuse/core": "^13.5.0",
-    "electron": "^40.4.1",
+    "electron": "40.4.1",
     "electron-builder": "^26.7.0",
     "electron-vite": "^5.0.0",
     "eslint": "^10.0.1",
