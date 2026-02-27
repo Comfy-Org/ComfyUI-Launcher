@@ -24,7 +24,7 @@ const localInstanceGuard = useLocalInstanceGuard()
 const prefs = useLauncherPrefs()
 
 const emit = defineEmits<{
-  'show-new-install': []
+  'show-quick-install': []
   'show-detail': [inst: Installation]
   'show-console': [installationId: string]
   'show-progress': [opts: {
@@ -280,7 +280,7 @@ async function changePrimary(): Promise<void> {
         </div>
         <h1 class="dashboard-welcome-title">{{ $t('dashboard.welcome') }}</h1>
         <p class="dashboard-welcome-desc">{{ $t('dashboard.welcomeDesc') }}</p>
-        <button class="primary dashboard-cta-btn" @click="emit('show-new-install')">
+        <button class="primary dashboard-cta-btn" @click="emit('show-quick-install')">
           <Download :size="18" />
           {{ $t('dashboard.installComfyUI') }}
         </button>

@@ -112,6 +112,13 @@
     "filterCloud": "Cloud"
   },
 
+  "quickInstall": {
+    "title": "Install ComfyUI",
+    "desc": "We'll install the latest version of ComfyUI. Please confirm your GPU type below.",
+    "selectVariant": "Select your GPU",
+    "confirmInstall": "Install ComfyUI"
+  },
+
   "newInstall": {
     "title": "New Install",
     "installMethod": "Install Method",

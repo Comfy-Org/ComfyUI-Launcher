@@ -21,6 +21,7 @@ import DetailModal from './views/DetailModal.vue'
 import ConsoleModal from './views/ConsoleModal.vue'
 import ProgressModal from './views/ProgressModal.vue'
 import NewInstallModal from './views/NewInstallModal.vue'
+import QuickInstallModal from './views/QuickInstallModal.vue'
 import TrackModal from './views/TrackModal.vue'
 
 // Lucide icons
@@ -43,6 +44,7 @@ const detailInstallation = ref<Installation | null>(null)
 const consoleInstallationId = ref<string | null>(null)
 const progressInstallationId = ref<string | null>(null)
 const showNewInstall = ref(false)
+const showQuickInstall = ref(false)
 const showTrack = ref(false)
 
 // --- Template refs ---
@@ -52,6 +54,7 @@ const modelsRef = ref<InstanceType<typeof ModelsView> | null>(null)
 const mediaRef = ref<InstanceType<typeof MediaView> | null>(null)
 const progressRef = ref<InstanceType<typeof ProgressModal> | null>(null)
 const newInstallRef = ref<InstanceType<typeof NewInstallModal> | null>(null)
+const quickInstallRef = ref<InstanceType<typeof QuickInstallModal> | null>(null)
 const trackRef = ref<InstanceType<typeof TrackModal> | null>(null)
 
 // --- Sidebar ---
@@ -97,6 +100,16 @@ async function openNewInstall(): Promise<void> {
 
 function closeNewInstall(): void {
   showNewInstall.value = false
+}
+
+async function openQuickInstall(): Promise<void> {
+  showQuickInstall.value = true
+  await nextTick()
+  quickInstallRef.value?.open()
+}
+
+function closeQuickInstall(): void {
+  showQuickInstall.value = false
 }
 
 async function openTrack(): Promise<void> {
@@ -221,7 +234,7 @@ onMounted(async () => {
       <DashboardView
         v-show="activeView === 'dashboard'"
         :visible="activeView === 'dashboard'"
-        @show-new-install="openNewInstall"
+        @show-quick-install="openQuickInstall"
         @show-detail="openDetail"
         @show-console="openConsole"
         @show-progress="showProgress"
@@ -294,6 +307,13 @@ onMounted(async () => {
     @close="closeNewInstall"
     @show-progress="showProgress"
     @navigate-list="handleNavigateList"
+  />
+
+  <QuickInstallModal
+    v-if="showQuickInstall"
+    ref="quickInstallRef"
+    @close="closeQuickInstall"
+    @show-progress="showProgress"
   />
 
   <TrackModal

@@ -770,6 +770,19 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   font-size: 11px; color: var(--text-muted); margin-top: 6px;
 }
 
+/* Quick install modal */
+.quick-install-modal {
+  max-width: 620px;
+  min-height: 420px;
+  height: auto; max-height: calc(100vh - 100px);
+}
+.quick-install-desc {
+  font-size: 14px; color: var(--text-muted); margin-bottom: 16px;
+}
+.quick-install-btn {
+  padding: 10px 32px; font-size: 15px;
+}
+
 /* Wizard footer */
 .wizard-footer {
   flex-shrink: 0; display: flex; align-items: center;
