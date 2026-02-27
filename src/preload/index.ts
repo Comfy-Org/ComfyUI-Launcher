@@ -11,6 +11,8 @@ const api: ElectronApi = {
     ipcRenderer.invoke('build-installation', sourceId, selections),
   getDefaultInstallDir: () => ipcRenderer.invoke('get-default-install-dir'),
   detectGPU: () => ipcRenderer.invoke('detect-gpu'),
+  validateHardware: () => ipcRenderer.invoke('validate-hardware'),
+  checkNvidiaDriver: () => ipcRenderer.invoke('check-nvidia-driver'),
 
   // File/URL
   browseFolder: (defaultPath?) => ipcRenderer.invoke('browse-folder', defaultPath),

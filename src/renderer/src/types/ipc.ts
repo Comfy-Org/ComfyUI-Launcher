@@ -34,6 +34,8 @@ export type {
   ComfyOutputData,
   ComfyExitedData,
   GPUInfo,
+  HardwareValidation,
+  NvidiaDriverCheck,
   DiskSpaceInfo,
   PathIssue,
   UpdateInfo,
