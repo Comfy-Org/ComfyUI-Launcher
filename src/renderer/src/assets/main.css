@@ -344,6 +344,21 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .view-bottom { flex-shrink: 0; display: flex; gap: 10px; padding-top: 12px; }
 .view-list-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 8px; }
 
+/* Detail tabs */
+.detail-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.detail-tab {
+  padding: 6px 16px; border: none; border-radius: 0;
+  background: none; color: var(--text-faint); font-size: 14px;
+  font-weight: 500; cursor: pointer; position: relative;
+}
+.detail-tab:hover { color: var(--text-muted); }
+.detail-tab.active { color: var(--text); font-weight: 600; }
+.detail-tab.active::after {
+  content: ""; position: absolute; bottom: -1px;
+  left: 4px; right: 4px; height: 2px;
+  background: var(--accent); border-radius: 1px;
+}
+
 /* Detail sections */
 .detail-section { margin-bottom: 18px; }
 .detail-section-title {

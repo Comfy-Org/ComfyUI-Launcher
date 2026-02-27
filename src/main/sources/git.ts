@@ -68,6 +68,7 @@ export const gitSource: SourcePlugin = {
   getDetailSections(installation: InstallationRecord) {
     return [
       {
+        tab: 'status',
         title: 'Installation Info',
         fields: [
           { label: 'Install Method', value: installation.sourceLabel as string },
@@ -79,6 +80,7 @@ export const gitSource: SourcePlugin = {
         ],
       },
       {
+        tab: 'settings',
         title: 'Launch Settings',
         fields: [
           { id: 'browserPartition', label: 'Browser Cache',

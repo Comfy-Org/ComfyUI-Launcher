@@ -86,7 +86,10 @@
     "useSharedPaths": "Use Shared Directories",
     "done": "Done",
     "noItems": "No items available.",
-    "advanced": "Advanced"
+    "advanced": "Advanced",
+    "tabStatus": "Status",
+    "tabUpdate": "Update",
+    "tabSettings": "Settings"
   },
 
   "list": {
