@@ -1,4 +1,4 @@
-name: Build & Release
+name: ToDesktop Build & Release
 
 on:
   workflow_dispatch:
@@ -11,70 +11,129 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            args: --win
-            platform: win
-          - os: macos-latest
-            args: --mac
-            platform: mac
-          - os: ubuntu-latest
-            args: --linux
-            platform: linux
-
-    runs-on: ${{ matrix.os }}
-    name: Build (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    name: ToDesktop Build
+    env:
+      TODESKTOP_ACCESS_TOKEN: ${{ secrets.TODESKTOP_ACCESS_TOKEN }}
+      TODESKTOP_EMAIL: ${{ secrets.TODESKTOP_EMAIL }}
+    outputs:
+      build_id: ${{ steps.extract.outputs.build_id }}
+      mac_url: ${{ steps.extract.outputs.mac_url }}
+      windows_url: ${{ steps.extract.outputs.windows_url }}
+      linux_url: ${{ steps.extract.outputs.linux_url }}
+      build_status: ${{ steps.extract.outputs.build_status }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
-      - name: Set version from tag
+      - name: Validate ToDesktop credentials
+        run: |
+          if [ -z "$TODESKTOP_EMAIL" ] || [ -z "$TODESKTOP_ACCESS_TOKEN" ]; then
+            echo "TODESKTOP_EMAIL and TODESKTOP_ACCESS_TOKEN must be set in repository secrets."
+            exit 1
+          fi
+
+      - name: Ensure tag matches package.json version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          pnpm version "$VERSION" --no-git-tag-version --allow-same-version
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)."
+            exit 1
+          fi
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install ToDesktop CLI
+        run: npm install --location=global @todesktop/cli@1.22.0
 
-      - name: Lint
-        run: pnpm run lint
+      - name: Build with ToDesktop
+        run: todesktop build --config=todesktop.json --ephemeral
 
-      - name: Compile
-        run: pnpm run build
+      - name: Fetch latest ToDesktop build metadata
+        run: todesktop builds --config=todesktop.json --format=json --count=1 --exit > todesktop-builds.json
 
-      - name: Package
-        run: pnpm exec electron-builder ${{ matrix.args }} --publish never
+      - name: Extract build details
+        id: extract
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
 
-      - name: Upload artifacts
+          const raw = fs.readFileSync('todesktop-builds.json', 'utf8')
+          const start = raw.indexOf('[')
+          const end = raw.lastIndexOf(']')
+          const jsonText = start !== -1 && end !== -1 && end > start ? raw.slice(start, end + 1) : raw
+
+          let builds
+          try {
+            builds = JSON.parse(jsonText)
+          } catch (err) {
+            console.error('Failed to parse ToDesktop builds JSON output')
+            console.error(raw.slice(0, 1000))
+            throw err
+          }
+
+          if (!Array.isArray(builds) || builds.length === 0) {
+            throw new Error('No builds found in ToDesktop builds output')
+          }
+
+          const build = builds[0]
+          const safeUrl = (value) => (typeof value === 'string' ? value : '')
+          const macUrl = safeUrl(build?.mac?.standardDownloadUrl)
+          const windowsUrl = safeUrl(build?.windows?.standardDownloadUrl)
+          const linuxUrl = safeUrl(build?.linux?.standardDownloadUrl)
+          const status = build?.status || 'unknown'
+          const buildId = build?.id || ''
+
+          if (!buildId) {
+            throw new Error('Build ID missing from ToDesktop build output')
+          }
+
+          const todesktopConfig = JSON.parse(fs.readFileSync('todesktop.json', 'utf8'))
+          const appId = todesktopConfig.id
+          const buildPageUrl = `https://app.todesktop.com/apps/${appId}/builds/${buildId}`
+
+          const releaseNotes = [
+            '# ToDesktop Build',
+            '',
+            `- Build ID: \`${buildId}\``,
+            `- Status: \`${status}\``,
+            `- ToDesktop build page: ${buildPageUrl}`,
+            '',
+            '## Downloads',
+            macUrl ? `- macOS: ${macUrl}` : '- macOS: n/a',
+            windowsUrl ? `- Windows: ${windowsUrl}` : '- Windows: n/a',
+            linuxUrl ? `- Linux: ${linuxUrl}` : '- Linux: n/a',
+            ''
+          ].join('\n')
+
+          fs.writeFileSync('release-notes.md', releaseNotes)
+
+          const output = process.env.GITHUB_OUTPUT
+          if (!output) throw new Error('GITHUB_OUTPUT not set')
+          fs.appendFileSync(output, `build_id=${buildId}\n`)
+          fs.appendFileSync(output, `build_status=${status}\n`)
+          fs.appendFileSync(output, `mac_url=${macUrl}\n`)
+          fs.appendFileSync(output, `windows_url=${windowsUrl}\n`)
+          fs.appendFileSync(output, `linux_url=${linuxUrl}\n`)
+
+          if (status !== 'succeeded') {
+            throw new Error(`ToDesktop build did not succeed (status=${status})`)
+          }
+          NODE
+
+      - name: Upload release notes artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.platform }}
-          path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.zip
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.yml
-            dist/*.blockmap
-          if-no-files-found: ignore
+          name: todesktop-release-notes
+          path: release-notes.md
 
   release:
     needs: build
@@ -83,15 +142,15 @@ jobs:
     name: Publish Release
 
     steps:
-      - name: Download all artifacts
+      - name: Download release notes artifact
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
-          merge-multiple: true
+          name: todesktop-release-notes
+          path: .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
+          body_path: release-notes.md
           draft: true
           generate_release_notes: true
