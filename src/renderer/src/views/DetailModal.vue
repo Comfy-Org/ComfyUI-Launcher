@@ -50,7 +50,28 @@ const mouseDownOnOverlay = ref(false)
 
 const sections = ref<DetailSection[]>([])
 
-const mainSections = computed(() => sections.value.filter((s) => !s.pinBottom))
+const tabLabels = computed<Record<string, string>>(() => ({
+  status: t('common.tabStatus'),
+  update: t('common.tabUpdate'),
+  settings: t('common.tabSettings'),
+}))
+
+const activeTab = ref<string>('status')
+
+const availableTabs = computed(() => {
+  const tabIds = new Set<string>()
+  for (const s of sections.value) {
+    if (s.tab && !s.pinBottom) tabIds.add(s.tab)
+  }
+  const ORDER = ['status', 'update', 'settings']
+  return [...ORDER.filter((id) => tabIds.has(id)), ...Array.from(tabIds).filter((id) => !ORDER.includes(id))]
+})
+
+const hasTabs = computed(() => availableTabs.value.length > 1)
+
+const mainSections = computed(() =>
+  sections.value.filter((s) => !s.pinBottom && (!hasTabs.value || s.tab === activeTab.value))
+)
 const bottomSection = computed(() => sections.value.find((s) => s.pinBottom) ?? null)
 
 const previousInstId = ref<string | null>(null)
@@ -70,6 +91,7 @@ watch(
     previousInstId.value = inst.id
     sections.value = await window.api.getDetailSections(inst.id)
     if (isNewInstallation) {
+      activeTab.value = 'status'
       await nextTick()
       if (scrollRef.value) scrollRef.value.scrollTop = 0
     }
@@ -369,6 +391,17 @@ function handleOverlayClick(event: MouseEvent): void {
         <button class="view-modal-close" @click="emit('close')">✕</button>
       </div>
       <div class="view-modal-body">
+        <div v-if="hasTabs" class="detail-tabs">
+          <button
+            v-for="tabId in availableTabs"
+            :key="tabId"
+            class="detail-tab"
+            :class="{ active: activeTab === tabId }"
+            @click="activeTab = tabId"
+          >
+            {{ tabLabels[tabId] ?? tabId }}
+          </button>
+        </div>
         <div ref="scrollRef" class="view-scroll">
           <DetailSectionComponent
             v-for="section in mainSections"

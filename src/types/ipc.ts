@@ -71,6 +71,7 @@ export interface DetailSection {
   description?: string
   collapsed?: boolean
   pinBottom?: boolean
+  tab?: string
   items?: DetailItem[]
   fields?: DetailField[]
   actions?: ActionDef[]

@@ -122,6 +122,7 @@ export const portable: SourcePlugin = {
     const installed = installation.status === 'installed'
     const sections: Record<string, unknown>[] = [
       {
+        tab: 'status',
         title: t('common.installInfo'),
         fields: [
           { label: t('common.installMethod'), value: installation.sourceLabel as string },
@@ -180,6 +181,7 @@ export const portable: SourcePlugin = {
       id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed,
     })
     sections.push({
+      tab: 'update',
       title: t('portable.updates'),
       fields: updateFields,
       actions: updateActions,
@@ -187,6 +189,7 @@ export const portable: SourcePlugin = {
 
     sections.push(
       {
+        tab: 'settings',
         title: t('common.launchSettings'),
         fields: [
           { id: 'useSharedPaths', label: t('common.useSharedPaths'), value: (installation.useSharedPaths as boolean | undefined) !== false, editable: true, editType: 'boolean' },

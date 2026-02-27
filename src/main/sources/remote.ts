@@ -60,6 +60,7 @@ export const remote: SourcePlugin = {
   getDetailSections(installation: InstallationRecord): Record<string, unknown>[] {
     return [
       {
+        tab: 'status',
         title: t('remote.connectionInfo'),
         fields: [
           { label: t('common.installMethod'), value: installation.sourceLabel as string },
@@ -68,6 +69,7 @@ export const remote: SourcePlugin = {
         ],
       },
       {
+        tab: 'settings',
         title: t('common.launchSettings'),
         fields: [
           { id: 'browserPartition', label: t('common.browserPartition'), value: (installation.browserPartition as string) || 'shared', editable: true,
