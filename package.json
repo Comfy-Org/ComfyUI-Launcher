@@ -18,7 +18,7 @@
     "dev": "electron-vite dev",
     "build": "pnpm run typecheck && electron-vite build",
     "start": "electron-vite preview",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "node ./scripts/postinstall.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
@@ -32,7 +32,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,vue}\" \"*.{json,ts,yml}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "husky"
+    "prepare": "node ./scripts/prepare.mjs"
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",
