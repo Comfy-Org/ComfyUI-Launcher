@@ -10,9 +10,13 @@ export interface LauncherAppHandle {
   cleanup: () => Promise<void>
 }
 
-function buildIsolatedEnv(homeDir: string): NodeJS.ProcessEnv {
+function buildIsolatedEnv(homeDir: string): Record<string, string> {
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  )
+
   return {
-    ...process.env,
+    ...inheritedEnv,
     HOME: homeDir,
     USERPROFILE: homeDir,
     XDG_CONFIG_HOME: path.join(homeDir, '.config'),

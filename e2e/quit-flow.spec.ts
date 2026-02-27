@@ -11,7 +11,7 @@ test.describe('Launcher Quit Flow', () => {
       await expect(launcherWindow).toBeTruthy()
 
       const exitPromise = waitForAppExit(application)
-      await application.evaluate(({ app }) => {
+      await application.evaluate(({ app }: { app: { quit: () => void } }) => {
         app.quit()
       })
 
