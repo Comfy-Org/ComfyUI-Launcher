@@ -30,6 +30,10 @@
     "format": "prettier --write \"src/**/*.{ts,vue}\" \"*.{json,ts,yml}\"",
     "format:check": "prettier --check \"src/**/*.{ts,vue}\" \"*.{json,ts,yml}\"",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:macos": "playwright test --project=macos",
+    "test:e2e:windows": "playwright test --project=windows",
+    "test:e2e:linux": "playwright test --project=linux",
     "test:watch": "vitest",
     "prepare": "husky"
   },
@@ -40,6 +44,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@pinia/testing": "^1.0.3",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.1.8",
     "@types/node": "^22.19.1",
     "@vitejs/plugin-vue": "^6.0.2",
