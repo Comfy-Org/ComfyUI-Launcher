@@ -1379,12 +1379,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             if (inst.sourceId === 'standalone') {
               installations.get(installationId).then((currentInst) => {
                 if (!currentInst) return
-                captureSnapshotIfChanged(currentInst.installPath, currentInst, 'boot')
-                  .then(({ saved, filename }) => {
+                captureSnapshotIfChanged(currentInst.installPath, currentInst, 'restart')
+                  .then(({ saved, filename, deduplicated }) => {
                     if (saved) {
+                      const countDelta = deduplicated ? 0 : 1
                       installations.update(installationId, {
                         lastSnapshot: filename,
-                        snapshotCount: ((currentInst.snapshotCount as number) || 0) + 1,
+                        snapshotCount: ((currentInst.snapshotCount as number) || 0) + countDelta,
                       })
                     }
                   })

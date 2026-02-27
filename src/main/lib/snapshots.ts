@@ -10,7 +10,7 @@ import type { InstallationRecord } from '../installations'
 export interface Snapshot {
   version: 1
   createdAt: string
-  trigger: 'boot' | 'manual' | 'pre-update'
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update'
   label: string | null
   comfyui: {
     ref: string
@@ -173,11 +173,47 @@ function statesMatch(a: Snapshot, b: Omit<Snapshot, 'createdAt' | 'trigger' | 'l
   return true
 }
 
+/**
+ * After saving a restart snapshot, check if the immediately previous snapshot
+ * was an intermediate restart from the same Manager install sequence (same nodes
+ * and ComfyUI version, only pip packages differ). If so, delete it — the new
+ * snapshot supersedes it with the fully-installed state.
+ */
+async function deduplicateRestartSnapshot(installPath: string, justSavedFilename: string): Promise<string | undefined> {
+  const entries = await listSnapshots(installPath)
+
+  const savedIdx = entries.findIndex((e) => e.filename === justSavedFilename)
+  if (savedIdx < 0 || savedIdx >= entries.length - 1) return undefined
+
+  const saved = entries[savedIdx]!
+  const prev = entries[savedIdx + 1]!
+
+  // Only deduplicate against unlabeled restart snapshots
+  if (prev.snapshot.trigger !== 'restart' || prev.snapshot.label) return undefined
+
+  // ComfyUI version must match
+  if (prev.snapshot.comfyui.ref !== saved.snapshot.comfyui.ref ||
+      prev.snapshot.comfyui.commit !== saved.snapshot.comfyui.commit) return undefined
+
+  // Custom nodes must match exactly (same set, same versions)
+  if (prev.snapshot.customNodes.length !== saved.snapshot.customNodes.length) return undefined
+  const prevNodes = new Map(prev.snapshot.customNodes.map((n) => [n.id, n]))
+  for (const node of saved.snapshot.customNodes) {
+    const pn = prevNodes.get(node.id)
+    if (!pn) return undefined
+    if (pn.type !== node.type || pn.version !== node.version || pn.commit !== node.commit || pn.enabled !== node.enabled) return undefined
+  }
+
+  // Previous snapshot is an intermediate restart — remove it
+  await deleteSnapshot(installPath, prev.filename)
+  return prev.filename
+}
+
 export async function captureSnapshotIfChanged(
   installPath: string,
   installation: InstallationRecord,
-  trigger: 'boot' | 'manual' | 'pre-update'
-): Promise<{ saved: boolean; filename?: string }> {
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update'
+): Promise<{ saved: boolean; filename?: string; deduplicated?: string }> {
   const current = await captureState(installPath, installation)
 
   // Load last snapshot for comparison
@@ -195,16 +231,23 @@ export async function captureSnapshotIfChanged(
 
   const filename = await writeSnapshot(installPath, { ...current, trigger, label: null })
 
+  // Deduplicate: if this is a restart snapshot, remove the previous intermediate
+  // restart that captured state before pip packages were installed.
+  let deduplicated: string | undefined
+  if (trigger === 'restart') {
+    deduplicated = await deduplicateRestartSnapshot(installPath, filename).catch(() => undefined)
+  }
+
   // Prune old auto snapshots
   await pruneAutoSnapshots(installPath, AUTO_SNAPSHOT_LIMIT).catch(() => {})
 
-  return { saved: true, filename }
+  return { saved: true, filename, deduplicated }
 }
 
 export async function saveSnapshot(
   installPath: string,
   installation: InstallationRecord,
-  trigger: 'boot' | 'manual' | 'pre-update',
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update',
   label?: string
 ): Promise<string> {
   const current = await captureState(installPath, installation)
@@ -351,7 +394,7 @@ export function diffSnapshots(a: Snapshot, b: Snapshot): SnapshotDiff {
 
 export async function pruneAutoSnapshots(installPath: string, keep: number): Promise<number> {
   const entries = await listSnapshots(installPath)
-  const autoSnapshots = entries.filter((e) => e.snapshot.trigger === 'boot' && !e.snapshot.label)
+  const autoSnapshots = entries.filter((e) => (e.snapshot.trigger === 'boot' || e.snapshot.trigger === 'restart') && !e.snapshot.label)
   if (autoSnapshots.length <= keep) return 0
 
   const toDelete = autoSnapshots.slice(keep)

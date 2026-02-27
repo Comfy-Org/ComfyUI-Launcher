@@ -418,6 +418,7 @@
     "snapshotHistoryEmpty": "No snapshots yet. Snapshots are captured automatically when ComfyUI starts.",
     "snapshotCurrent": "Current",
     "snapshotBoot": "Boot",
+    "snapshotRestart": "Manager Restart",
     "snapshotPreUpdate": "Pre-Update",
     "snapshotManual": "Manual",
     "snapshotSave": "Save Snapshot",

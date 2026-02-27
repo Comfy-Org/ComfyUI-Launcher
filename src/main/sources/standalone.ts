@@ -334,6 +334,7 @@ export const standalone: SourcePlugin = {
       const formatLabel = (s: snapshots.SnapshotEntry, isCurrent: boolean): string => {
         const date = new Date(s.snapshot.createdAt).toLocaleString()
         const trigger = s.snapshot.trigger === 'boot' ? t('standalone.snapshotBoot')
+          : s.snapshot.trigger === 'restart' ? t('standalone.snapshotRestart')
           : s.snapshot.trigger === 'pre-update' ? t('standalone.snapshotPreUpdate')
           : t('standalone.snapshotManual')
         if (isCurrent) {
@@ -352,7 +353,7 @@ export const standalone: SourcePlugin = {
         collapsed: snapshotCount > 0,
         items: snapshotEntries.slice(0, 20).map((s, i) => ({
           label: formatLabel(s, i === 0),
-          actions: [
+          actions: i === 0 ? [] : [
             { id: 'snapshot-delete', label: t('standalone.snapshotDelete'), style: 'danger',
               data: { file: s.filename },
               confirm: { title: t('standalone.snapshotDeleteTitle'), message: t('standalone.snapshotDeleteMessage') } },
