@@ -160,11 +160,21 @@ async function open(): Promise<void> {
   detectedGpu.value = t('newInstall.detectingGpu')
 
   try {
-    const [sources, gpu, defaultDir] = await Promise.all([
+    const [sources, gpu, defaultDir, hw] = await Promise.all([
       window.api.getSources(),
       window.api.detectGPU().catch(() => null),
       installDirPromise ?? window.api.getDefaultInstallDir().catch(() => ''),
+      window.api.validateHardware(),
     ])
+
+    if (!hw.supported) {
+      await modal.alert({
+        title: t('newInstall.unsupportedHardwareTitle'),
+        message: hw.error || '',
+      })
+      emit('close')
+      return
+    }
 
     defaultInstPath.value = defaultDir ?? ''
     instPath.value = defaultInstPath.value
@@ -220,6 +230,24 @@ async function handleInstall(): Promise<void> {
   installing.value = true
 
   try {
+    // Warn if NVIDIA driver is too old for the bundled PyTorch
+    const variantId = selectedVariant.value.data?.variantId as string | undefined
+    if (variantId && stripVariantPrefix(variantId).startsWith('nvidia')) {
+      const driverCheck = await window.api.checkNvidiaDriver()
+      if (driverCheck && !driverCheck.supported) {
+        const ok = await modal.confirm({
+          title: t('newInstall.nvidiaDriverWarningTitle'),
+          message: t('newInstall.nvidiaDriverWarning', {
+            driverVersion: driverCheck.driverVersion,
+            minimumVersion: driverCheck.minimumVersion,
+          }),
+          confirmLabel: t('newInstall.nvidiaDriverContinue'),
+          confirmStyle: 'primary',
+        })
+        if (!ok) { installing.value = false; return }
+      }
+    }
+
     // Validate install path
     if (instPath.value) {
       try {

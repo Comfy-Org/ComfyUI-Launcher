@@ -18,7 +18,7 @@ import {
   findPidsByPort, getProcessInfo, looksLikeComfyUI, setPortArg,
   findAvailablePort, writePortLock, readPortLock, removePortLock,
 } from './process'
-import { detectGPU } from './gpu'
+import { detectGPU, validateHardware, checkNvidiaDriver } from './gpu'
 import { getDiskSpace, validateInstallPath } from './disk'
 import type { GpuInfo } from './gpu'
 import { formatTime } from './util'
@@ -409,6 +409,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     }
     return _gpuPromise
   })
+
+  ipcMain.handle('validate-hardware', () => validateHardware())
+  ipcMain.handle('check-nvidia-driver', () => checkNvidiaDriver())
 
   ipcMain.handle('build-installation', (_event, sourceId: string, selections: Record<string, unknown>) => {
     const source = resolveSource(sourceId)

@@ -1,5 +1,6 @@
 import { execFile } from 'child_process'
 import fs from 'fs'
+import type { HardwareValidation, NvidiaDriverCheck } from '../../types/ipc'
 
 type GpuId = 'nvidia' | 'amd' | 'intel' | 'mps'
 
@@ -161,12 +162,6 @@ async function detectMacGPU(): Promise<GpuId | null> {
  */
 const NVIDIA_DRIVER_MIN_VERSION = "580"
 
-export interface NvidiaDriverCheck {
-  driverVersion: string
-  minimumVersion: string
-  supported: boolean
-}
-
 /**
  * Compare two dotted version strings numerically.
  * Returns negative if a < b, positive if a > b, 0 if equal.
@@ -249,4 +244,22 @@ async function checkNvidiaDriver(): Promise<NvidiaDriverCheck | null> {
   }
 }
 
-export { detectGPU, checkNvidiaDriver }
+/**
+ * Validate system hardware requirements for standalone ComfyUI installation.
+ * Mirrors the desktop app's validateHardware() — rejects Intel Macs since
+ * the MPS backend requires Apple Silicon.
+ */
+async function validateHardware(): Promise<HardwareValidation> {
+  if (process.platform === "darwin") {
+    const gpu = await detectMacGPU()
+    if (!gpu) {
+      return {
+        supported: false,
+        error: "ComfyUI requires Apple Silicon (M1/M2/M3) Mac. Intel-based Macs are not supported.",
+      }
+    }
+  }
+  return { supported: true }
+}
+
+export { detectGPU, checkNvidiaDriver, validateHardware }

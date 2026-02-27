@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
-import type { Source, SourceField, FieldOption, DiskSpaceInfo, PathIssue } from '../types/ipc'
+import type { Source, SourceField, FieldOption, DiskSpaceInfo, PathIssue, HardwareValidation } from '../types/ipc'
 
 const emit = defineEmits<{
   close: []
@@ -43,6 +43,7 @@ const diskSpace = ref<DiskSpaceInfo | null>(null)
 const diskSpaceLoading = ref(false)
 const pathIssues = ref<PathIssue[]>([])
 let diskSpaceTimer: ReturnType<typeof setTimeout> | null = null
+let hardwareValidation: HardwareValidation | null = null
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`
@@ -210,9 +211,16 @@ async function open(): Promise<void> {
   defaultInstPath.value = installDir ?? ''
   instPath.value = defaultInstPath.value
 
-  // Preselect standalone if available
+  // Preselect standalone if available (skip on unsupported hardware)
+  hardwareValidation = await window.api.validateHardware()
   const standalone = sources.value.find((s) => s.id === 'standalone')
-  if (standalone) await selectSourceCard(standalone)
+  if (standalone) {
+    if (hardwareValidation.supported) {
+      await selectSourceCard(standalone)
+    } else {
+      detectedGpu.value = hardwareValidation.error || t('newInstall.noGpuDetected')
+    }
+  }
 }
 
 async function loadSources(): Promise<void> {
@@ -227,6 +235,15 @@ async function loadSources(): Promise<void> {
 
 async function selectSourceCard(source: Source): Promise<void> {
   if (currentSource.value?.id === source.id) return
+
+  if (source.id === 'standalone' && hardwareValidation && !hardwareValidation.supported) {
+    await modal.alert({
+      title: t('newInstall.unsupportedHardwareTitle'),
+      message: hardwareValidation.error || '',
+    })
+    return
+  }
+
   await selectSource(source)
 }
 
@@ -432,6 +449,26 @@ function prevStep(): void {
 async function handleSave(): Promise<void> {
   const source = currentSource.value
   if (!source) return
+
+  // Warn if NVIDIA driver is too old for the bundled PyTorch
+  if (source.id === 'standalone') {
+    const variantId = selections.value.variant?.data?.variantId as string | undefined
+    if (variantId && stripVariantPrefix(variantId).startsWith('nvidia')) {
+      const driverCheck = await window.api.checkNvidiaDriver()
+      if (driverCheck && !driverCheck.supported) {
+        const ok = await modal.confirm({
+          title: t('newInstall.nvidiaDriverWarningTitle'),
+          message: t('newInstall.nvidiaDriverWarning', {
+            driverVersion: driverCheck.driverVersion,
+            minimumVersion: driverCheck.minimumVersion,
+          }),
+          confirmLabel: t('newInstall.nvidiaDriverContinue'),
+          confirmStyle: 'primary',
+        })
+        if (!ok) return
+      }
+    }
+  }
 
   // Sync text field values into selections before building
   for (const f of source.fields) {

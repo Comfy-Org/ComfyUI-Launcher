@@ -282,6 +282,17 @@ export interface GPUInfo {
   label: string
 }
 
+export interface HardwareValidation {
+  supported: boolean
+  error?: string
+}
+
+export interface NvidiaDriverCheck {
+  driverVersion: string
+  minimumVersion: string
+  supported: boolean
+}
+
 export interface DiskSpaceInfo {
   free: number
   total: number
@@ -321,6 +332,8 @@ export interface ElectronApi {
   ): Promise<Record<string, unknown>>
   getDefaultInstallDir(): Promise<string>
   detectGPU(): Promise<GPUInfo | null>
+  validateHardware(): Promise<HardwareValidation>
+  checkNvidiaDriver(): Promise<NvidiaDriverCheck | null>
 
   // File/URL
   browseFolder(defaultPath?: string): Promise<string | null>
