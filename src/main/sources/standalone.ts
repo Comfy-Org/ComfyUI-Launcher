@@ -13,6 +13,7 @@ import { t } from '../lib/i18n'
 import * as installations from '../installations'
 import { listCustomNodes, findComfyUIDir, backupDir, mergeDirFlat } from '../lib/migrate'
 import * as settings from '../settings'
+import * as snapshots from '../lib/snapshots'
 import type { InstallationRecord } from '../installations'
 import type {
   SourcePlugin,
@@ -326,6 +327,49 @@ export const standalone: SourcePlugin = {
       },
     ]
 
+    // Snapshot history section
+    if (installed && installation.installPath) {
+      const snapshotEntries = snapshots.listSnapshotsSync(installation.installPath)
+      const snapshotCount = snapshotEntries.length
+      const formatLabel = (s: snapshots.SnapshotEntry, isCurrent: boolean): string => {
+        const date = new Date(s.snapshot.createdAt).toLocaleString()
+        const trigger = s.snapshot.trigger === 'boot' ? t('standalone.snapshotBoot')
+          : s.snapshot.trigger === 'pre-update' ? t('standalone.snapshotPreUpdate')
+          : t('standalone.snapshotManual')
+        if (isCurrent) {
+          return s.snapshot.label
+            ? `★ ${t('standalone.snapshotCurrent')}  ·  ${trigger}: ${s.snapshot.label}  ·  ${date}`
+            : `★ ${t('standalone.snapshotCurrent')}  ·  ${trigger}  ·  ${date}`
+        }
+        return s.snapshot.label ? `${trigger}: ${s.snapshot.label}  ·  ${date}` : `${trigger}  ·  ${date}`
+      }
+      sections.push({
+        tab: 'status',
+        title: t('standalone.snapshotHistory'),
+        description: snapshotCount > 0
+          ? t('standalone.snapshotHistoryDesc', { count: snapshotCount })
+          : t('standalone.snapshotHistoryEmpty'),
+        collapsed: snapshotCount > 0,
+        items: snapshotEntries.slice(0, 20).map((s, i) => ({
+          label: formatLabel(s, i === 0),
+          actions: [
+            { id: 'snapshot-delete', label: t('standalone.snapshotDelete'), style: 'danger',
+              data: { file: s.filename },
+              confirm: { title: t('standalone.snapshotDeleteTitle'), message: t('standalone.snapshotDeleteMessage') } },
+          ],
+        })),
+        actions: [
+          { id: 'snapshot-save', label: t('standalone.snapshotSave'),
+            prompt: {
+              title: t('standalone.snapshotSaveTitle'),
+              message: t('standalone.snapshotSaveMessage'),
+              placeholder: t('standalone.snapshotLabelPlaceholder'),
+              field: 'label',
+            } },
+        ],
+      })
+    }
+
     // Updates section
     const hasGit = installed && installation.installPath && fs.existsSync(path.join(installation.installPath, 'ComfyUI', '.git'))
     const track = (installation.updateTrack as string | undefined) || 'stable'
@@ -533,6 +577,14 @@ export const standalone: SourcePlugin = {
     await update({ envMethods })
     sendProgress('cleanup', { percent: -1, status: t('standalone.cleanupEnvStatus') })
     await stripMasterPackages(installation.installPath)
+
+    // Capture initial snapshot so the detail view shows "Current" immediately
+    try {
+      const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'boot')
+      await update({ lastSnapshot: filename, snapshotCount: 1 })
+    } catch (err) {
+      console.warn('Initial snapshot failed:', err)
+    }
   },
 
   probeInstallation(dirPath: string): Record<string, unknown> | null {
@@ -570,6 +622,20 @@ export const standalone: SourcePlugin = {
     actionData: Record<string, unknown> | undefined,
     { update, sendProgress, sendOutput, signal }: ActionTools
   ): Promise<ActionResult> {
+    if (actionId === 'snapshot-save') {
+      const label = (actionData?.label as string | undefined) || undefined
+      const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'manual', label)
+      await update({ lastSnapshot: filename, snapshotCount: ((installation.snapshotCount as number) || 0) + 1 })
+      return { ok: true, navigate: 'detail' }
+    }
+
+    if (actionId === 'snapshot-delete') {
+      const file = actionData?.file as string | undefined
+      if (!file) return { ok: false, message: 'No snapshot file specified.' }
+      await snapshots.deleteSnapshot(installation.installPath, file)
+      return { ok: true, navigate: 'detail' }
+    }
+
     if (actionId === 'check-update') {
       const track = (installation.updateTrack as string | undefined) || 'stable'
       return releaseCache.checkForUpdate(COMFYUI_REPO, track, installation, update)
@@ -602,9 +668,17 @@ export const standalone: SourcePlugin = {
         { phase: 'deps', label: t('standalone.updateDeps') },
       ] })
 
-      sendProgress('prepare', { percent: -1, status: t('standalone.updatePrepare') })
+      sendProgress('prepare', { percent: -1, status: t('standalone.updatePrepareSnapshot') })
 
-      sendProgress('run', { percent: -1, status: t('standalone.updateRun') })
+      // Auto-snapshot before update
+      try {
+        const filename = await snapshots.saveSnapshot(installPath, installation, 'pre-update', 'before-update')
+        await update({ lastSnapshot: filename, snapshotCount: ((installation.snapshotCount as number) || 0) + 1 })
+      } catch (err) {
+        console.warn('Pre-update snapshot failed:', err)
+      }
+
+      sendProgress('run', { percent: -1, status: t('standalone.updateFetching') })
 
       const updateScript = app.isPackaged
         ? path.join(process.resourcesPath, 'lib', 'update_comfyui.py')

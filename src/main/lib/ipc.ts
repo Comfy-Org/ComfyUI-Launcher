@@ -28,6 +28,7 @@ import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
+import { captureSnapshotIfChanged } from './snapshots'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import type { Theme, ResolvedTheme } from '../../types/ipc'
 import type { LaunchCmd } from './process'
@@ -1349,6 +1350,20 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       _addSession(installationId, { proc, port: launchCmd.port!, mode, installationName: inst.name })
       writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
 
+      // Capture snapshot in background after successful launch
+      if (inst.sourceId === 'standalone') {
+        captureSnapshotIfChanged(inst.installPath, inst, 'boot')
+          .then(({ saved, filename }) => {
+            if (saved) {
+              installations.update(installationId, {
+                lastSnapshot: filename,
+                snapshotCount: ((inst.snapshotCount as number) || 0) + 1,
+              })
+            }
+          })
+          .catch((err) => console.warn('Snapshot capture failed:', err))
+      }
+
       function attachExitHandler(p: ChildProcess): void {
         p.on('exit', (code) => {
           if (checkRebootMarker(sessionPath)) {
@@ -1360,6 +1375,22 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
             attachExitHandler(proc)
             if (_onComfyRestarted) _onComfyRestarted({ installationId, process: proc })
+            // Capture snapshot after Manager-triggered restart
+            if (inst.sourceId === 'standalone') {
+              installations.get(installationId).then((currentInst) => {
+                if (!currentInst) return
+                captureSnapshotIfChanged(currentInst.installPath, currentInst, 'boot')
+                  .then(({ saved, filename }) => {
+                    if (saved) {
+                      installations.update(installationId, {
+                        lastSnapshot: filename,
+                        snapshotCount: ((currentInst.snapshotCount as number) || 0) + 1,
+                      })
+                    }
+                  })
+                  .catch((err) => console.warn('Snapshot capture failed:', err))
+              })
+            }
             return
           }
           const crashed = _runningSessions.has(installationId)

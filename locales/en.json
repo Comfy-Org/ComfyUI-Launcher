@@ -381,7 +381,9 @@
     "updateConfirmMessageDowngrade": "Roll back from {installed} to stable release {latest}?\n\nYour install is currently ahead of the latest stable release. This will check out the stable tag, removing any newer commits. Local changes will be stashed and a backup branch created.\n\nRelease notes:\n{notes}",
     "updatingTitle": "Updating to {version}",
     "updatePrepare": "Prepare",
+    "updatePrepareSnapshot": "Saving snapshot of current state…",
     "updateRun": "Update",
+    "updateFetching": "Fetching and applying changes…",
     "updateDeps": "Dependencies",
     "updateDepsChecking": "Checking requirements…",
     "updateDepsDryRun": "Checking for conflicts…",
@@ -403,7 +405,21 @@
     "releaseUpdateNameMessage": "Enter a name for the new install. It will be created next to the original.",
     "releaseUpdateConfirm": "Install & Migrate",
     "releaseUpdatingTitle": "Installing Release",
-    "releaseUpdateCleaningUp": "Cleaning up…"
+    "releaseUpdateCleaningUp": "Cleaning up…",
+    "snapshotHistory": "Snapshot History",
+    "snapshotHistoryDesc": "{count} snapshot(s) recorded",
+    "snapshotHistoryEmpty": "No snapshots yet. Snapshots are captured automatically when ComfyUI starts.",
+    "snapshotCurrent": "Current",
+    "snapshotBoot": "Boot",
+    "snapshotPreUpdate": "Pre-Update",
+    "snapshotManual": "Manual",
+    "snapshotSave": "Save Snapshot",
+    "snapshotSaveTitle": "Save Snapshot",
+    "snapshotSaveMessage": "Save a snapshot of the current environment state. Optionally provide a label.",
+    "snapshotLabelPlaceholder": "e.g. before-experiment",
+    "snapshotDelete": "Delete",
+    "snapshotDeleteTitle": "Delete Snapshot",
+    "snapshotDeleteMessage": "Delete this snapshot? This cannot be undone."
   },
 
   "portable": {
