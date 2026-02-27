@@ -102,65 +102,91 @@ jobs:
               .replace(/[-_]/g, ' ')
               .replace(/\b\w/g, (m) => m.toUpperCase())
 
-          const collectArtifactLines = (platformName, platformData) => {
-            const lines = []
-            const seen = new Set()
+          const normalizeFormatName = (value) => {
+            if (value === 'appImage') return 'AppImage'
+            return titleCase(value)
+          }
 
-            const visit = (node, path = []) => {
-              if (!node || typeof node !== 'object') return
+          const normalizeArchName = (value) => {
+            const lowered = String(value).toLowerCase()
+            if (lowered === 'x64') return 'x64'
+            if (lowered === 'arm64') return 'arm64'
+            if (lowered === 'ia32') return 'ia32'
+            if (lowered === 'universal') return 'universal'
+            return titleCase(value)
+          }
 
-              const url = safeUrl(node.standardUrl || node.url)
-              if (url) {
-                const artifact = path.map(titleCase).join(' / ') || 'Artifact'
-                const size = Number.isFinite(node.size) ? ` (${node.size} bytes)` : ''
-                const line = `- ${platformName}: ${artifact}${size} -> ${url}`
-                if (!seen.has(line)) {
-                  seen.add(line)
-                  lines.push(line)
-                }
-                return
+          const collectArtifacts = (platformName, platformData) => {
+            const rows = []
+            const artifactDownloads = platformData?.artifactDownloads
+            if (!artifactDownloads || typeof artifactDownloads !== 'object') return rows
+
+            for (const [formatKey, formatValue] of Object.entries(artifactDownloads)) {
+              if (!formatValue || typeof formatValue !== 'object') continue
+
+              const directUrl = safeUrl(formatValue.standardUrl || formatValue.url)
+              if (directUrl) {
+                rows.push({
+                  platform: platformName,
+                  format: normalizeFormatName(formatKey),
+                  arch: 'n/a',
+                  size: Number.isFinite(formatValue.size) ? `${formatValue.size} bytes` : 'n/a',
+                  url: directUrl
+                })
+                continue
               }
 
-              for (const [key, value] of Object.entries(node)) {
-                if (value && typeof value === 'object') {
-                  visit(value, [...path, key])
-                }
+              for (const [archKey, archValue] of Object.entries(formatValue)) {
+                if (!archValue || typeof archValue !== 'object') continue
+                const url = safeUrl(archValue.standardUrl || archValue.url)
+                if (!url) continue
+
+                rows.push({
+                  platform: platformName,
+                  format: normalizeFormatName(formatKey),
+                  arch: normalizeArchName(archKey),
+                  size: Number.isFinite(archValue.size) ? `${archValue.size} bytes` : 'n/a',
+                  url
+                })
               }
             }
 
-            visit(platformData?.artifactDownloads)
-            return lines.sort((a, b) => a.localeCompare(b))
+            return rows.sort((a, b) => {
+              if (a.platform !== b.platform) return a.platform.localeCompare(b.platform)
+              if (a.format !== b.format) return a.format.localeCompare(b.format)
+              return a.arch.localeCompare(b.arch)
+            })
           }
 
-          const assetLines = [
-            ...collectArtifactLines('macOS', build?.mac),
-            ...collectArtifactLines('Windows', build?.windows),
-            ...collectArtifactLines('Linux', build?.linux)
+          const assetRows = [
+            ...collectArtifacts('macOS', build?.mac),
+            ...collectArtifacts('Windows', build?.windows),
+            ...collectArtifacts('Linux', build?.linux)
           ]
 
           const todesktopConfig = JSON.parse(fs.readFileSync('todesktop.json', 'utf8'))
           const appId = todesktopConfig.id
           const buildPageUrl = `https://app.todesktop.com/apps/${appId}/builds/${buildId}`
 
-          const releaseNotes = [
-            '# ToDesktop Build',
-            '',
-            `- Build ID: \`${buildId}\``,
-            `- Status: \`${status}\``,
-            `- ToDesktop build page: ${buildPageUrl}`,
-            universalUrl ? `- Universal download page: ${universalUrl}` : '',
-            '',
-            '## Platform Pages',
-            macUrl ? `- macOS: ${macUrl}` : '- macOS: n/a',
-            windowsUrl ? `- Windows: ${windowsUrl}` : '- Windows: n/a',
-            linuxUrl ? `- Linux: ${linuxUrl}` : '- Linux: n/a',
-            '',
-            '## Built Assets',
-            ...(assetLines.length > 0 ? assetLines : ['- n/a']),
-            ''
-          ].filter(Boolean).join('\n')
-
-          fs.writeFileSync('release-notes.md', releaseNotes)
+          fs.writeFileSync(
+            'release-assets.json',
+            JSON.stringify(
+              {
+                buildId,
+                status,
+                buildPageUrl,
+                universalUrl,
+                platformPages: {
+                  macOS: macUrl || null,
+                  windows: windowsUrl || null,
+                  linux: linuxUrl || null
+                },
+                assets: assetRows
+              },
+              null,
+              2
+            )
+          )
 
           const output = process.env.GITHUB_OUTPUT
           if (!output) throw new Error('GITHUB_OUTPUT not set')
@@ -175,11 +201,11 @@ jobs:
           }
           NODE
 
-      - name: Upload release notes artifact
+      - name: Upload release metadata artifact
         uses: actions/upload-artifact@v4
         with:
-          name: todesktop-release-notes
-          path: release-notes.md
+          name: todesktop-release-assets
+          path: release-assets.json
 
   release:
     needs: build
@@ -188,15 +214,23 @@ jobs:
     name: Publish Release
 
     steps:
-      - name: Download release notes artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: todesktop-release-notes
-          path: .
+      - name: Create GitHub Release (gh CLI)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: release-notes.md
-          draft: true
-          generate_release_notes: true
+          tag="${GITHUB_REF_NAME}"
+
+          if gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release for ${tag} already exists."
+            exit 0
+          fi
+
+          gh release create "${tag}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --draft \
+            --generate-notes
+
+          echo "Created draft release for ${tag}."
