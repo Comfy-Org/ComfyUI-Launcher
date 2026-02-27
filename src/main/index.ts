@@ -123,7 +123,15 @@ function onComfyRestarted({ installationId, process: _proc }: { installationId?:
         win.loadURL(currentUrl)
       }
     })
-    .catch(() => {})
+    .catch((err) => {
+      console.error(`ComfyUI restart failed for ${installationId}:`, err)
+      if (launcherWindow && !launcherWindow.isDestroyed()) {
+        launcherWindow.webContents.send('comfy-output', {
+          installationId,
+          text: `\n--- Restart failed: ${err.message || err} ---\n`,
+        })
+      }
+    })
 }
 
 function onStop({ installationId }: { installationId?: string } = {}): void {

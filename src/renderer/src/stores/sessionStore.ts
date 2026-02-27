@@ -79,6 +79,7 @@ export const useSessionStore = defineStore('session', () => {
 
   /** Initialize IPC listeners. Call once from App.vue. */
   async function init(): Promise<void> {
+    dispose()
     const instances = await window.api.getRunningInstances()
     for (const inst of instances) {
       runningInstances.set(inst.installationId, inst)

@@ -387,7 +387,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   // Sources
   ipcMain.handle('get-sources', () =>
-    sources.filter((s) => s.category !== 'cloud').map((s) => ({ id: s.id, label: s.label, category: s.category, description: s.description, fields: s.fields, skipInstall: !!s.skipInstall, hideInstallPath: !!s.skipInstall }))
+    sources
+      .filter((s) => s.category !== 'cloud' && !s.hidden)
+      .filter((s) => !s.platforms || s.platforms.includes(process.platform))
+      .map((s) => ({ id: s.id, label: s.label, category: s.category, description: s.description, fields: s.fields, skipInstall: !!s.skipInstall, hideInstallPath: !!s.skipInstall }))
   )
 
   ipcMain.handle('get-field-options', async (_event, sourceId: string, fieldId: string, selections: Record<string, unknown>) => {
@@ -430,8 +433,21 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     return filePaths[0]
   })
 
-  ipcMain.handle('open-path', (_event, targetPath: string) => openPath(targetPath))
-  ipcMain.handle('open-external', (_event, url: string) => shell.openExternal(url))
+  ipcMain.handle('open-path', (_event, targetPath: string) => {
+    if (typeof targetPath !== 'string' || !targetPath) return ''
+    // Allow http/https URLs (used to open ComfyUI in the default browser)
+    if (/^https?:\/\//i.test(targetPath)) return shell.openExternal(targetPath)
+    // Filesystem paths: resolve to absolute and verify they exist
+    const resolved = path.resolve(targetPath)
+    if (!fs.existsSync(resolved)) return ''
+    return openPath(resolved)
+  })
+  ipcMain.handle('open-external', (_event, url: string) => {
+    if (typeof url !== 'string' || !url) return Promise.resolve()
+    // Only allow http and https URLs
+    if (!/^https?:\/\//i.test(url)) return Promise.resolve()
+    return shell.openExternal(url)
+  })
   ipcMain.handle('get-disk-space', (_event, targetPath: string) => getDiskSpace(targetPath))
   ipcMain.handle('validate-install-path', (_event, targetPath: string) => validateInstallPath(targetPath))
 
@@ -1259,47 +1275,74 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         return { proc: p, getStderr: () => stderrBuf }
       }
 
-      const cmdLine = [launchCmd.cmd!, ...launchCmd.args!].map((a) => /\s/.test(a) ? `"${a}"` : a).join(' ')
-      sendProgress('launch', { percent: -1, status: i18n.t('launch.starting') })
-      if (!sender.isDestroyed()) {
-        sender.send('comfy-output', { installationId, text: `> ${cmdLine}\n\n` })
-      }
-      let { proc, getStderr } = spawnComfy()
+      const SENSITIVE_ARG_RE = /^--(api[-_]?key|token|secret|password|auth)$/i
+      const PORT_RETRY_MAX = 3
+      let portRetries = 0
 
-      let earlyExit: string | null = null
-      const earlyExitPromise = new Promise<void>((_resolve, reject) => {
-        proc.on('error', (err: Error) => {
-          const code = (err as NodeJS.ErrnoException).code ? ` (${(err as NodeJS.ErrnoException).code})` : ''
-          earlyExit = err.message
-          reject(new Error(`Failed to start${code}: ${launchCmd.cmd}`))
+      const tryLaunch = async (): Promise<{ ok: true; proc: ChildProcess; getStderr: () => string } | { ok: false; message: string }> => {
+        const cmdLine = [launchCmd.cmd!, ...launchCmd.args!].map((a, ci, ca) => {
+          if (ci > 0 && SENSITIVE_ARG_RE.test(ca[ci - 1]!)) return '"***"'
+          return /\s/.test(a) ? `"${a}"` : a
+        }).join(' ')
+        sendProgress('launch', { percent: -1, status: i18n.t('launch.starting') })
+        if (!sender.isDestroyed()) {
+          sender.send('comfy-output', { installationId, text: `> ${cmdLine}\n\n` })
+        }
+        const spawned = spawnComfy()
+
+        let earlyExit: string | null = null
+        const earlyExitPromise = new Promise<void>((_resolve, reject) => {
+          spawned.proc.on('error', (err: Error) => {
+            const code = (err as NodeJS.ErrnoException).code ? ` (${(err as NodeJS.ErrnoException).code})` : ''
+            earlyExit = err.message
+            reject(new Error(`Failed to start${code}: ${launchCmd.cmd}`))
+          })
+          spawned.proc.on('exit', (code) => {
+            if (!earlyExit) {
+              const detail = spawned.getStderr().trim() ? `\n\n${spawned.getStderr().trim()}` : ''
+              earlyExit = `Process exited with code ${code}${detail}`
+              reject(new Error(earlyExit))
+            }
+          })
         })
-        proc.on('exit', (code) => {
-          if (!earlyExit) {
-            const detail = getStderr().trim() ? `\n\n${getStderr().trim()}` : ''
-            earlyExit = `Process exited with code ${code}${detail}`
-            reject(new Error(earlyExit))
+
+        sendProgress('launch', { percent: -1, status: i18n.t('launch.waiting') })
+        try {
+          await Promise.race([
+            waitForPort(launchCmd.port!, '127.0.0.1', {
+              timeoutMs: 120000,
+              signal: abort.signal,
+              onPoll: ({ elapsedMs }) => {
+                const secs = Math.round(elapsedMs / 1000)
+                sendProgress('launch', { percent: -1, status: i18n.t('launch.waitingTime', { secs }) })
+              },
+            }),
+            earlyExitPromise,
+          ])
+          return { ok: true, proc: spawned.proc, getStderr: spawned.getStderr }
+        } catch (err) {
+          killProcessTree(spawned.proc)
+          const stderr = spawned.getStderr().toLowerCase()
+          const isPortConflict = stderr.includes('address already in use') || (stderr.includes('port') && stderr.includes('in use'))
+          if (isPortConflict && portRetries < PORT_RETRY_MAX) {
+            portRetries++
+            try {
+              const retryPort = await findAvailablePort('127.0.0.1', launchCmd.port! + 1, launchCmd.port! + 1000)
+              sendOutput(`\nPort ${launchCmd.port} in use, retrying on port ${retryPort}…\n`)
+              setPortArg(launchCmd as LaunchCmd, retryPort)
+              return tryLaunch()
+            } catch {}
           }
-        })
-      })
-
-      sendProgress('launch', { percent: -1, status: i18n.t('launch.waiting') })
-      try {
-        await Promise.race([
-          waitForPort(launchCmd.port!, '127.0.0.1', {
-            timeoutMs: 120000,
-            signal: abort.signal,
-            onPoll: ({ elapsedMs }) => {
-              const secs = Math.round(elapsedMs / 1000)
-              sendProgress('launch', { percent: -1, status: i18n.t('launch.waitingTime', { secs }) })
-            },
-          }),
-          earlyExitPromise,
-        ])
-      } catch (err) {
-        _operationAborts.delete(installationId)
-        killProcessTree(proc)
-        return { ok: false, message: (err as Error).message }
+          return { ok: false, message: (err as Error).message }
+        }
       }
+
+      const launchResult = await tryLaunch()
+      if (!launchResult.ok) {
+        _operationAborts.delete(installationId)
+        return { ok: false, message: launchResult.message }
+      }
+      let { proc } = launchResult
 
       _operationAborts.delete(installationId)
       const mode = (inst.launchMode as string | undefined) || 'window'
@@ -1312,7 +1355,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             sendOutput('\n--- ComfyUI restarting ---\n\n')
             const spawned = spawnComfy()
             proc = spawned.proc
-            getStderr = spawned.getStderr
             const session = _runningSessions.get(installationId)
             if (session) session.proc = proc
             writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })

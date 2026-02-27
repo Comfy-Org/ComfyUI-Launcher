@@ -85,6 +85,8 @@ export interface SourcePlugin {
   category: string
   hasConsole?: boolean
   skipInstall?: boolean
+  platforms?: readonly string[]
+  hidden?: boolean
   fields: readonly SourceField[]
   defaultLaunchArgs?: string
   installSteps?: readonly InstallStep[]

@@ -51,6 +51,7 @@ export const portable: SourcePlugin = {
   get label() { return t('portable.label') },
   get description() { return t('portable.desc') },
   category: 'local',
+  platforms: ['win32'],
 
   get fields() {
     return [

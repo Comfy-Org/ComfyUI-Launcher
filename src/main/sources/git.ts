@@ -35,6 +35,7 @@ export const gitSource: SourcePlugin = {
   get label() { return t('git.label') },
   get description() { return t('git.desc') },
   category: 'local',
+  hidden: true,
 
   fields: [
     { id: 'repo', label: 'Git Repository', type: 'text',
