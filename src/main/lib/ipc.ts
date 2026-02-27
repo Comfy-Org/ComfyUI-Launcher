@@ -1407,6 +1407,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
       return { ok: true, mode, port: launchCmd.port }
     }
+    // Actions that modify the pip environment require ComfyUI to be stopped
+    if (actionId === 'snapshot-restore' && _runningSessions.has(installationId)) {
+      return { ok: false, message: i18n.t('standalone.snapshotRestoreStopRequired') }
+    }
     // Delegate to source plugin's handleAction
     const sender = _event.sender
     const sendProgress = (phase: string, detail: Record<string, unknown>): void => {

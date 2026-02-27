@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { spawn } from 'child_process'
 import { readGitHead } from './git'
 import { scanCustomNodes, nodeKey } from './nodes'
 import { pipFreeze } from './pip'
@@ -426,4 +427,377 @@ export async function pruneAutoSnapshots(installPath: string, keep: number): Pro
     } catch {}
   }
   return deleted
+}
+
+// --- Pip Restore ---
+
+/**
+ * Protected packages that should not be modified during snapshot restore.
+ * Matches Manager's skip list plus core tooling.
+ *
+ * TODO: Expand by detecting packages from the PyTorch index URL rather than
+ * hardcoded names. This would automatically cover new CUDA packages without
+ * maintaining a list. Also consider computing transitive dependencies of
+ * protected packages to avoid breaking their dep chains.
+ */
+const PROTECTED_EXACT = new Set(['pip', 'setuptools', 'wheel', 'uv'])
+const PROTECTED_PREFIXES = ['torch', 'nvidia', 'triton', 'cuda']
+
+function isProtectedPackage(name: string): boolean {
+  const lower = name.toLowerCase()
+  if (PROTECTED_EXACT.has(lower)) return true
+  return PROTECTED_PREFIXES.some((prefix) => lower === prefix || lower.startsWith(prefix + '-') || lower.startsWith(prefix + '_'))
+}
+
+/** Normalize a package name for dist-info directory matching (PEP 503). */
+function normalizeDistInfoName(name: string): string {
+  return name.toLowerCase().replace(/[-_.]+/g, '_')
+}
+
+function findSitePackagesDir(envRoot: string): string | null {
+  if (process.platform === 'win32') {
+    return path.join(envRoot, 'Lib', 'site-packages')
+  }
+  const libDir = path.join(envRoot, 'lib')
+  try {
+    const pyDir = fs.readdirSync(libDir).find((d) => d.startsWith('python'))
+    if (pyDir) return path.join(libDir, pyDir, 'site-packages')
+  } catch {}
+  return null
+}
+
+/** Find a package's dist-info directory in site-packages. */
+function findDistInfoDir(sitePackages: string, packageName: string): string | null {
+  const normalized = normalizeDistInfoName(packageName)
+  try {
+    for (const entry of fs.readdirSync(sitePackages)) {
+      if (!entry.endsWith('.dist-info')) continue
+      // dist-info format: {normalized_name}-{version}.dist-info
+      // Normalized name uses _ not -, so first '-' separates name from version
+      const stem = entry.slice(0, -'.dist-info'.length)
+      const dashIdx = stem.indexOf('-')
+      if (dashIdx < 0) continue
+      const dirName = stem.slice(0, dashIdx)
+      if (normalizeDistInfoName(dirName) === normalized) {
+        return entry
+      }
+    }
+  } catch {}
+  return null
+}
+
+/**
+ * Find all directories/files in site-packages belonging to a package.
+ * Uses the RECORD file from dist-info to identify top-level entries.
+ */
+function findPackageEntries(sitePackages: string, packageName: string): string[] {
+  const entries: string[] = []
+  const distInfo = findDistInfoDir(sitePackages, packageName)
+  if (!distInfo) return entries
+
+  entries.push(distInfo)
+
+  const recordPath = path.join(sitePackages, distInfo, 'RECORD')
+  try {
+    const content = fs.readFileSync(recordPath, 'utf-8')
+    const topLevels = new Set<string>()
+    for (const line of content.split('\n')) {
+      const filePath = line.split(',')[0]?.trim()
+      if (!filePath || filePath.startsWith('..') || filePath === '') continue
+      const topLevel = filePath.replace(/\\/g, '/').split('/')[0]!
+      if (topLevel && topLevel !== distInfo) {
+        topLevels.add(topLevel)
+      }
+    }
+    for (const tl of topLevels) {
+      if (fs.existsSync(path.join(sitePackages, tl))) {
+        entries.push(tl)
+      }
+    }
+  } catch {
+    // Fallback: look for common name patterns
+    const normalized = normalizeDistInfoName(packageName)
+    for (const suffix of ['', '.py', '.libs', '.data']) {
+      const candidate = normalized + suffix
+      if (fs.existsSync(path.join(sitePackages, candidate)) && !entries.includes(candidate)) {
+        entries.push(candidate)
+      }
+    }
+  }
+
+  return entries
+}
+
+/**
+ * Create a targeted backup of specific packages from site-packages.
+ * Only backs up directories/files that belong to the listed packages.
+ */
+async function createTargetedBackup(sitePackages: string, packageNames: string[]): Promise<string> {
+  const backupDir = path.join(path.dirname(sitePackages), `.restore-backup-${Date.now()}`)
+  await fs.promises.mkdir(backupDir, { recursive: true })
+
+  const failures: string[] = []
+  for (const pkg of packageNames) {
+    const pkgEntries = findPackageEntries(sitePackages, pkg)
+    for (const entry of pkgEntries) {
+      const src = path.join(sitePackages, entry)
+      const dst = path.join(backupDir, entry)
+      try {
+        const stat = fs.statSync(src)
+        if (stat.isDirectory()) {
+          fs.cpSync(src, dst, { recursive: true })
+        } else {
+          await fs.promises.mkdir(path.dirname(dst), { recursive: true })
+          await fs.promises.copyFile(src, dst)
+        }
+      } catch (err) {
+        failures.push(`${entry}: ${(err as Error).message}`)
+      }
+    }
+  }
+
+  if (failures.length > 0) {
+    // Clean up incomplete backup
+    await fs.promises.rm(backupDir, { recursive: true, force: true }).catch(() => {})
+    throw new Error(`Backup failed for ${failures.length} entry(s): ${failures.join('; ')}`)
+  }
+
+  return backupDir
+}
+
+/** Restore backed-up package files to site-packages. */
+async function restoreFromBackup(backupDir: string, sitePackages: string): Promise<void> {
+  try {
+    const entries = await fs.promises.readdir(backupDir)
+    for (const entry of entries) {
+      const src = path.join(backupDir, entry)
+      const dst = path.join(sitePackages, entry)
+      await fs.promises.rm(dst, { recursive: true, force: true }).catch(() => {})
+      const stat = fs.statSync(src)
+      if (stat.isDirectory()) {
+        fs.cpSync(src, dst, { recursive: true })
+      } else {
+        await fs.promises.copyFile(src, dst)
+      }
+    }
+  } catch (err) {
+    console.error('Failed to restore from backup:', (err as Error).message)
+  }
+}
+
+/** Run a uv pip command and stream output. Returns the exit code. */
+function runUvPip(
+  uvPath: string,
+  args: string[],
+  cwd: string,
+  sendOutput: (text: string) => void
+): Promise<number> {
+  return new Promise<number>((resolve) => {
+    const proc = spawn(uvPath, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+    proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
+    proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
+    proc.on('error', (err) => {
+      sendOutput(`Error: ${err.message}\n`)
+      resolve(1)
+    })
+    proc.on('exit', (code) => resolve(code ?? 1))
+  })
+}
+
+export interface RestoreResult {
+  installed: string[]
+  removed: string[]
+  changed: Array<{ name: string; from: string; to: string }>
+  protectedSkipped: string[]
+  failed: string[]
+  errors: string[]
+}
+
+/**
+ * Restore pip packages to match a target snapshot.
+ * Creates a targeted backup of affected packages before making changes.
+ * On failure, reverts from backup.
+ */
+export async function restorePipPackages(
+  installPath: string,
+  installation: InstallationRecord,
+  targetSnapshot: Snapshot,
+  sendProgress: (phase: string, data: Record<string, unknown>) => void,
+  sendOutput: (text: string) => void
+): Promise<RestoreResult> {
+  const result: RestoreResult = {
+    installed: [], removed: [], changed: [],
+    protectedSkipped: [], failed: [], errors: [],
+  }
+
+  const uvPath = getUvPath(installPath)
+  const pythonPath = getActivePythonPath(installation)
+  if (!pythonPath || !fs.existsSync(uvPath)) {
+    throw new Error('Python environment or uv not found')
+  }
+
+  // 1. Capture current pip state
+  sendProgress('restore', { percent: 5, status: 'Analyzing current environment…' })
+  const currentPips = await pipFreeze(uvPath, pythonPath)
+  const targetPips = targetSnapshot.pipPackages
+
+  // 2. Compute what needs to change
+  const toInstall: Array<{ name: string; version: string }> = []
+  const toRemove: string[] = []
+
+  for (const [name, version] of Object.entries(targetPips)) {
+    if (isProtectedPackage(name)) {
+      if (!(name in currentPips) || currentPips[name] !== version) {
+        result.protectedSkipped.push(name)
+      }
+      continue
+    }
+    // Skip non-standard versions (editable installs, direct references)
+    if (version.startsWith('-e ') || version.includes('://')) continue
+
+    if (!(name in currentPips)) {
+      toInstall.push({ name, version })
+    } else if (currentPips[name] !== version) {
+      result.changed.push({ name, from: currentPips[name]!, to: version })
+      toInstall.push({ name, version })
+    }
+  }
+
+  for (const name of Object.keys(currentPips)) {
+    if (!(name in targetPips)) {
+      if (isProtectedPackage(name)) {
+        result.protectedSkipped.push(name)
+      } else {
+        toRemove.push(name)
+      }
+    }
+  }
+
+  if (toInstall.length === 0 && toRemove.length === 0) {
+    return result
+  }
+
+  // 3. Create targeted backup of packages that will be modified or removed
+  sendProgress('restore', { percent: 10, status: 'Creating backup of affected packages…' })
+  const envName = (installation.activeEnv as string | undefined) || 'default'
+  const envDir = path.join(installPath, 'envs', envName)
+  const sitePackages = findSitePackagesDir(envDir)
+  if (!sitePackages) {
+    throw new Error('Could not locate site-packages directory')
+  }
+
+  const packagesToBackup = [
+    ...toInstall.filter((p) => p.name in currentPips).map((p) => p.name),
+    ...toRemove,
+  ]
+
+  let backupDir: string | null = null
+  if (packagesToBackup.length > 0) {
+    backupDir = await createTargetedBackup(sitePackages, packagesToBackup)
+  }
+
+  try {
+    // 4. Install missing + upgrade/downgrade changed packages
+    if (toInstall.length > 0) {
+      const totalOps = toInstall.length + toRemove.length
+      sendProgress('restore', { percent: 20, status: `Installing ${toInstall.length} package(s)…` })
+
+      const specs = toInstall.map((p) => `${p.name}==${p.version}`)
+
+      // Try bulk install first
+      sendOutput(`\nInstalling ${specs.length} package(s)…\n`)
+      const bulkResult = await runUvPip(uvPath, ['pip', 'install', ...specs, '--python', pythonPath], installPath, sendOutput)
+
+      if (bulkResult !== 0) {
+        sendOutput('\n⚠ Bulk install failed, falling back to one-by-one with --no-deps\n\n')
+
+        for (let i = 0; i < specs.length; i++) {
+          const spec = specs[i]!
+          const name = toInstall[i]!.name
+          const percent = 20 + Math.round((i / totalOps) * 50)
+          sendProgress('restore', { percent, status: `Installing ${name}…` })
+
+          const singleResult = await runUvPip(
+            uvPath, ['pip', 'install', spec, '--no-deps', '--python', pythonPath], installPath, sendOutput
+          )
+
+          if (singleResult !== 0) {
+            result.failed.push(name)
+            result.errors.push(`Failed to install ${spec}`)
+          } else if (!result.changed.some((c) => c.name === name)) {
+            result.installed.push(name)
+          }
+        }
+      } else {
+        for (const p of toInstall) {
+          if (!result.changed.some((c) => c.name === p.name)) {
+            result.installed.push(p.name)
+          }
+        }
+      }
+    }
+
+    // 5. Remove extra packages (present in current but absent from snapshot)
+    if (toRemove.length > 0) {
+      sendProgress('restore', { percent: 75, status: `Removing ${toRemove.length} extra package(s)…` })
+      sendOutput(`\nRemoving ${toRemove.length} extra package(s)…\n`)
+
+      const removeResult = await runUvPip(
+        uvPath, ['pip', 'uninstall', ...toRemove, '--python', pythonPath], installPath, sendOutput
+      )
+
+      if (removeResult === 0) {
+        result.removed.push(...toRemove)
+      } else {
+        for (const name of toRemove) {
+          const singleResult = await runUvPip(
+            uvPath, ['pip', 'uninstall', name, '--python', pythonPath], installPath, sendOutput
+          )
+          if (singleResult === 0) {
+            result.removed.push(name)
+          } else {
+            result.failed.push(name)
+            result.errors.push(`Failed to remove ${name}`)
+          }
+        }
+      }
+    }
+
+    // 6. If there were failures, revert the entire operation
+    if (result.failed.length > 0 && backupDir) {
+      sendProgress('restore', { percent: 90, status: 'Reverting due to failures…' })
+      sendOutput('\n⚠ Some operations failed. Reverting from backup…\n')
+      await restoreFromBackup(backupDir, sitePackages)
+
+      // Also uninstall any newly installed packages (weren't in current state)
+      const newlyInstalled = result.installed
+      if (newlyInstalled.length > 0) {
+        await runUvPip(
+          uvPath, ['pip', 'uninstall', ...newlyInstalled, '--python', pythonPath], installPath, sendOutput
+        ).catch(() => {})
+      }
+
+      result.installed = []
+      result.removed = []
+      result.changed = []
+      result.errors.push('Restore reverted to pre-restore state due to failures')
+    }
+  } catch (err) {
+    // Catastrophic failure — revert
+    if (backupDir) {
+      sendOutput(`\n⚠ Restore failed: ${(err as Error).message}\nReverting from backup…\n`)
+      await restoreFromBackup(backupDir, sitePackages)
+    }
+    throw err
+  } finally {
+    if (backupDir) {
+      await fs.promises.rm(backupDir, { recursive: true, force: true }).catch(() => {})
+    }
+  }
+
+  return result
 }
