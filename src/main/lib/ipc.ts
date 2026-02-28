@@ -93,6 +93,26 @@ async function uniqueName(baseName: string): Promise<string> {
   return installations.uniqueName(baseName, all)
 }
 
+/** Re-assign primary to the first remaining local install, or clear it. */
+async function autoAssignPrimary(removedId: string): Promise<void> {
+  const currentPrimary = settings.get('primaryInstallId') as string | undefined
+  if (currentPrimary !== removedId) return
+  const all = (await installations.list()).filter((i) => i.id !== removedId)
+  const firstLocal = all.find((i) => {
+    const source = sourceMap[i.sourceId]
+    return source && source.category === 'local'
+  })
+  settings.set('primaryInstallId', firstLocal?.id ?? null)
+}
+
+/** Set as primary if this is the first local install and no primary is set. */
+function ensureDefaultPrimary(entry: InstallationRecord): void {
+  const source = sourceMap[entry.sourceId]
+  if (source && source.category === 'local' && !settings.get('primaryInstallId')) {
+    settings.set('primaryInstallId', entry.id)
+  }
+}
+
 interface SessionInfo {
   proc: ChildProcess | null
   port: number
@@ -458,6 +478,20 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   // Installations
   ipcMain.handle('get-installations', async () => {
     const list = await installations.list()
+
+    // Ensure a primary is always set when local installs exist
+    const currentPrimary = settings.get('primaryInstallId') as string | undefined
+    if (!currentPrimary || !list.some((i) => i.id === currentPrimary)) {
+      const firstLocal = list.find((i) => {
+        const s = sourceMap[i.sourceId]
+        return s && s.category === 'local'
+      })
+      const newPrimary = firstLocal?.id ?? null
+      if (currentPrimary !== newPrimary) {
+        settings.set('primaryInstallId', newPrimary)
+      }
+    }
+
     return list.map((inst) => {
       const source = sourceMap[inst.sourceId]
       if (!source) return inst
@@ -498,7 +532,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         return { ok: false, message: `That directory is already used by "${duplicate.name}".` }
       }
     }
-    return { ok: true, entry: await installations.add({ ...data, seen: false }) }
+    const entry = await installations.add({ ...data, seen: false })
+    ensureDefaultPrimary(entry)
+    return { ok: true, entry }
   })
 
   ipcMain.handle('reorder-installations', async (_event, orderedIds: string[]) => {
@@ -532,6 +568,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       return { ok: false, message: `Cannot write to directory: ${(err as Error).message}` }
     }
     const entry = await installations.add({ ...data, status: 'installed', seen: false })
+    ensureDefaultPrimary(entry)
     return { ok: true, entry }
   })
 
@@ -827,6 +864,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const inst = await resolveInstallation(installationId)
     if (actionId === 'remove') {
       await installations.remove(installationId)
+      await autoAssignPrimary(installationId)
       const pinned = (settings.get('pinnedInstallIds') as string[] | undefined) ?? []
       if (pinned.includes(installationId)) {
         settings.set('pinnedInstallIds', pinned.filter((id) => id !== installationId))
@@ -852,6 +890,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     if (actionId === 'delete') {
       if (!fs.existsSync(inst.installPath)) {
         await installations.remove(installationId)
+        await autoAssignPrimary(installationId)
         return { ok: true, navigate: 'list' }
       }
       if (_operationAborts.has(installationId)) {
@@ -897,6 +936,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
       _operationAborts.delete(installationId)
       await installations.remove(installationId)
+      await autoAssignPrimary(installationId)
       return { ok: true, navigate: 'list' }
     }
     if (actionId === 'open-folder') {

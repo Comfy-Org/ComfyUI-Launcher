@@ -48,6 +48,7 @@ const primaryInstall = computed(() => {
     const found = localInstalls.value.find((i) => i.id === prefs.primaryInstallId.value)
     if (found) return found
   }
+  // Temporary fallback while the main process reassigns primary
   return localInstalls.value[0] ?? null
 })
 
