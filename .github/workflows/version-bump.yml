@@ -1,0 +1,131 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Branch to update
+        required: true
+        type: string
+        default: main
+      bump:
+        description: Which segment to bump
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      push_tag:
+        description: Create and push a matching v<version> tag
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: version-bump-${{ github.event.inputs.target_branch }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    name: Bump package.json Version
+
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.target_branch }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump package.json version
+        id: bump
+        env:
+          BUMP_TYPE: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          OLD_VERSION="$(node -p "require('./package.json').version")"
+          NEW_VERSION="$(node <<'NODE'
+          const fs = require('node:fs')
+
+          const bumpType = process.env.BUMP_TYPE
+          const pkgPath = 'package.json'
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+          const match = String(pkg.version).match(/^(\d+)\.(\d+)\.(\d+)$/)
+
+          if (!match) {
+            throw new Error(`Unsupported version format: ${pkg.version}`)
+          }
+
+          let major = Number(match[1])
+          let minor = Number(match[2])
+          let patch = Number(match[3])
+
+          if (bumpType === 'major') {
+            major += 1
+            minor = 0
+            patch = 0
+          } else if (bumpType === 'minor') {
+            minor += 1
+            patch = 0
+          } else if (bumpType === 'patch') {
+            patch += 1
+          } else {
+            throw new Error(`Unsupported bump type: ${bumpType}`)
+          }
+
+          const nextVersion = `${major}.${minor}.${patch}`
+          pkg.version = nextVersion
+          fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
+          process.stdout.write(nextVersion)
+          NODE
+          )"
+
+          echo "old_version=${OLD_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Bumped version ${OLD_VERSION} -> ${NEW_VERSION}"
+
+      - name: Commit and push version change
+        env:
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- package.json; then
+            echo "No changes detected in package.json."
+            exit 1
+          fi
+
+          git add package.json
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Create and push version tag
+        if: ${{ inputs.push_tag }}
+        run: |
+          set -euo pipefail
+
+          TAG="v${{ steps.bump.outputs.new_version }}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists on origin."
+            exit 1
+          fi
+
+          git tag "${TAG}"
+          git push origin "${TAG}"
