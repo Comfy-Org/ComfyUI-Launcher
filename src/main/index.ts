@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain } from 'electron'
 import path from 'path'
 import type { ChildProcess } from 'child_process'
+import todesktop from '@todesktop/runtime'
 import * as ipc from './lib/ipc'
 import * as updater from './lib/updater'
 import * as settings from './settings'
@@ -8,6 +9,8 @@ import * as i18n from './lib/i18n'
 import { migrateXdgPaths } from './lib/paths'
 import { waitForPort } from './lib/process'
 import type { InstallationRecord } from './installations'
+
+todesktop.init({ autoUpdater: false })
 
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x256.png')
 const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x32.png')

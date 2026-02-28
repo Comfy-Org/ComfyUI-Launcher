@@ -1,0 +1,40 @@
+{
+  "id": "241130tqe9q3y",
+  "schemaVersion": 1,
+  "appPath": ".",
+  "appFiles": [
+    "**",
+    "!electron-builder.yml"
+  ],
+  "appId": "org.comfy.comfyui-launcher",
+  "icon": "./assets/Comfy_Logo_x512.png",
+  "packageManager": "pnpm",
+  "packageJson": {
+    "extends": "package.json",
+    "productName": "ComfyUI Launcher",
+    "devDependencies": {
+      "electron": "40.4.1",
+      "electron-builder": null
+    }
+  },
+  "extraResources": [
+    {
+      "from": "./lib",
+      "to": "lib"
+    }
+  ],
+  "asarUnpack": [
+    "node_modules/7zip-bin/**/*"
+  ],
+  "windows": {
+    "icon": "./assets/Comfy_Logo_x256.png"
+  },
+  "mac": {
+    "icon": "./assets/Comfy_Logo_x512.png",
+    "category": "public.app-category.graphics-design"
+  },
+  "linux": {
+    "icon": "./assets/Comfy_Logo_x256.png",
+    "category": "AudioVideo;Graphics;3DGraphics;"
+  }
+}
