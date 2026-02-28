@@ -27,10 +27,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: pnpm
 
       - name: Validate ToDesktop credentials
         run: |
@@ -38,6 +44,12 @@ jobs:
             echo "TODESKTOP_EMAIL and TODESKTOP_ACCESS_TOKEN must be set in repository secrets."
             exit 1
           fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app
+        run: pnpm run build
 
       - name: Ensure tag matches package.json version
         if: startsWith(github.ref, 'refs/tags/v')
