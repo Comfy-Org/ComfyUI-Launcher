@@ -14,9 +14,6 @@
     "changePrimary": "Change",
     "setPrimary": "Set as Primary",
     "cloudSection": "ComfyUI Cloud",
-    "allInstalls": "All Installs",
-    "viewAllInstalls": "View All",
-    "installCount": "{count} Install | {count} Installs",
     "pinned": "Pinned",
     "pinToDashboard": "Pin to Dashboard",
     "unpinFromDashboard": "Unpin from Dashboard"

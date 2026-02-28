@@ -662,17 +662,6 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   display: flex; justify-content: space-between; align-items: center;
 }
 
-/* All Installs summary */
-.dashboard-summary-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 14px 20px;
-  display: flex; justify-content: space-between; align-items: center;
-}
-.dashboard-summary-count {
-  font-size: 20px; font-weight: 700; color: var(--text);
-  line-height: 1;
-}
-
 /* Model directory cards */
 .dir-card-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .dir-card {

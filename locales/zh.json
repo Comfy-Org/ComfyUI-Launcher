@@ -15,9 +15,6 @@
     "changePrimary": "更改",
     "setPrimary": "设为主要",
     "cloudSection": "ComfyUI 云",
-    "allInstalls": "所有安装",
-    "viewAllInstalls": "查看全部",
-    "installCount": "{count} 个安装",
     "pinned": "已固定",
     "pinToDashboard": "固定到仪表盘",
     "unpinFromDashboard": "从仪表盘取消固定"

@@ -33,7 +33,7 @@ const emit = defineEmits<{
     apiCall: () => Promise<unknown>
     cancellable?: boolean
   }]
-  'show-list': []
+
 }>()
 
 const { ctxMenu, ctxMenuItems, openCardMenu, handleCtxMenuSelect, closeMenu } =
@@ -81,11 +81,6 @@ const pinnedInstalls = computed(() => {
     .map((id) => installationStore.installations.find((i) => i.id === id))
     .filter((i): i is Installation => !!i && i.sourceCategory !== 'cloud' && !excludeIds.has(i.id))
 })
-
-// --- Non-cloud installs for summary ---
-const nonCloudInstalls = computed(() =>
-  installationStore.installations.filter((i) => i.sourceCategory !== 'cloud')
-)
 
 // --- Actions for cards (separate generation counters) ---
 const primaryActions = ref<ListAction[]>([])
@@ -390,14 +385,6 @@ async function changePrimary(): Promise<void> {
         </div>
       </div>
 
-      <!-- All Installs summary -->
-      <div v-if="nonCloudInstalls.length > 0" class="dashboard-section">
-        <div class="dashboard-section-label">{{ $t('dashboard.allInstalls') }}</div>
-        <div class="dashboard-summary-card">
-          <span class="dashboard-summary-count">{{ $t('dashboard.installCount', nonCloudInstalls.length) }}</span>
-          <button @click="emit('show-list')">{{ $t('dashboard.viewAllInstalls') }}</button>
-        </div>
-      </div>
     </div>
 
     <!-- Context menu -->
