@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
@@ -300,7 +300,7 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     emit('show-progress', {
       installationId: instId,
       title,
-      apiCall: () => window.api.runAction(instId, mutableAction.id, mutableAction.data),
+      apiCall: () => window.api.runAction(instId, mutableAction.id, mutableAction.data ? toRaw(mutableAction.data) : undefined),
       cancellable: !!mutableAction.cancellable,
       returnTo: 'detail'
     })
@@ -318,7 +318,7 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     const result = await window.api.runAction(
       props.installation.id,
       mutableAction.id,
-      mutableAction.data
+      mutableAction.data ? toRaw(mutableAction.data) : undefined
     )
     if (result.navigate === 'list') {
       emit('close')

@@ -1412,23 +1412,24 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       return { ok: false, message: i18n.t('standalone.snapshotRestoreStopRequired') }
     }
     // Delegate to source plugin's handleAction
+    const abort = new AbortController()
+    _operationAborts.set(installationId, abort)
     const sender = _event.sender
     const sendProgress = (phase: string, detail: Record<string, unknown>): void => {
-      if (!sender.isDestroyed()) {
-        sender.send('install-progress', { installationId, phase, ...detail })
-      }
+      try { if (!sender.isDestroyed()) sender.send('install-progress', { installationId, phase, ...detail }) } catch {}
     }
     const sendOutput = (text: string): void => {
-      if (!sender.isDestroyed()) {
-        sender.send('comfy-output', { installationId, text })
-      }
+      try { if (!sender.isDestroyed()) sender.send('comfy-output', { installationId, text }) } catch {}
     }
     const update = (data: Record<string, unknown>): Promise<void> =>
       installations.update(installationId, data).then(() => {})
     try {
-      return await resolveSource(inst.sourceId).handleAction(actionId, inst, actionData, { update, sendProgress, sendOutput })
+      return await resolveSource(inst.sourceId).handleAction(actionId, inst, actionData, { update, sendProgress, sendOutput, signal: abort.signal })
     } catch (err) {
+      if (abort.signal.aborted) return { ok: false, message: 'Cancelled' }
       return { ok: false, message: (err as Error).message }
+    } finally {
+      _operationAborts.delete(installationId)
     }
   })
 }

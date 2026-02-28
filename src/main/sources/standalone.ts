@@ -356,7 +356,7 @@ export const standalone: SourcePlugin = {
           actions: i === 0 ? [] : [
             { id: 'snapshot-restore', label: t('standalone.snapshotRestore'),
               data: { file: s.filename },
-              showProgress: true, progressTitle: t('standalone.snapshotRestoringTitle'),
+              showProgress: true, progressTitle: t('standalone.snapshotRestoringTitle'), cancellable: true,
               confirm: { title: t('standalone.snapshotRestoreTitle'), message: t('standalone.snapshotRestoreMessage') } },
             { id: 'snapshot-delete', label: t('standalone.snapshotDelete'), style: 'danger',
               data: { file: s.filename },
@@ -640,23 +640,29 @@ export const standalone: SourcePlugin = {
       const file = actionData?.file as string | undefined
       if (!file) return { ok: false, message: 'No snapshot file specified.' }
 
-      const targetSnapshot = await snapshots.loadSnapshot(installation.installPath, file)
-
       sendProgress('steps', { steps: [
         { phase: 'restore-nodes', label: t('standalone.snapshotRestoreNodesPhase') },
         { phase: 'restore-pip', label: t('standalone.snapshotRestorePipPhase') },
       ] })
+      sendProgress('restore-nodes', { percent: 0, status: 'Loading snapshot…' })
+      sendOutput('Loading snapshot…\n')
+
+      const targetSnapshot = await snapshots.loadSnapshot(installation.installPath, file)
 
       // Phase 3: Restore custom nodes first (node installs may add pip dependencies)
+      sendOutput('\n── Restore Nodes ──\n')
       const nodeResult = await snapshots.restoreCustomNodes(
-        installation.installPath, installation, targetSnapshot, sendProgress, sendOutput
+        installation.installPath, installation, targetSnapshot, sendProgress, sendOutput, signal
       )
 
+      if (signal?.aborted) return { ok: false, message: 'Cancelled' }
+
       // Phase 2: Restore pip packages (syncs to exact target state)
+      sendOutput('\n── Restore Packages ──\n')
       const pipResult = await snapshots.restorePipPackages(
         installation.installPath, installation, targetSnapshot,
         (phase, data) => sendProgress(phase === 'restore' ? 'restore-pip' : phase, data),
-        sendOutput
+        sendOutput, signal
       )
 
       // Build combined summary

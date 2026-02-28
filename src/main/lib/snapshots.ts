@@ -628,7 +628,8 @@ export async function restorePipPackages(
   installation: InstallationRecord,
   targetSnapshot: Snapshot,
   sendProgress: (phase: string, data: Record<string, unknown>) => void,
-  sendOutput: (text: string) => void
+  sendOutput: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<RestoreResult> {
   const result: RestoreResult = {
     installed: [], removed: [], changed: [],
@@ -643,8 +644,12 @@ export async function restorePipPackages(
 
   // 1. Capture current pip state
   sendProgress('restore', { percent: 5, status: 'Analyzing current environment…' })
+  sendOutput('\nAnalyzing pip packages…\n')
   const currentPips = await pipFreeze(uvPath, pythonPath)
   const targetPips = targetSnapshot.pipPackages
+  const currentCount = Object.keys(currentPips).length
+  const targetCount = Object.keys(targetPips).length
+  sendOutput(`Found ${currentCount} current package(s), target snapshot has ${targetCount}\n`)
 
   // 2. Compute what needs to change
   const toInstall: Array<{ name: string; version: string }> = []
@@ -678,6 +683,19 @@ export async function restorePipPackages(
     }
   }
 
+  // Print the plan
+  const newPkgs = toInstall.filter((p) => !result.changed.some((c) => c.name === p.name))
+  const pipPlanParts: string[] = []
+  if (newPkgs.length > 0) pipPlanParts.push(`install ${newPkgs.length}`)
+  if (result.changed.length > 0) pipPlanParts.push(`change ${result.changed.length}`)
+  if (toRemove.length > 0) pipPlanParts.push(`remove ${toRemove.length}`)
+  if (result.protectedSkipped.length > 0) pipPlanParts.push(`${result.protectedSkipped.length} protected (skipped)`)
+  if (pipPlanParts.length > 0) {
+    sendOutput(`\nPlan: ${pipPlanParts.join(', ')} package(s)\n\n`)
+  } else {
+    sendOutput('\nNo package changes needed\n')
+  }
+
   if (toInstall.length === 0 && toRemove.length === 0) {
     return result
   }
@@ -703,7 +721,7 @@ export async function restorePipPackages(
 
   try {
     // 4. Install missing + upgrade/downgrade changed packages
-    if (toInstall.length > 0) {
+    if (toInstall.length > 0 && !signal?.aborted) {
       const totalOps = toInstall.length + toRemove.length
       sendProgress('restore', { percent: 20, status: `Installing ${toInstall.length} package(s)…` })
 
@@ -717,6 +735,7 @@ export async function restorePipPackages(
         sendOutput('\n⚠ Bulk install failed, falling back to one-by-one with --no-deps\n\n')
 
         for (let i = 0; i < specs.length; i++) {
+          if (signal?.aborted) break
           const spec = specs[i]!
           const name = toInstall[i]!.name
           const percent = 20 + Math.round((i / totalOps) * 50)
@@ -743,7 +762,7 @@ export async function restorePipPackages(
     }
 
     // 5. Remove extra packages (present in current but absent from snapshot)
-    if (toRemove.length > 0) {
+    if (toRemove.length > 0 && !signal?.aborted) {
       sendProgress('restore', { percent: 75, status: `Removing ${toRemove.length} extra package(s)…` })
       sendOutput(`\nRemoving ${toRemove.length} extra package(s)…\n`)
 
@@ -890,7 +909,8 @@ export async function restoreCustomNodes(
   installation: InstallationRecord,
   targetSnapshot: Snapshot,
   sendProgress: (phase: string, data: Record<string, unknown>) => void,
-  sendOutput: (text: string) => void
+  sendOutput: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<NodeRestoreResult> {
   const result: NodeRestoreResult = {
     installed: [], switched: [], enabled: [], disabled: [],
@@ -902,9 +922,11 @@ export async function restoreCustomNodes(
 
   // 1. Scan current custom nodes
   sendProgress('restore-nodes', { percent: 5, status: 'Scanning custom nodes…' })
+  sendOutput('Scanning current custom nodes…\n')
   const currentNodes = await scanCustomNodes(comfyuiDir)
   const currentByKey = new Map(currentNodes.map((n) => [nodeKey(n), n]))
   const targetByKey = new Map(targetSnapshot.customNodes.map((n) => [nodeKey(n), n]))
+  sendOutput(`Found ${currentNodes.length} current node(s), target snapshot has ${targetSnapshot.customNodes.length}\n`)
 
   // Check git availability for git node operations
   const needsGit = targetSnapshot.customNodes.some((n) =>
@@ -918,8 +940,47 @@ export async function restoreCustomNodes(
     sendOutput('⚠ git is not available in PATH — git node operations will be skipped\n')
   }
 
+  // Compute and print the plan
+  const toDisable: string[] = []
+  const toInstallNodes: string[] = []
+  const toSwitch: string[] = []
+  const toEnable: string[] = []
+  for (const [key, currentNode] of currentByKey) {
+    if (isManagerNode(currentNode)) continue
+    if (!targetByKey.has(key) && currentNode.enabled) toDisable.push(currentNode.id)
+  }
+  for (const targetNode of targetSnapshot.customNodes) {
+    if (isManagerNode(targetNode)) continue
+    const currentNode = currentByKey.get(nodeKey(targetNode))
+    if (!currentNode) {
+      if (targetNode.type !== 'file') toInstallNodes.push(targetNode.id)
+    } else if (!currentNode.enabled && targetNode.enabled) {
+      toEnable.push(targetNode.id)
+    } else if (currentNode.enabled && !targetNode.enabled) {
+      toDisable.push(targetNode.id)
+    } else if (targetNode.enabled || currentNode.enabled) {
+      if (targetNode.type === 'cnr' && targetNode.version && currentNode.version !== targetNode.version) {
+        toSwitch.push(targetNode.id)
+      } else if (targetNode.type === 'git' && targetNode.commit && currentNode.commit !== targetNode.commit) {
+        toSwitch.push(targetNode.id)
+      }
+    }
+  }
+
+  const planParts: string[] = []
+  if (toInstallNodes.length > 0) planParts.push(`install ${toInstallNodes.length}`)
+  if (toSwitch.length > 0) planParts.push(`switch ${toSwitch.length}`)
+  if (toEnable.length > 0) planParts.push(`enable ${toEnable.length}`)
+  if (toDisable.length > 0) planParts.push(`disable ${toDisable.length}`)
+  if (planParts.length > 0) {
+    sendOutput(`\nPlan: ${planParts.join(', ')} node(s)\n\n`)
+  } else {
+    sendOutput('\nNo node changes needed\n')
+  }
+
   // 2. Disable extras: enabled nodes not in target
   for (const [key, currentNode] of currentByKey) {
+    if (signal?.aborted) break
     if (isManagerNode(currentNode)) continue
     if (!targetByKey.has(key) && currentNode.enabled) {
       try {
@@ -937,6 +998,7 @@ export async function restoreCustomNodes(
   const nodesNeedingPostInstall: string[] = []
 
   for (let i = 0; i < targetList.length; i++) {
+    if (signal?.aborted) break
     const targetNode = targetList[i]!
     const key = nodeKey(targetNode)
     const currentNode = currentByKey.get(key)

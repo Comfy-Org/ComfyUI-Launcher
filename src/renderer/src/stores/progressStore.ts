@@ -131,11 +131,33 @@ export const useProgressStore = defineStore('progress', () => {
       rop.terminalOutput += data.text
     })
 
-    apiCall()
+    const cleanupRop = (): void => {
+      if (rop.unsubProgress) rop.unsubProgress()
+      if (rop.unsubOutput) rop.unsubOutput()
+      rop.unsubProgress = null
+      rop.unsubOutput = null
+    }
+
+    let p: Promise<ActionResult>
+    try {
+      p = apiCall()
+    } catch (err) {
+      rop.error = (err as Error).message || t('progress.unknownError')
+      rop.finished = true
+      cleanupRop()
+      sessionStore.clearActiveSession(installationId)
+      sessionStore.errorInstances.set(installationId, {
+        installationName: rop.title,
+        message: rop.error,
+      })
+      return
+    }
+
+    p
       .then((result) => {
         rop.finished = true
         if (result.ok) rop.result = result
-        cleanupOperation(installationId)
+        cleanupRop()
 
         if (result.ok) {
           sessionStore.clearActiveSession(installationId)
@@ -154,7 +176,7 @@ export const useProgressStore = defineStore('progress', () => {
       .catch((err: Error) => {
         rop.error = err.message
         rop.finished = true
-        cleanupOperation(installationId)
+        cleanupRop()
         sessionStore.clearActiveSession(installationId)
         sessionStore.errorInstances.set(installationId, {
           installationName: rop.title,
