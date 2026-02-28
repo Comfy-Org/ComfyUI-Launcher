@@ -96,7 +96,7 @@ async function uniqueName(baseName: string): Promise<string> {
 async function autoAssignPrimary(removedId: string): Promise<void> {
   const currentPrimary = settings.get('primaryInstallId') as string | undefined
   if (currentPrimary !== removedId) return
-  const all = await installations.list()
+  const all = (await installations.list()).filter((i) => i.id !== removedId)
   const firstLocal = all.find((i) => {
     const source = sourceMap[i.sourceId]
     return source && source.category === 'local'
@@ -485,7 +485,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         const s = sourceMap[i.sourceId]
         return s && s.category === 'local'
       })
-      settings.set('primaryInstallId', firstLocal?.id ?? null)
+      const newPrimary = firstLocal?.id ?? null
+      if (currentPrimary !== newPrimary) {
+        settings.set('primaryInstallId', newPrimary)
+      }
     }
 
     return list.map((inst) => {
