@@ -354,6 +354,10 @@ export const standalone: SourcePlugin = {
         items: snapshotEntries.slice(0, 20).map((s, i) => ({
           label: formatLabel(s, i === 0),
           actions: i === 0 ? [] : [
+            { id: 'snapshot-restore', label: t('standalone.snapshotRestore'),
+              data: { file: s.filename },
+              showProgress: true, progressTitle: t('standalone.snapshotRestoringTitle'),
+              confirm: { title: t('standalone.snapshotRestoreTitle'), message: t('standalone.snapshotRestoreMessage') } },
             { id: 'snapshot-delete', label: t('standalone.snapshotDelete'), style: 'danger',
               data: { file: s.filename },
               confirm: { title: t('standalone.snapshotDeleteTitle'), message: t('standalone.snapshotDeleteMessage') } },
@@ -582,7 +586,8 @@ export const standalone: SourcePlugin = {
     // Capture initial snapshot so the detail view shows "Current" immediately
     try {
       const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'boot')
-      await update({ lastSnapshot: filename, snapshotCount: 1 })
+      const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
+      await update({ lastSnapshot: filename, snapshotCount })
     } catch (err) {
       console.warn('Initial snapshot failed:', err)
     }
@@ -626,7 +631,53 @@ export const standalone: SourcePlugin = {
     if (actionId === 'snapshot-save') {
       const label = (actionData?.label as string | undefined) || undefined
       const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'manual', label)
-      await update({ lastSnapshot: filename, snapshotCount: ((installation.snapshotCount as number) || 0) + 1 })
+      const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
+      await update({ lastSnapshot: filename, snapshotCount })
+      return { ok: true, navigate: 'detail' }
+    }
+
+    if (actionId === 'snapshot-restore') {
+      const file = actionData?.file as string | undefined
+      if (!file) return { ok: false, message: 'No snapshot file specified.' }
+
+      const targetSnapshot = await snapshots.loadSnapshot(installation.installPath, file)
+
+      sendProgress('steps', { steps: [
+        { phase: 'restore', label: t('standalone.snapshotRestorePhase') },
+      ] })
+
+      const result = await snapshots.restorePipPackages(
+        installation.installPath, installation, targetSnapshot, sendProgress, sendOutput
+      )
+
+      // Build summary
+      const summary: string[] = []
+      if (result.installed.length > 0) summary.push(`${result.installed.length} installed`)
+      if (result.changed.length > 0) summary.push(`${result.changed.length} changed`)
+      if (result.removed.length > 0) summary.push(`${result.removed.length} removed`)
+      if (result.protectedSkipped.length > 0) summary.push(`${result.protectedSkipped.length} protected (skipped)`)
+      if (result.failed.length > 0) summary.push(`${result.failed.length} failed`)
+
+      if (summary.length === 0) {
+        sendOutput(`\n✓ ${t('standalone.snapshotRestoreNothingToDo')}\n`)
+        sendProgress('done', { percent: 100, status: t('standalone.snapshotRestoreNothingToDo') })
+        return { ok: true, navigate: 'detail' }
+      }
+
+      sendOutput(`\n${result.failed.length > 0 ? '⚠' : '✓'} ${t('standalone.snapshotRestoreComplete')}: ${summary.join(', ')}\n`)
+
+      if (result.failed.length > 0) {
+        return { ok: false, message: t('standalone.snapshotRestoreReverted') }
+      }
+
+      // Capture a new snapshot reflecting the restored state
+      try {
+        const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'manual', 'after-restore')
+        const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
+        await update({ lastSnapshot: filename, snapshotCount })
+      } catch {}
+
+      sendProgress('done', { percent: 100, status: t('standalone.snapshotRestoreComplete') })
       return { ok: true, navigate: 'detail' }
     }
 
@@ -634,6 +685,10 @@ export const standalone: SourcePlugin = {
       const file = actionData?.file as string | undefined
       if (!file) return { ok: false, message: 'No snapshot file specified.' }
       await snapshots.deleteSnapshot(installation.installPath, file)
+      const remaining = await snapshots.listSnapshots(installation.installPath)
+      const snapshotCount = remaining.length
+      const lastSnapshot = remaining.length > 0 ? remaining[0]!.filename : null
+      await update({ snapshotCount, ...(file === installation.lastSnapshot ? { lastSnapshot } : {}) })
       return { ok: true, navigate: 'detail' }
     }
 
@@ -674,7 +729,8 @@ export const standalone: SourcePlugin = {
       // Auto-snapshot before update
       try {
         const filename = await snapshots.saveSnapshot(installPath, installation, 'pre-update', 'before-update')
-        await update({ lastSnapshot: filename, snapshotCount: ((installation.snapshotCount as number) || 0) + 1 })
+        const snapshotCount = await snapshots.getSnapshotCount(installPath)
+        await update({ lastSnapshot: filename, snapshotCount })
       } catch (err) {
         console.warn('Pre-update snapshot failed:', err)
       }

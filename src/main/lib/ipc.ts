@@ -28,7 +28,7 @@ import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
-import { captureSnapshotIfChanged } from './snapshots'
+import { captureSnapshotIfChanged, getSnapshotCount } from './snapshots'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import type { Theme, ResolvedTheme } from '../../types/ipc'
 import type { LaunchCmd } from './process'
@@ -1356,12 +1356,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       // Capture snapshot in background after successful launch
       if (inst.sourceId === 'standalone') {
         captureSnapshotIfChanged(inst.installPath, inst, 'boot')
-          .then(({ saved, filename }) => {
+          .then(async ({ saved, filename }) => {
             if (saved) {
-              installations.update(installationId, {
-                lastSnapshot: filename,
-                snapshotCount: ((inst.snapshotCount as number) || 0) + 1,
-              })
+              const snapshotCount = await getSnapshotCount(inst.installPath)
+              installations.update(installationId, { lastSnapshot: filename, snapshotCount })
             }
           })
           .catch((err) => console.warn('Snapshot capture failed:', err))
@@ -1383,13 +1381,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               installations.get(installationId).then((currentInst) => {
                 if (!currentInst) return
                 captureSnapshotIfChanged(currentInst.installPath, currentInst, 'restart')
-                  .then(({ saved, filename, deduplicated }) => {
+                  .then(async ({ saved, filename }) => {
                     if (saved) {
-                      const countDelta = deduplicated ? 0 : 1
-                      installations.update(installationId, {
-                        lastSnapshot: filename,
-                        snapshotCount: ((currentInst.snapshotCount as number) || 0) + countDelta,
-                      })
+                      const snapshotCount = await getSnapshotCount(currentInst.installPath)
+                      installations.update(installationId, { lastSnapshot: filename, snapshotCount })
                     }
                   })
                   .catch((err) => console.warn('Snapshot capture failed:', err))
@@ -1411,6 +1406,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         _onLaunch({ port: launchCmd.port!, process: proc, installation: inst, mode })
       }
       return { ok: true, mode, port: launchCmd.port }
+    }
+    // Actions that modify the pip environment require ComfyUI to be stopped
+    if (actionId === 'snapshot-restore' && _runningSessions.has(installationId)) {
+      return { ok: false, message: i18n.t('standalone.snapshotRestoreStopRequired') }
     }
     // Delegate to source plugin's handleAction
     const sender = _event.sender
