@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain } from 'electron'
 import path from 'path'
 import type { ChildProcess } from 'child_process'
+import todesktop from '@todesktop/runtime'
 import * as ipc from './lib/ipc'
 import * as updater from './lib/updater'
 import * as settings from './settings'
@@ -9,12 +10,15 @@ import { migrateXdgPaths } from './lib/paths'
 import { waitForPort } from './lib/process'
 import type { InstallationRecord } from './installations'
 
+todesktop.init({ autoUpdater: false })
+
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x256.png')
 const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x32.png')
 
 let launcherWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 const comfyWindows = new Map<string, BrowserWindow>()
+let isQuitting = false
 
 function createLauncherWindow(): void {
   launcherWindow = new BrowserWindow({
@@ -39,6 +43,8 @@ function createLauncherWindow(): void {
   }
 
   launcherWindow.on('close', (e) => {
+    if (isQuitting) return
+
     const onClose = (settings.get('onLauncherClose') as string | undefined) || 'tray'
     if (onClose === 'tray') {
       e.preventDefault()
@@ -84,6 +90,7 @@ function showLauncher(): void {
 }
 
 function quitApp(): void {
+  isQuitting = true
   ipc.cancelAll()
   for (const [_id, win] of comfyWindows) {
     if (!win.isDestroyed()) win.destroy()
@@ -93,7 +100,7 @@ function quitApp(): void {
     tray.destroy()
     tray = null
   }
-  app.exit(0)
+  app.quit()
 }
 
 function onComfyExited({ installationId }: { installationId?: string } = {}): void {
@@ -264,6 +271,10 @@ app.whenReady().then(() => {
   updater.register()
   createTray()
   createLauncherWindow()
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 app.on('window-all-closed', () => {

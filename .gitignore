@@ -4,3 +4,5 @@ out/
 *.log
 *.tsbuildinfo
 result
+test-results/
+playwright-report/

@@ -1,19 +1,16 @@
-import { app, ipcMain, BrowserWindow, shell } from 'electron'
-import { fetchJSON } from './fetch'
+import { ipcMain, BrowserWindow } from 'electron'
+import todesktop from '@todesktop/runtime'
 import * as settings from '../settings'
-import type { AppUpdater, ProgressInfo } from 'electron-updater'
-
-const REPO = 'Comfy-Org/ComfyUI-Launcher'
-const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`
 
 interface UpdateInfo {
   version: string
-  tag: string
-  url: string
 }
 
 let _updateInfo: UpdateInfo | null = null
-let _autoUpdater: AppUpdater | null = null
+let _listenersBound = false
+
+const NO_UPDATE_AVAILABLE_MESSAGE = 'No update available. Try checking for updates first.'
+const UPDATER_UNAVAILABLE_MESSAGE = 'ToDesktop auto-updater is unavailable.'
 
 function broadcast(channel: string, data: unknown): void {
   BrowserWindow.getAllWindows().forEach((win) => {
@@ -23,113 +20,130 @@ function broadcast(channel: string, data: unknown): void {
   })
 }
 
-function currentVersion(): string {
-  if (app.isPackaged) return app.getVersion()
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pkg = require('../../package.json') as { version: string }
-  return pkg.version
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
 }
 
-function isNewer(remote: string, local: string): boolean {
-  const parse = (v: string): number[] =>
-    v
-      .replace(/^v/, '')
-      .replace(/-.+$/, '')
-      .split('.')
-      .map(Number)
-  const r = parse(remote)
-  const l = parse(local)
-  for (let i = 0; i < Math.max(r.length, l.length); i++) {
-    const rv = r[i] ?? 0
-    const lv = l[i] ?? 0
-    if (rv > lv) return true
-    if (rv < lv) return false
-  }
-  return false
+function versionFromPayload(payload: unknown): string | null {
+  const topLevel = asRecord(payload)
+  if (!topLevel) return null
+  const direct = topLevel.version
+  if (typeof direct === 'string' && direct) return direct
+  const nested = asRecord(topLevel.updateInfo)
+  if (!nested) return null
+  const nestedVersion = nested.version
+  if (typeof nestedVersion === 'string' && nestedVersion) return nestedVersion
+  return null
 }
 
-async function checkForUpdate(): Promise<{ available: boolean; version?: string; error?: string }> {
-  const release = (await fetchJSON(RELEASES_URL)) as { tag_name: string; html_url: string }
-  const remoteVersion = release.tag_name.replace(/^v/, '')
-  const localVersion = currentVersion()
-
-  if (isNewer(remoteVersion, localVersion)) {
-    _updateInfo = {
-      version: remoteVersion,
-      tag: release.tag_name,
-      url: release.html_url,
-    }
-    broadcast('update-available', _updateInfo)
-    return { available: true, version: remoteVersion }
-  }
-
-  _updateInfo = null
-  return { available: false }
+function numberFromPayload(payload: unknown, key: string): number | null {
+  const data = asRecord(payload)
+  if (!data) return null
+  const value = data[key]
+  if (typeof value !== 'number' || Number.isNaN(value)) return null
+  return value
 }
 
-function loadAutoUpdater(): AppUpdater | null {
-  if (_autoUpdater) return _autoUpdater
-  try {
-    // Dynamic require - electron-updater is only available in packaged builds
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { autoUpdater } = require('electron-updater') as { autoUpdater: AppUpdater }
-    _autoUpdater = autoUpdater
-    _autoUpdater.autoDownload = false
-    _autoUpdater.autoInstallOnAppQuit = false
-
-    _autoUpdater.on('download-progress', (progress: ProgressInfo) => {
-      broadcast('update-download-progress', {
-        percent: Math.round(progress.percent),
-        transferred: (progress.transferred / 1048576).toFixed(1),
-        total: (progress.total / 1048576).toFixed(1),
-      })
-    })
-
-    _autoUpdater.on('update-downloaded', () => {
-      broadcast('update-downloaded', _updateInfo)
-    })
-
-    _autoUpdater.on('error', (err: Error) => {
-      broadcast('update-error', { message: err.message })
-    })
-
-    return _autoUpdater
-  } catch {
-    return null
+function updaterErrorMessage(args: unknown[]): string {
+  for (const arg of args) {
+    if (arg instanceof Error && arg.message) return arg.message
   }
+  for (const arg of args) {
+    if (typeof arg === 'string' && arg.trim()) return arg
+  }
+  return 'Update check failed.'
+}
+
+function getAutoUpdater() {
+  return todesktop.autoUpdater
+}
+
+function bindUpdaterEvents(): void {
+  if (_listenersBound) return
+  const updater = getAutoUpdater()
+  if (!updater) return
+  _listenersBound = true
+
+  updater.on('update-available', (info: unknown) => {
+    const version = versionFromPayload(info)
+    if (!version) return
+    broadcast('update-available', { version })
+  })
+
+  updater.on('download-progress', (progress: unknown) => {
+    const percent = numberFromPayload(progress, 'percent')
+    const transferredBytes = numberFromPayload(progress, 'transferred')
+    const totalBytes = numberFromPayload(progress, 'total')
+    if (percent === null || transferredBytes === null || totalBytes === null) return
+    broadcast('update-download-progress', {
+      percent: Math.round(percent),
+      transferred: (transferredBytes / 1048576).toFixed(1),
+      total: (totalBytes / 1048576).toFixed(1),
+    })
+  })
+
+  updater.on('update-downloaded', (event: unknown) => {
+    const version = versionFromPayload(event)
+    if (!version) return
+    _updateInfo = { version }
+    broadcast('update-downloaded', _updateInfo)
+  })
+
+  updater.on('error', (...args: unknown[]) => {
+    broadcast('update-error', { message: updaterErrorMessage(args) })
+  })
+}
+
+async function checkForUpdate(source: string): Promise<{ available: boolean; version?: string; error?: string }> {
+  const updater = getAutoUpdater()
+  if (!updater) {
+    return { available: false, error: UPDATER_UNAVAILABLE_MESSAGE }
+  }
+  bindUpdaterEvents()
+  const result = await updater.checkForUpdates({
+    source,
+    disableUpdateReadyAction: true,
+  })
+  const version = versionFromPayload(result)
+  return version ? { available: true, version } : { available: false }
+}
+
+function runCheck(source: string): Promise<{ available: boolean; version?: string; error?: string }> {
+  return checkForUpdate(source)
 }
 
 export function register(): void {
+  bindUpdaterEvents()
+
   ipcMain.handle('check-for-update', async () => {
     try {
-      return await checkForUpdate()
+      return await runCheck('manual-check')
     } catch (err) {
       return { available: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
 
   ipcMain.handle('download-update', async () => {
-    if (!_updateInfo) {
-      broadcast('update-error', { message: 'No update available. Try checking for updates first.' })
-      return
-    }
-    if (!app.isPackaged) {
-      shell.openExternal(_updateInfo.url)
-      return
-    }
-    const updater = loadAutoUpdater()
-    if (updater) {
-      await updater.checkForUpdates()
-      await updater.downloadUpdate()
-    } else {
-      shell.openExternal(_updateInfo.url)
+    try {
+      const result = await runCheck('download-button')
+      if (!result.available && !_updateInfo) {
+        broadcast('update-error', { message: result.error || NO_UPDATE_AVAILABLE_MESSAGE })
+      }
+    } catch (err) {
+      broadcast('update-error', { message: err instanceof Error ? err.message : String(err) })
     }
   })
 
   ipcMain.handle('install-update', () => {
-    const updater = loadAutoUpdater()
-    if (updater) {
-      updater.quitAndInstall(false, true)
+    const updater = getAutoUpdater()
+    if (!updater) {
+      broadcast('update-error', { message: UPDATER_UNAVAILABLE_MESSAGE })
+      return
+    }
+    try {
+      updater.restartAndInstall()
+    } catch (err) {
+      broadcast('update-error', { message: err instanceof Error ? err.message : String(err) })
     }
   })
 
@@ -137,7 +151,7 @@ export function register(): void {
 
   // Check on startup and periodically (respects autoUpdate setting at each check)
   const runIfEnabled = (): void => {
-    if (settings.get('autoUpdate') !== false) checkForUpdate().catch(() => {})
+    if (settings.get('autoUpdate') !== false) runCheck('auto-check').catch(() => {})
   }
   setTimeout(runIfEnabled, 2000)
   setInterval(runIfEnabled, 10 * 60 * 1000)

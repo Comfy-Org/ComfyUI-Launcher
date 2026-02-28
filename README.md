@@ -134,17 +134,20 @@ Build output is written to the `dist/` directory.
 
 ## Releasing
 
-Pushing a version tag triggers the **Build & Release** workflow, which builds for Windows, macOS, and Linux, then creates a draft GitHub Release with all artifacts.
+Pushing a version tag triggers the **ToDesktop Build & Release** workflow. It runs a ToDesktop cloud build and creates a draft GitHub Release with platform download links.
 
 ```bash
-# Tag the current commit with the new version
+# Ensure package.json version matches the tag version first
+# e.g. package.json "version": "0.2.0"
+
+# Tag the current commit with that same version
 git tag v0.1.0
 
 # Push the tag to trigger the release workflow
 git push origin v0.1.0
 ```
 
-The workflow sets the app version from the tag automatically. Once the builds finish, go to the [Releases](../../releases) page to review and publish the draft.
+The workflow enforces `tag == package.json version`. Once the build finishes, go to the [Releases](../../releases) page to review and publish the draft.
 
 ## Data Locations
 
