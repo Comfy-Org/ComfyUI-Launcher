@@ -161,7 +161,7 @@ jobs:
       - name: Find existing version bump pull request
         id: find_pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BEN_PAT }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
           PR_BRANCH: ${{ steps.prepare.outputs.pr_branch }}
         run: |
@@ -186,7 +186,7 @@ jobs:
       - name: Create or update version bump pull request
         id: upsert_pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BEN_PAT }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
           PR_BRANCH: ${{ steps.prepare.outputs.pr_branch }}
           BODY_FILE: ${{ steps.body.outputs.body_file }}
