@@ -9,8 +9,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: build-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   build:
+    if: >
+      startsWith(github.ref, 'refs/tags/v') &&
+      (github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]')
     runs-on: ubuntu-latest
     name: ToDesktop Build
     env:
@@ -66,10 +73,42 @@ jobs:
         run: npm install --location=global @todesktop/cli@1.22.0
 
       - name: Build with ToDesktop
-        run: todesktop build --config=todesktop.json --ephemeral
+        shell: bash
+        run: |
+          set -euo pipefail
+          todesktop build --config=todesktop.json --ephemeral | tee todesktop-build.log
 
-      - name: Fetch latest ToDesktop build metadata
-        run: todesktop builds --config=todesktop.json --format=json --count=1 --exit > todesktop-builds.json
+      - name: Extract ToDesktop build ID
+        id: build_id
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+
+          const log = fs.readFileSync('todesktop-build.log', 'utf8')
+          const matches = [
+            ...log.matchAll(
+              /https?:\/\/(?:app\.todesktop\.com\/apps|dl\.todesktop\.com)\/[^/\s]+\/builds\/([A-Za-z0-9_-]+)/g
+            )
+          ]
+          const buildIds = [...new Set(matches.map((match) => match[1]).filter(Boolean))]
+
+          if (buildIds.length === 0) {
+            throw new Error('Could not extract a ToDesktop build ID from CLI output.')
+          }
+          if (buildIds.length > 1) {
+            throw new Error(`Multiple build IDs found in CLI output (${buildIds.join(', ')}).`)
+          }
+
+          const output = process.env.GITHUB_OUTPUT
+          if (!output) throw new Error('GITHUB_OUTPUT not set')
+          fs.appendFileSync(output, `build_id=${buildIds[0]}\n`)
+          NODE
+
+      - name: Fetch ToDesktop build metadata by ID
+        env:
+          BUILD_ID: ${{ steps.build_id.outputs.build_id }}
+        run: todesktop builds "${BUILD_ID}" --config=todesktop.json --format=json --exit > todesktop-build.json
 
       - name: Extract build details
         id: extract
@@ -78,25 +117,40 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs')
 
-          const raw = fs.readFileSync('todesktop-builds.json', 'utf8')
-          const start = raw.indexOf('[')
-          const end = raw.lastIndexOf(']')
-          const jsonText = start !== -1 && end !== -1 && end > start ? raw.slice(start, end + 1) : raw
+          const parseBuildOutput = (filePath) => {
+            const raw = fs.readFileSync(filePath, 'utf8')
+            const start = raw.indexOf('[')
+            const end = raw.lastIndexOf(']')
+            const jsonText =
+              start !== -1 && end !== -1 && end > start
+                ? raw.slice(start, end + 1)
+                : raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)
 
-          let builds
-          try {
-            builds = JSON.parse(jsonText)
-          } catch (err) {
-            console.error('Failed to parse ToDesktop builds JSON output')
-            console.error(raw.slice(0, 1000))
-            throw err
+            let parsed
+            try {
+              parsed = JSON.parse(jsonText)
+            } catch (err) {
+              console.error(`Failed to parse ToDesktop build JSON output from ${filePath}`)
+              console.error(raw.slice(0, 1000))
+              throw err
+            }
+
+            if (Array.isArray(parsed)) {
+              if (parsed.length === 0) {
+                throw new Error(`No builds returned in ${filePath}`)
+              }
+              return parsed[0]
+            }
+
+            if (parsed && typeof parsed === 'object') {
+              return parsed
+            }
+
+            throw new Error(`Unexpected ToDesktop build output shape in ${filePath}`)
           }
 
-          if (!Array.isArray(builds) || builds.length === 0) {
-            throw new Error('No builds found in ToDesktop builds output')
-          }
-
-          const build = builds[0]
+          const expectedBuildId = process.env.EXPECTED_BUILD_ID || ''
+          const build = parseBuildOutput('todesktop-build.json')
           const safeUrl = (value) => (typeof value === 'string' ? value : '')
           const macUrl = safeUrl(build?.mac?.standardDownloadUrl)
           const windowsUrl = safeUrl(build?.windows?.standardDownloadUrl)
@@ -107,6 +161,9 @@ jobs:
 
           if (!buildId) {
             throw new Error('Build ID missing from ToDesktop build output')
+          }
+          if (expectedBuildId && String(buildId) !== expectedBuildId) {
+            throw new Error(`Build ID mismatch. Expected ${expectedBuildId}, received ${buildId}`)
           }
 
           const titleCase = (value) =>
@@ -212,6 +269,8 @@ jobs:
             throw new Error(`ToDesktop build did not succeed (status=${status})`)
           }
           NODE
+        env:
+          EXPECTED_BUILD_ID: ${{ steps.build_id.outputs.build_id }}
 
       - name: Upload release metadata artifact
         uses: actions/upload-artifact@v7
@@ -221,7 +280,9 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >
+      startsWith(github.ref, 'refs/tags/v') &&
+      (github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]')
     runs-on: ubuntu-latest
     name: Publish Release
 

@@ -1,0 +1,142 @@
+name: Release From Version PR
+
+on:
+  pull_request_target:
+    types:
+      - closed
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: read
+
+concurrency:
+  group: release-from-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'Release') &&
+      github.event.pull_request.merge_commit_sha != ''
+    runs-on: ubuntu-latest
+    name: Tag Merged Version Bump
+
+    steps:
+      - name: Checkout merged commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Detect package.json version change from pull request files
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          PACKAGE_PATCH="$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '.[] | select(.filename=="package.json") | .patch // ""')"
+          CUR_VERSION="$(node -p "require('./package.json').version")"
+          PREV_VERSION="$(printf '%s\n' "${PACKAGE_PATCH}" | sed -nE 's/^- *\"version\": *\"([^\"]+)\".*/\1/p' | head -n1)"
+          PATCH_NEXT_VERSION="$(printf '%s\n' "${PACKAGE_PATCH}" | sed -nE 's/^\+ *\"version\": *\"([^\"]+)\".*/\1/p' | head -n1)"
+
+          echo "previous_version=${PREV_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "current_version=${CUR_VERSION}" >> "$GITHUB_OUTPUT"
+
+          if [ -z "${PACKAGE_PATCH}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json change detected in PR #${PR_NUMBER}; skipping tag/release."
+            exit 0
+          fi
+
+          if [ -z "${PREV_VERSION}" ] || [ -z "${PATCH_NEXT_VERSION}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "package.json changed but version field diff was not detected; skipping tag/release."
+            exit 0
+          fi
+
+          if [ "${PREV_VERSION}" = "${PATCH_NEXT_VERSION}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "package.json version did not change (${CUR_VERSION}); skipping tag/release."
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Determine version and tag
+        id: meta
+        if: steps.version.outputs.changed == 'true'
+        env:
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "merge_sha=${MERGE_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag for merged commit
+        if: steps.version.outputs.changed == 'true'
+        env:
+          MERGE_SHA: ${{ steps.meta.outputs.merge_sha }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          git fetch --force --tags origin
+
+          EXISTING_SHA="$(git ls-remote --tags origin "refs/tags/${TAG}" | awk '{print $1}')"
+          if [ -n "${EXISTING_SHA}" ]; then
+            if [ "${EXISTING_SHA}" = "${MERGE_SHA}" ]; then
+              echo "Tag ${TAG} already points to ${MERGE_SHA}. Skipping."
+              exit 0
+            fi
+
+            echo "Tag ${TAG} already exists at ${EXISTING_SHA}, expected ${MERGE_SHA}."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag "${TAG}" "${MERGE_SHA}"
+          git push origin "${TAG}"
+
+      - name: Trigger build-release workflow
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          gh workflow run build-release.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "${TAG}"
+
+      - name: Print results
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          echo "tag=${{ steps.meta.outputs.tag }}"
+          echo "version=${{ steps.meta.outputs.version }}"
+          echo "build-release workflow dispatched for tag=${{ steps.meta.outputs.tag }}"
+
+      - name: Print skipped release reason
+        if: steps.version.outputs.changed != 'true'
+        run: |
+          echo "Skipping release automation because package.json version did not change."

@@ -17,15 +17,16 @@ on:
           - patch
           - minor
           - major
-      push_tag:
-        description: Create and push a matching v<version> tag for the PR commit
+      release:
+        description: Apply Release label (tag + draft release after merge)
         required: true
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 concurrency:
   group: version-bump-${{ github.event.inputs.target_branch }}
@@ -130,24 +131,20 @@ jobs:
           git checkout -B "${PR_BRANCH}"
           git add package.json
           git commit -m "chore: bump version to ${NEW_VERSION}"
-          git push --force-with-lease origin "${PR_BRANCH}"
+          git push --force origin "${PR_BRANCH}"
 
-          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Create or update version bump pull request
-        id: pr
+      - name: Build pull request body
+        id: body
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
-          PR_BRANCH: ${{ steps.prepare.outputs.pr_branch }}
           OLD_VERSION: ${{ steps.bump.outputs.old_version }}
           NEW_VERSION: ${{ steps.bump.outputs.new_version }}
           BUMP_TYPE: ${{ inputs.bump }}
-          PUSH_TAG: ${{ inputs.push_tag }}
+          RELEASE_REQUESTED: ${{ inputs.release }}
         run: |
           set -euo pipefail
 
-          BODY_FILE="$(mktemp)"
+          BODY_FILE="${RUNNER_TEMP}/version-bump-pr-body.md"
           cat > "${BODY_FILE}" <<EOF
           ## Summary
           - bump \`package.json\` version from \`${OLD_VERSION}\` to \`${NEW_VERSION}\`
@@ -156,8 +153,19 @@ jobs:
           ## Details
           - target branch: \`${TARGET_BRANCH}\`
           - bump type: \`${BUMP_TYPE}\`
-          - requested tag creation: \`${PUSH_TAG}\`
+          - release label requested: \`${RELEASE_REQUESTED}\`
           EOF
+
+          echo "body_file=${BODY_FILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Find existing version bump pull request
+        id: find_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+          PR_BRANCH: ${{ steps.prepare.outputs.pr_branch }}
+        run: |
+          set -euo pipefail
 
           EXISTING_PR_NUMBER="$(gh pr list \
             --repo "${GITHUB_REPOSITORY}" \
@@ -168,46 +176,131 @@ jobs:
             --jq '.[0].number // ""')"
 
           if [ -n "${EXISTING_PR_NUMBER}" ]; then
-            gh pr edit "${EXISTING_PR_NUMBER}" \
+            echo "Found existing PR #${EXISTING_PR_NUMBER} for ${PR_BRANCH}."
+          else
+            echo "No existing PR found for ${PR_BRANCH}; a new PR will be created."
+          fi
+
+          echo "existing_pr_number=${EXISTING_PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update version bump pull request
+        id: upsert_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+          PR_BRANCH: ${{ steps.prepare.outputs.pr_branch }}
+          BODY_FILE: ${{ steps.body.outputs.body_file }}
+          NEW_VERSION: ${{ steps.bump.outputs.new_version }}
+          EXISTING_PR_NUMBER: ${{ steps.find_pr.outputs.existing_pr_number }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${EXISTING_PR_NUMBER}" ]; then
+            if ! gh pr edit "${EXISTING_PR_NUMBER}" \
               --repo "${GITHUB_REPOSITORY}" \
               --title "chore: bump version to ${NEW_VERSION}" \
-              --body-file "${BODY_FILE}"
-
-            PR_URL="$(gh pr view "${EXISTING_PR_NUMBER}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --json url \
-              --jq '.url')"
+              --body-file "${BODY_FILE}"; then
+              echo "Failed to update existing PR #${EXISTING_PR_NUMBER}."
+              exit 1
+            fi
           else
-            PR_URL="$(gh pr create \
+            CREATE_OUTPUT=""
+            if ! CREATE_OUTPUT="$(gh pr create \
               --repo "${GITHUB_REPOSITORY}" \
               --base "${TARGET_BRANCH}" \
               --head "${PR_BRANCH}" \
               --title "chore: bump version to ${NEW_VERSION}" \
-              --body-file "${BODY_FILE}")"
+              --body-file "${BODY_FILE}" 2>&1)"; then
+              echo "Failed to create PR for ${PR_BRANCH} -> ${TARGET_BRANCH}."
+              echo "${CREATE_OUTPUT}"
+              exit 1
+            fi
+            echo "${CREATE_OUTPUT}"
           fi
 
-          echo "pull_request_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+          PR_NUMBER="$(gh pr list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --base "${TARGET_BRANCH}" \
+            --head "${PR_BRANCH}" \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')"
+          PR_URL="$(gh pr list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --base "${TARGET_BRANCH}" \
+            --head "${PR_BRANCH}" \
+            --state open \
+            --json url \
+            --jq '.[0].url // ""')"
 
-      - name: Create and push version tag
-        if: ${{ inputs.push_tag && steps.branch.outputs.head_sha != '' }}
-        env:
-          PR_HEAD_SHA: ${{ steps.branch.outputs.head_sha }}
-        run: |
-          set -euo pipefail
-
-          TAG="v${{ steps.bump.outputs.new_version }}"
-
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "Tag ${TAG} already exists on origin."
+          if [ -z "${PR_NUMBER}" ] || [ -z "${PR_URL}" ]; then
+            echo "Could not resolve PR metadata after create/update."
+            gh pr list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --base "${TARGET_BRANCH}" \
+              --head "${PR_BRANCH}" \
+              --state open \
+              --json number,url
             exit 1
           fi
 
-          git tag "${TAG}" "${PR_HEAD_SHA}"
-          git push origin "${TAG}"
+          echo "pull_request_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "pull_request_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure Release label exists
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_LABEL: Release
+        run: |
+          set -euo pipefail
+
+          if gh api --silent --method GET "repos/${GITHUB_REPOSITORY}/labels/${RELEASE_LABEL}" >/dev/null 2>&1; then
+            echo "Label ${RELEASE_LABEL} already exists."
+            exit 0
+          fi
+
+          if ! gh api --method POST "repos/${GITHUB_REPOSITORY}/labels" \
+            -f name="${RELEASE_LABEL}" \
+            -f color="0e8a16" \
+            -f description="Create a post-merge version tag and draft release" >/dev/null; then
+            echo "Failed to create label ${RELEASE_LABEL}."
+            exit 1
+          fi
+
+      - name: Apply Release label to pull request
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.upsert_pr.outputs.pull_request_number }}
+          RELEASE_LABEL: Release
+        run: |
+          set -euo pipefail
+
+          if ! gh pr edit "${PR_NUMBER}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --add-label "${RELEASE_LABEL}"; then
+            echo "Failed to add label ${RELEASE_LABEL} to PR #${PR_NUMBER}."
+            exit 1
+          fi
+
+      - name: Remove Release label from pull request
+        if: ${{ !inputs.release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.upsert_pr.outputs.pull_request_number }}
+          RELEASE_LABEL: Release
+        run: |
+          set -euo pipefail
+
+          gh pr edit "${PR_NUMBER}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --remove-label "${RELEASE_LABEL}" >/dev/null 2>&1 || true
 
       - name: Print results
         run: |
-          echo "pull_request_url=${{ steps.pr.outputs.pull_request_url }}"
-          if [ "${{ inputs.push_tag }}" = "true" ]; then
-            echo "tag=v${{ steps.bump.outputs.new_version }}"
+          echo "pull_request_url=${{ steps.upsert_pr.outputs.pull_request_url }}"
+          if [ "${{ inputs.release }}" = "true" ]; then
+            echo "release_label=Release"
+            echo "post_merge_release=v${{ steps.bump.outputs.new_version }}"
           fi
