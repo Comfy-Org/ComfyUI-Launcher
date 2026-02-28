@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useSessionStore } from '../stores/sessionStore'
 import { useProgressStore } from '../stores/progressStore'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
-import { Play, ExternalLink, Square, Star, Pin } from 'lucide-vue-next'
+import { Play, ExternalLink, Square, Star, Pin, TriangleAlert } from 'lucide-vue-next'
 import type { Installation, ListAction } from '../types/ipc'
 
 const props = defineProps<{
@@ -41,6 +41,10 @@ const launchAction = computed(() =>
 
 const isInstalled = computed(() => props.installation.status === 'installed')
 
+const errorInstance = computed(() =>
+  sessionStore.errorInstances.get(props.installation.id) ?? null
+)
+
 function focusComfyWindow(): void {
   window.api.focusComfyWindow(props.installation.id)
 }
@@ -66,6 +70,10 @@ function stopComfyUI(): void {
       <template v-if="running">
         <span> · </span>
         <span class="status-running">{{ $t('list.running') }}</span>
+      </template>
+      <template v-else-if="errorInstance">
+        <span> · </span>
+        <span class="status-danger">{{ $t('running.crashed') }}</span>
       </template>
     </div>
     <slot name="detail" />
@@ -96,7 +104,7 @@ function stopComfyUI(): void {
       <button v-if="installation.hasConsole" @click="emit('show-console', installation.id)">
         {{ $t('list.console') }}
       </button>
-      <button class="danger" @click="stopComfyUI()">
+      <button class="danger dashboard-cta-btn" @click="stopComfyUI()">
         <Square :size="16" />
         {{ $t('console.stop') }}
       </button>
@@ -116,7 +124,7 @@ function stopComfyUI(): void {
       </button>
     </template>
 
-    <!-- Idle -->
+    <!-- Idle / Error -->
     <template v-else-if="isInstalled">
       <button
         v-if="launchAction"
@@ -127,6 +135,10 @@ function stopComfyUI(): void {
       >
         <Play :size="18" />
         {{ launchAction.label }}
+      </button>
+      <button v-if="errorInstance && installation.hasConsole" class="dashboard-cta-btn" @click="emit('show-console', installation.id)">
+        <TriangleAlert :size="16" />
+        {{ $t('list.viewError') }}
       </button>
     </template>
 

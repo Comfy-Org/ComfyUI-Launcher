@@ -1,12 +1,14 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLauncherPrefs } from './useLauncherPrefs'
+import { useSessionStore } from '../stores/sessionStore'
 import type { ContextMenuItem } from '../components/ContextMenu.vue'
 import type { Installation } from '../types/ipc'
 
 export function useInstallContextMenu(onShowDetail: (inst: Installation) => void) {
   const { t } = useI18n()
   const prefs = useLauncherPrefs()
+  const sessionStore = useSessionStore()
 
   const ctxMenu = ref({ open: false, x: 0, y: 0, inst: null as Installation | null })
 
@@ -28,10 +30,18 @@ export function useInstallContextMenu(onShowDetail: (inst: Installation) => void
       })
     }
 
+    if (sessionStore.errorInstances.has(inst.id)) {
+      items.push({
+        id: 'dismiss-error',
+        label: t('running.dismiss'),
+        separator: items.length > 0,
+      })
+    }
+
     items.push({
       id: 'view-details',
       label: t('list.view'),
-      separator: items.length > 0,
+      separator: !sessionStore.errorInstances.has(inst.id) && items.length > 0,
     })
 
     return items
@@ -59,6 +69,8 @@ export function useInstallContextMenu(onShowDetail: (inst: Installation) => void
       await prefs.pinInstall(inst.id)
     } else if (id === 'unpin') {
       await prefs.unpinInstall(inst.id)
+    } else if (id === 'dismiss-error') {
+      sessionStore.clearErrorInstance(inst.id)
     } else if (id === 'view-details') {
       onShowDetail(inst)
     }
