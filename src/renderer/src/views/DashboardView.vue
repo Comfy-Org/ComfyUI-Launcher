@@ -83,6 +83,14 @@ const pinnedInstalls = computed(() => {
     .filter((i): i is Installation => !!i && i.sourceCategory !== 'cloud' && !excludeIds.has(i.id))
 })
 
+const allPinsInQuickLaunch = computed(() => {
+  if (pinnedInstalls.value.length > 0) return false
+  const quickLaunchIds = new Set<string>()
+  if (primaryInstall.value) quickLaunchIds.add(primaryInstall.value.id)
+  if (showLatestCard.value && latestInstall.value) quickLaunchIds.add(latestInstall.value.id)
+  return prefs.pinnedInstallIds.value.some((id) => quickLaunchIds.has(id))
+})
+
 // --- Actions for cards (separate generation counters) ---
 const primaryActions = ref<ListAction[]>([])
 const latestActions = ref<ListAction[]>([])
@@ -335,12 +343,12 @@ async function changePrimary(): Promise<void> {
       </div>
 
       <!-- Pinned section -->
-      <div v-if="pinnedInstalls.length > 0" class="dashboard-section">
+      <div v-if="primaryInstall" class="dashboard-section">
         <div class="dashboard-section-label">
           <Pin :size="14" style="vertical-align: -2px; margin-right: 4px;" />
           {{ $t('dashboard.pinned') }}
         </div>
-        <div class="dashboard-quick-launch">
+        <div v-if="pinnedInstalls.length > 0" class="dashboard-quick-launch">
           <div
             v-for="pinned in pinnedInstalls"
             :key="pinned.id"
@@ -362,6 +370,9 @@ async function changePrimary(): Promise<void> {
               </template>
             </DashboardCard>
           </div>
+        </div>
+        <div v-else class="dashboard-empty-hint">
+          {{ $t(allPinsInQuickLaunch ? 'dashboard.pinnedInQuickLaunch' : 'dashboard.noPinned') }}
         </div>
       </div>
 
