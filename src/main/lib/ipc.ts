@@ -76,12 +76,6 @@ function resolveSource(sourceId: string): SourcePlugin {
   return source
 }
 
-async function resolveInstallation(id: string): Promise<InstallationRecord> {
-  const inst = await installations.get(id)
-  if (!inst) throw new Error(`Unknown installation: ${id}`)
-  return inst
-}
-
 async function findDuplicatePath(installPath: string): Promise<InstallationRecord | null> {
   const normalized = path.resolve(installPath)
   return (await installations.list()).find((i) => i.installPath && path.resolve(i.installPath) === normalized) ?? null
@@ -373,6 +367,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   void (async () => {
     try {
       const all = await installations.list()
+      let removed = false
       for (const inst of all) {
         const source = sourceMap[inst.sourceId]
         if (!source || source.skipInstall) continue
@@ -380,7 +375,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         if (!isEffectivelyEmptyInstallDir(inst.installPath)) continue
         try { fs.rmSync(inst.installPath, { recursive: true, force: true }) } catch {}
         await installations.remove(inst.id)
+        removed = true
       }
+      if (removed) _broadcastToRenderer('installations-changed', {})
     } catch {}
   })()
 
@@ -574,7 +571,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('install-instance', async (_event, installationId: string) => {
-    const inst = await resolveInstallation(installationId)
+    const inst = await installations.get(installationId)
+    if (!inst) return { ok: false, message: 'Installation not found.' }
     if (_operationAborts.has(installationId)) {
       return { ok: false, message: 'Another operation is already running for this installation.' }
     }
@@ -663,14 +661,16 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   // List actions
   ipcMain.handle('get-list-actions', async (_event, installationId: string) => {
-    const inst = await resolveInstallation(installationId)
+    const inst = await installations.get(installationId)
+    if (!inst) return []
     const source = resolveSource(inst.sourceId)
     return source.getListActions ? source.getListActions(inst) : []
   })
 
   // Detail — validate editable fields dynamically from source schema
   ipcMain.handle('update-installation', async (_event, installationId: string, data: Record<string, unknown>) => {
-    const inst = await resolveInstallation(installationId)
+    const inst = await installations.get(installationId)
+    if (!inst) return { ok: false, message: 'Installation not found.' }
     const source = resolveSource(inst.sourceId)
     const sections = source.getDetailSections(inst)
     const allowedIds = new Set(['name', 'seen'])
@@ -698,7 +698,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('get-detail-sections', async (_event, installationId: string) => {
-    const inst = await resolveInstallation(installationId)
+    const inst = await installations.get(installationId)
+    if (!inst) return []
     return resolveSource(inst.sourceId).getDetailSections(inst)
   })
 
@@ -862,7 +863,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('run-action', async (_event, installationId: string, actionId: string, actionData?: Record<string, unknown>) => {
-    const inst = await resolveInstallation(installationId)
+    const maybeInst = await installations.get(installationId)
+    if (!maybeInst) return { ok: false, message: 'Installation not found.' }
+    const inst = maybeInst
     if (actionId === 'remove') {
       await installations.remove(installationId)
       await autoAssignPrimary(installationId)
