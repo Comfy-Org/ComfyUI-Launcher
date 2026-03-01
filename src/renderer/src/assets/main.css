@@ -409,6 +409,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .channel-preview-label { font-size: 13px; color: var(--text-muted); }
 .channel-preview-value { font-size: 13px; color: var(--text); }
 .channel-switch-btn { margin-top: 10px; }
+.channel-actions { display: flex; gap: 8px; margin-top: 10px; }
 .detail-item-list {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; margin-bottom: 8px;
