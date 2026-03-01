@@ -463,7 +463,7 @@
     "triggerBoot": "Boot",
     "triggerRestart": "Manager",
     "triggerManual": "Manual",
-    "triggerPreUpdate": "Pre-update",
+    "triggerPreUpdate": "Update",
     "environment": "Environment",
     "comfyuiVersion": "ComfyUI",
     "releaseTag": "Release",
