@@ -373,14 +373,18 @@ export const standalone: SourcePlugin = {
         collapsed: snapshotCount > 0,
         items: snapshotEntries.slice(0, 20).map((s, i) => ({
           label: formatLabel(s, i === 0),
-          actions: i === 0 ? [] : [
-            { id: 'snapshot-restore', label: t('standalone.snapshotRestore'),
-              data: { file: s.filename },
-              showProgress: true, progressTitle: t('standalone.snapshotRestoringTitle'), cancellable: true,
-              confirm: { title: t('standalone.snapshotRestoreTitle'), message: t('standalone.snapshotRestoreMessage') } },
-            { id: 'snapshot-delete', label: t('standalone.snapshotDelete'), style: 'danger',
-              data: { file: s.filename },
-              confirm: { title: t('standalone.snapshotDeleteTitle'), message: t('standalone.snapshotDeleteMessage') } },
+          actions: [
+            { id: 'snapshot-view', label: t('standalone.snapshotView'),
+              data: { file: s.filename } },
+            ...(i === 0 ? [] : [
+              { id: 'snapshot-restore', label: t('standalone.snapshotRestore'),
+                data: { file: s.filename },
+                showProgress: true, progressTitle: t('standalone.snapshotRestoringTitle'), cancellable: true,
+                confirm: { title: t('standalone.snapshotRestoreTitle'), message: t('standalone.snapshotRestoreMessage') } },
+              { id: 'snapshot-delete', label: t('standalone.snapshotDelete'), style: 'danger' as const,
+                data: { file: s.filename },
+                confirm: { title: t('standalone.snapshotDeleteTitle'), message: t('standalone.snapshotDeleteMessage') } },
+            ]),
           ],
         })),
         actions: [
@@ -659,7 +663,7 @@ export const standalone: SourcePlugin = {
 
     if (actionId === 'snapshot-restore') {
       const file = actionData?.file as string | undefined
-      if (!file) return { ok: false, message: 'No snapshot file specified.' }
+      if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
 
       sendProgress('steps', { steps: [
         { phase: 'restore-nodes', label: t('standalone.snapshotRestoreNodesPhase') },
@@ -740,13 +744,76 @@ export const standalone: SourcePlugin = {
 
     if (actionId === 'snapshot-delete') {
       const file = actionData?.file as string | undefined
-      if (!file) return { ok: false, message: 'No snapshot file specified.' }
+      if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
       await snapshots.deleteSnapshot(installation.installPath, file)
       const remaining = await snapshots.listSnapshots(installation.installPath)
       const snapshotCount = remaining.length
       const lastSnapshot = remaining.length > 0 ? remaining[0]!.filename : null
       await update({ snapshotCount, ...(file === installation.lastSnapshot ? { lastSnapshot } : {}) })
       return { ok: true, navigate: 'detail' }
+    }
+
+    if (actionId === 'snapshot-view') {
+      const file = actionData?.file as string | undefined
+      if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
+      const target = await snapshots.loadSnapshot(installation.installPath, file)
+      const diff = await snapshots.diffAgainstCurrent(installation.installPath, installation, target)
+
+      const lines: string[] = []
+
+      // ComfyUI version — use displayVersion when available (has "v0.3.10 + N commits" format)
+      if (diff.comfyuiChanged && diff.comfyui) {
+        const formatVersion = (v: { ref: string; commit: string | null; displayVersion?: string }): string => {
+          if (v.displayVersion) return v.displayVersion
+          return v.commit ? `${v.ref} (${v.commit.slice(0, 7)})` : v.ref
+        }
+        lines.push(`${t('standalone.snapshotDiffComfyUI')}`)
+        lines.push(`  ${formatVersion(diff.comfyui.from)} → ${formatVersion(diff.comfyui.to)}`)
+        lines.push('')
+      }
+
+      // Custom nodes
+      if (diff.nodesAdded.length > 0 || diff.nodesRemoved.length > 0 || diff.nodesChanged.length > 0) {
+        lines.push(`${t('standalone.snapshotDiffNodes')}`)
+        for (const n of diff.nodesAdded) {
+          const ver = n.version || (n.commit ? n.commit.slice(0, 7) : '')
+          lines.push(`  + ${n.id}${ver ? ` ${ver}` : ''}`)
+        }
+        for (const n of diff.nodesRemoved) {
+          const ver = n.version || (n.commit ? n.commit.slice(0, 7) : '')
+          lines.push(`  − ${n.id}${ver ? ` ${ver}` : ''}`)
+        }
+        for (const n of diff.nodesChanged) {
+          const fromVer = n.from.version || (n.from.commit ? n.from.commit.slice(0, 7) : '?')
+          const toVer = n.to.version || (n.to.commit ? n.to.commit.slice(0, 7) : '?')
+          const enabledChanged = n.from.enabled !== n.to.enabled
+          const versionChanged = fromVer !== toVer
+          if (enabledChanged && versionChanged) {
+            lines.push(`  ~ ${n.id}: ${fromVer} → ${toVer}, ${n.from.enabled ? 'enabled' : 'disabled'} → ${n.to.enabled ? 'enabled' : 'disabled'}`)
+          } else if (enabledChanged) {
+            lines.push(`  ~ ${n.id}: ${n.from.enabled ? 'enabled' : 'disabled'} → ${n.to.enabled ? 'enabled' : 'disabled'}`)
+          } else {
+            lines.push(`  ~ ${n.id}: ${fromVer} → ${toVer}`)
+          }
+        }
+        lines.push('')
+      }
+
+      // Pip packages
+      const pipTotal = diff.pipsAdded.length + diff.pipsRemoved.length + diff.pipsChanged.length
+      if (pipTotal > 0) {
+        lines.push(`${t('standalone.snapshotDiffPackages')} (${pipTotal})`)
+        for (const p of diff.pipsAdded) lines.push(`  + ${p.name} ${p.version}`)
+        for (const p of diff.pipsRemoved) lines.push(`  − ${p.name} ${p.version}`)
+        for (const p of diff.pipsChanged) lines.push(`  ~ ${p.name}: ${p.from} → ${p.to}`)
+        lines.push('')
+      }
+
+      if (lines.length === 0) {
+        lines.push(t('standalone.snapshotDiffNoChanges'))
+      }
+
+      return { ok: true, message: lines.join('\n') }
     }
 
     if (actionId === 'check-update') {

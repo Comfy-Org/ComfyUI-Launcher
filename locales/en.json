@@ -443,7 +443,13 @@
     "snapshotRestorePipPhase": "Restore Packages",
     "snapshotRestoreComplete": "Snapshot restore complete",
     "snapshotRestoreReverted": "Pip restore failed — reverted to pre-restore state",
-    "snapshotRestoreNothingToDo": "No changes needed — environment already matches snapshot."
+    "snapshotRestoreNothingToDo": "No changes needed — environment already matches snapshot.",
+    "snapshotView": "View Diff",
+    "snapshotDiffComfyUI": "ComfyUI Version:",
+    "snapshotDiffNodes": "Custom Nodes:",
+    "snapshotDiffPackages": "Pip Packages:",
+    "snapshotDiffNoChanges": "No differences — environment matches this snapshot.",
+    "snapshotNoFile": "No snapshot file specified."
   },
 
   "portable": {

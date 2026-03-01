@@ -20,6 +20,7 @@ export interface Snapshot {
     commit: string | null
     releaseTag: string
     variant: string
+    displayVersion?: string
   }
   customNodes: ScannedNode[]
   pipPackages: Record<string, string>
@@ -33,8 +34,8 @@ export interface SnapshotEntry {
 export interface SnapshotDiff {
   comfyuiChanged: boolean
   comfyui?: {
-    from: { ref: string; commit: string | null }
-    to: { ref: string; commit: string | null }
+    from: { ref: string; commit: string | null; displayVersion?: string }
+    to: { ref: string; commit: string | null; displayVersion?: string }
   }
   nodesAdded: ScannedNode[]
   nodesRemoved: ScannedNode[]
@@ -152,6 +153,7 @@ async function captureState(installPath: string, installation: InstallationRecor
       commit,
       releaseTag: manifest.version,
       variant: manifest.id,
+      displayVersion: (installation.version as string | undefined) || undefined,
     },
     customNodes,
     pipPackages,
@@ -369,8 +371,8 @@ export function diffSnapshots(a: Snapshot, b: Snapshot): SnapshotDiff {
   if (a.comfyui.ref !== b.comfyui.ref || a.comfyui.commit !== b.comfyui.commit) {
     diff.comfyuiChanged = true
     diff.comfyui = {
-      from: { ref: a.comfyui.ref, commit: a.comfyui.commit },
-      to: { ref: b.comfyui.ref, commit: b.comfyui.commit },
+      from: { ref: a.comfyui.ref, commit: a.comfyui.commit, displayVersion: a.comfyui.displayVersion },
+      to: { ref: b.comfyui.ref, commit: b.comfyui.commit, displayVersion: b.comfyui.displayVersion },
     }
   }
 
@@ -412,6 +414,26 @@ export function diffSnapshots(a: Snapshot, b: Snapshot): SnapshotDiff {
   }
 
   return diff
+}
+
+/**
+ * Capture the current live state and diff it against a target snapshot.
+ * Returns the diff from current → target (what a restore would change).
+ */
+export async function diffAgainstCurrent(
+  installPath: string,
+  installation: InstallationRecord,
+  target: Snapshot
+): Promise<SnapshotDiff> {
+  const state = await captureState(installPath, installation)
+  const current: Snapshot = {
+    version: 1,
+    createdAt: new Date().toISOString(),
+    trigger: 'manual',
+    label: null,
+    ...state,
+  }
+  return diffSnapshots(current, target)
 }
 
 export async function pruneAutoSnapshots(installPath: string, keep: number): Promise<number> {
