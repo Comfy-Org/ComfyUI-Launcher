@@ -16,6 +16,8 @@
     "setPrimary": "设为主要",
     "cloudSection": "ComfyUI 云",
     "pinned": "已固定",
+    "noPinned": "没有固定的安装。右键单击安装以将其固定到仪表盘。",
+    "pinnedInQuickLaunch": "已固定的安装已在上方的快速启动中显示。",
     "pinToDashboard": "固定到仪表盘",
     "unpinFromDashboard": "从仪表盘取消固定"
   },
