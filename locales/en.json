@@ -240,6 +240,12 @@
     "language": "Language"
   },
 
+  "zoom": {
+    "changed": "Zoom level has been changed",
+    "reset": "Reset Zoom",
+    "dismiss": "Dismiss"
+  },
+
   "update": {
     "available": "Update available: **v{version}**",
     "download": "Download",

@@ -389,6 +389,7 @@ export interface ElectronApi {
 
   // App
   quitApp(): Promise<void>
+  resetZoom(): Promise<void>
 
   // Updates
   checkForUpdate(): Promise<void>
@@ -410,4 +411,5 @@ export interface ElectronApi {
   onUpdateDownloadProgress(callback: (progress: UpdateDownloadProgress) => void): Unsubscribe
   onUpdateDownloaded(callback: (info: UpdateInfo) => void): Unsubscribe
   onUpdateError(callback: (err: { message: string }) => void): Unsubscribe
+  onZoomChanged(callback: (level: number) => void): Unsubscribe
 }
