@@ -157,11 +157,28 @@ interface RegisterCallbacks {
   onLocaleChanged?: LocaleCallback
 }
 
+type CopyReason = 'copy' | 'copy-update'
+
+async function copyBrowserPartition(sourceId: string, destId: string, sourceBrowserPartition?: string): Promise<void> {
+  if (sourceBrowserPartition !== 'unique') return
+  const partitionsDir = path.join(app.getPath('userData'), 'Partitions')
+  const srcPartition = path.join(partitionsDir, sourceId)
+  const destPartition = path.join(partitionsDir, destId)
+  try {
+    if (fs.existsSync(srcPartition)) {
+      await fs.promises.cp(srcPartition, destPartition, { recursive: true })
+    }
+  } catch (err) {
+    console.warn('Failed to copy browser partition:', (err as Error).message)
+  }
+}
+
 async function performCopy(
   inst: InstallationRecord,
   name: string,
   sendProgress: (phase: string, detail: Record<string, unknown>) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  copyReason: CopyReason = 'copy'
 ): Promise<{ entry: InstallationRecord; destPath: string }> {
   const parentDir = path.dirname(inst.installPath)
   const dirName = name.replace(/[<>:"/\\|?*]+/g, '_').trim() || 'ComfyUI'
@@ -194,7 +211,11 @@ async function performCopy(
       await source.fixupCopy(inst.installPath, destPath)
     }
 
-    const { id: _id, name: _name, installPath: _path, createdAt: _created, seen: _seen, status: _status, ...inherited } = inst
+    const {
+      id: _id, name: _name, installPath: _path, createdAt: _created, seen: _seen, status: _status,
+      copiedFrom: _copiedFrom, copiedAt: _copiedAt, copiedFromName: _copiedFromName, copyReason: _copyReason,
+      ...inherited
+    } = inst
     const finalName = await uniqueName(name)
     const entry = await installations.add({
       ...inherited,
@@ -203,9 +224,15 @@ async function performCopy(
       status: 'installed',
       seen: false,
       browserPartition: 'unique',
+      copiedFrom: inst.id,
+      copiedFromName: inst.name,
+      copiedAt: new Date().toISOString(),
+      copyReason,
     })
 
     try { fs.writeFileSync(path.join(destPath, MARKER_FILE), entry.id) } catch {}
+
+    await copyBrowserPartition(inst.id, entry.id, inst.browserPartition as string | undefined)
 
     return { entry, destPath }
   } catch (err) {
@@ -1014,7 +1041,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           { phase: 'deps', label: i18n.t('standalone.updateDeps') },
         ] })
 
-        const { entry } = await performCopy(inst, name, sendProgress, abort.signal)
+        const { entry } = await performCopy(inst, name, sendProgress, abort.signal, 'copy-update')
 
         const updateSendProgress = (phase: string, detail: Record<string, unknown>): void => {
           if (phase !== 'steps') sendProgress(phase, detail)
@@ -1121,8 +1148,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           installPath: destPath,
           status: 'installed',
           seen: false,
+          browserPartition: 'unique',
+          copiedFrom: inst.id,
+          copiedFromName: inst.name,
+          copiedAt: new Date().toISOString(),
+          copyReason: 'release-update' as const,
         })
         try { fs.writeFileSync(path.join(destPath, MARKER_FILE), entry.id) } catch {}
+        await copyBrowserPartition(inst.id, entry.id, inst.browserPartition as string | undefined)
 
         const newUpdate = (data: Record<string, unknown>): Promise<void> =>
           installations.update(entry!.id, data).then(() => {})

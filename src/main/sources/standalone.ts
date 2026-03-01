@@ -311,19 +311,39 @@ export const standalone: SourcePlugin = {
   getDetailSections(installation: InstallationRecord): Record<string, unknown>[] {
     const installed = installation.status === 'installed'
 
+    const infoFields: Record<string, unknown>[] = [
+      { label: t('common.installMethod'), value: installation.sourceLabel as string },
+      { label: t('standalone.comfyui'), value: installation.version },
+      { label: t('common.release'), value: (installation.releaseTag as string | undefined) || '—' },
+      { label: t('standalone.variant'), value: (installation.variant as string | undefined) ? getVariantLabel(installation.variant as string) : '—' },
+      { label: t('standalone.python'), value: (installation.pythonVersion as string | undefined) || '—' },
+      { label: t('common.location'), value: installation.installPath || '—' },
+      { label: t('common.installed'), value: new Date(installation.createdAt).toLocaleDateString() },
+    ]
+
+    const copiedFrom = installation.copiedFrom as string | undefined
+    if (copiedFrom) {
+      const copiedFromName = installation.copiedFromName as string | undefined
+      const copiedAt = installation.copiedAt as string | undefined
+      const copyReason = installation.copyReason as string | undefined
+      const reasonLabel = copyReason === 'copy-update' ? t('standalone.lineageCopyUpdate')
+        : copyReason === 'release-update' ? t('standalone.lineageReleaseUpdate')
+        : t('standalone.lineageCopy')
+      const dateStr = copiedAt ? new Date(copiedAt).toLocaleString() : ''
+      const nameStr = copiedFromName || copiedFrom
+      infoFields.push({
+        label: t('standalone.lineage'),
+        value: dateStr
+          ? `${reasonLabel}: ${nameStr}  ·  ${dateStr}`
+          : `${reasonLabel}: ${nameStr}`,
+      })
+    }
+
     const sections: Record<string, unknown>[] = [
       {
         tab: 'status',
         title: t('common.installInfo'),
-        fields: [
-          { label: t('common.installMethod'), value: installation.sourceLabel as string },
-          { label: t('standalone.comfyui'), value: installation.version },
-          { label: t('common.release'), value: (installation.releaseTag as string | undefined) || '—' },
-          { label: t('standalone.variant'), value: (installation.variant as string | undefined) ? getVariantLabel(installation.variant as string) : '—' },
-          { label: t('standalone.python'), value: (installation.pythonVersion as string | undefined) || '—' },
-          { label: t('common.location'), value: installation.installPath || '—' },
-          { label: t('common.installed'), value: new Date(installation.createdAt).toLocaleDateString() },
-        ],
+        fields: infoFields,
       },
     ]
 
