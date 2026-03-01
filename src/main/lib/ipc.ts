@@ -726,10 +726,24 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   // Snapshots
   ipcMain.handle('get-snapshots', async (_event, installationId: string) => {
     const inst = await resolveInstallation(installationId)
-    if (!inst.installPath) return { snapshots: [], totalCount: 0, context: { updateChannel: '', pythonVersion: '', variant: '', variantLabel: '' } }
+    if (!inst.installPath) return { snapshots: [], copyEvents: [], totalCount: 0, context: { updateChannel: '', pythonVersion: '', variant: '', variantLabel: '' } }
     const data = await getSnapshotListData(inst.installPath)
+
+    // Find installations that were copied from this one
+    const allInstalls = await installations.list()
+    const copyEvents = allInstalls
+      .filter((i) => (i.copiedFrom as string | undefined) === installationId && (i.copiedAt as string | undefined))
+      .map((i) => ({
+        installationId: i.id,
+        installationName: i.name,
+        copiedAt: i.copiedAt as string,
+        copyReason: (i.copyReason as 'copy' | 'copy-update' | 'release-update') || 'copy',
+        exists: true,
+      }))
+
     return {
       ...data,
+      copyEvents,
       context: {
         updateChannel: (inst.updateChannel as string | undefined) || 'stable',
         pythonVersion: (inst.pythonVersion as string | undefined) || '',

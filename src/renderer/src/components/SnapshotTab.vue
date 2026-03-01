@@ -5,6 +5,7 @@ import { useModal } from '../composables/useModal'
 import { ChevronDown } from 'lucide-vue-next'
 import type {
   ActionDef,
+  CopyEvent,
   SnapshotSummary,
   SnapshotListData,
   SnapshotDetailData,
@@ -21,6 +22,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'run-action': [action: ActionDef, button: HTMLButtonElement | null]
   'refresh-all': []
+  'navigate-installation': [installationId: string]
 }>()
 
 const { t } = useI18n()
@@ -40,7 +42,33 @@ const nodeSearch = ref('')
 const nodesExpanded = ref(true)
 
 const snapshots = computed(() => listData.value?.snapshots ?? [])
+const copyEvents = computed(() => listData.value?.copyEvents ?? [])
 const context = computed(() => listData.value?.context ?? null)
+
+type TimelineItem =
+  | { kind: 'snapshot'; snapshot: SnapshotSummary; snapshotIndex: number }
+  | { kind: 'copy'; event: CopyEvent }
+
+const timelineItems = computed<TimelineItem[]>(() => {
+  // Merge snapshots and copy events by timestamp, newest first
+  const items: TimelineItem[] = []
+  let si = 0
+  let ci = 0
+  const snaps = snapshots.value
+  const copies = [...copyEvents.value].sort((a, b) => new Date(b.copiedAt).getTime() - new Date(a.copiedAt).getTime())
+  while (si < snaps.length || ci < copies.length) {
+    const snapTime = si < snaps.length ? new Date(snaps[si]!.createdAt).getTime() : -Infinity
+    const copyTime = ci < copies.length ? new Date(copies[ci]!.copiedAt).getTime() : -Infinity
+    if (snapTime >= copyTime) {
+      items.push({ kind: 'snapshot', snapshot: snaps[si]!, snapshotIndex: si })
+      si++
+    } else {
+      items.push({ kind: 'copy', event: copies[ci]! })
+      ci++
+    }
+  }
+  return items
+})
 
 async function load(): Promise<void> {
   loading.value = true
@@ -93,6 +121,14 @@ function formatRelative(iso: string): string {
   const days = Math.floor(hours / 24)
   if (days < 30) return t('snapshots.timeDaysAgo', { count: days })
   return new Date(iso).toLocaleDateString()
+}
+
+function copyReasonLabel(reason: string): string {
+  switch (reason) {
+    case 'copy-update': return t('snapshots.copyUpdatedAs')
+    case 'release-update': return t('snapshots.releaseUpdatedAs')
+    default: return t('snapshots.copiedAs')
+  }
 }
 
 function changeSummary(s: SnapshotSummary): string[] {
@@ -240,67 +276,89 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 
     <!-- Timeline -->
     <div v-if="!loading && snapshots.length > 0" class="snapshot-timeline">
-      <div
-        v-for="(snap, index) in snapshots"
-        :key="snap.filename"
-        class="timeline-entry"
-        :class="{ selected: selectedFilename === snap.filename }"
-      >
+      <template v-for="(item, index) in timelineItems" :key="item.kind === 'snapshot' ? item.snapshot.filename : `copy-${item.event.installationId}`">
+        <!-- Copy event -->
+        <div v-if="item.kind === 'copy'" class="timeline-entry">
+          <div class="timeline-gutter">
+            <div class="timeline-line timeline-line-top" :class="{ invisible: index === 0 }" />
+            <div class="timeline-dot trigger-copy" />
+            <div class="timeline-line-rest" :class="{ invisible: index === timelineItems.length - 1 }" />
+          </div>
+          <div class="timeline-content">
+            <div class="timeline-copy-card">
+              <span class="timeline-trigger trigger-copy">{{ copyReasonLabel(item.event.copyReason) }}</span>
+              <button
+                v-if="item.event.exists"
+                class="timeline-copy-name clickable"
+                @click="emit('navigate-installation', item.event.installationId)"
+              >{{ item.event.installationName }}</button>
+              <span v-else class="timeline-copy-name">{{ item.event.installationName }}</span>
+              <span class="timeline-time" :title="formatDate(item.event.copiedAt)">{{ formatRelative(item.event.copiedAt) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Snapshot entry -->
+        <div
+          v-else
+          class="timeline-entry"
+          :class="{ selected: selectedFilename === item.snapshot.filename }"
+        >
         <!-- Timeline dot and line -->
         <div class="timeline-gutter">
           <div class="timeline-line timeline-line-top" :class="{ invisible: index === 0 }" />
-          <div class="timeline-dot" :class="triggerClass(snap.trigger)" />
-          <div class="timeline-line-rest" :class="{ invisible: index === snapshots.length - 1 }" />
+          <div class="timeline-dot" :class="triggerClass(item.snapshot.trigger)" />
+          <div class="timeline-line-rest" :class="{ invisible: index === timelineItems.length - 1 }" />
         </div>
 
         <!-- Card -->
         <div class="timeline-content">
-          <div class="timeline-card" @click="selectSnapshot(snap.filename)">
+          <div class="timeline-card" @click="selectSnapshot(item.snapshot.filename)">
             <div class="timeline-card-header">
-              <span class="timeline-trigger" :class="triggerClass(snap.trigger)">{{ triggerLabel(snap.trigger) }}</span>
-              <span v-if="index === 0" class="timeline-current-tag">{{ t('snapshots.current') }}</span>
-              <span class="timeline-time" :title="formatDate(snap.createdAt)">{{ formatRelative(snap.createdAt) }}</span>
+              <span class="timeline-trigger" :class="triggerClass(item.snapshot.trigger)">{{ triggerLabel(item.snapshot.trigger) }}</span>
+              <span v-if="item.snapshotIndex === 0" class="timeline-current-tag">{{ t('snapshots.current') }}</span>
+              <span class="timeline-time" :title="formatDate(item.snapshot.createdAt)">{{ formatRelative(item.snapshot.createdAt) }}</span>
             </div>
-            <div v-if="snap.label" class="timeline-label">{{ snap.label }}</div>
+            <div v-if="item.snapshot.label" class="timeline-label">{{ item.snapshot.label }}</div>
             <div class="timeline-card-body">
               <div class="timeline-meta">
-                <span>{{ snap.comfyuiVersion }}</span>
+                <span>{{ item.snapshot.comfyuiVersion }}</span>
                 <span class="timeline-meta-sep">·</span>
-                <span>{{ t('snapshots.nodesCount', { count: snap.nodeCount }) }}</span>
+                <span>{{ t('snapshots.nodesCount', { count: item.snapshot.nodeCount }) }}</span>
                 <span class="timeline-meta-sep">·</span>
-                <span>{{ t('snapshots.packagesCount', { count: snap.pipPackageCount }) }}</span>
+                <span>{{ t('snapshots.packagesCount', { count: item.snapshot.pipPackageCount }) }}</span>
               </div>
               <!-- Restore button (not on current) -->
               <button
-                v-if="index > 0"
+                v-if="item.snapshotIndex > 0"
                 class="timeline-restore-btn"
-                @click.stop="handleRestore(snap.filename)"
+                @click.stop="handleRestore(item.snapshot.filename)"
               >
                 {{ t('snapshots.restore') }}
               </button>
-              <ChevronDown :size="14" class="timeline-expand-icon" :class="{ expanded: selectedFilename === snap.filename }" />
+              <ChevronDown :size="14" class="timeline-expand-icon" :class="{ expanded: selectedFilename === item.snapshot.filename }" />
             </div>
-            <div v-if="changeSummary(snap).length > 0" class="timeline-changes">
-              <span v-for="part in changeSummary(snap)" :key="part" class="timeline-change-badge">{{ part }}</span>
+            <div v-if="changeSummary(item.snapshot).length > 0" class="timeline-changes">
+              <span v-for="part in changeSummary(item.snapshot)" :key="part" class="timeline-change-badge">{{ part }}</span>
             </div>
           </div>
 
           <!-- Inspector (inline, shown when selected) -->
-          <div v-if="selectedFilename === snap.filename" class="snapshot-inspector" @click.stop>
+          <div v-if="selectedFilename === item.snapshot.filename" class="snapshot-inspector" @click.stop>
           <div v-if="detailLoading" class="snapshot-loading">{{ t('common.loading') }}</div>
           <template v-else-if="detail">
             <!-- Diff toggle buttons -->
             <div class="diff-toggle">
               <button
                 :class="{ active: diffMode === 'previous' }"
-                :disabled="index === snapshots.length - 1"
+                :disabled="item.snapshotIndex === snapshots.length - 1"
                 @click="loadDiff('previous')"
               >
                 {{ t('snapshots.diffPrevious') }}
               </button>
               <button
                 :class="{ active: diffMode === 'current' }"
-                :disabled="index === 0"
+                :disabled="item.snapshotIndex === 0"
                 @click="loadDiff('current')"
               >
                 {{ t('snapshots.diffCurrent') }}
@@ -444,6 +502,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
         </div>
         </div>
       </div>
+      </template>
     </div>
   </div>
 </template>
@@ -547,6 +606,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 .timeline-dot.trigger-manual { background: var(--success, #00cd72); }
 .timeline-dot.trigger-preupdate { background: var(--warning, #fd9903); }
 .timeline-dot.trigger-restart { background: var(--text-muted); }
+.timeline-dot.trigger-copy { background: var(--info, #58a6ff); }
 
 .timeline-card {
   background: var(--surface);
@@ -588,6 +648,45 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 .timeline-trigger.trigger-manual { color: var(--success, #00cd72); }
 .timeline-trigger.trigger-preupdate { color: var(--warning, #fd9903); }
 .timeline-trigger.trigger-restart { color: var(--text-muted); }
+.timeline-trigger.trigger-copy { color: var(--info, #58a6ff); }
+
+/* Copy event card */
+.timeline-copy-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.timeline-copy-name {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.timeline-copy-name.clickable {
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.timeline-copy-name.clickable:hover {
+  text-decoration: underline;
+}
 
 .timeline-current-tag {
   font-size: 11px;

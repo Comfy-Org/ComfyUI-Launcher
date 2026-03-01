@@ -5,6 +5,7 @@ import { useModal } from '../composables/useModal'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import DetailSectionComponent from '../components/DetailSection.vue'
 import SnapshotTab from '../components/SnapshotTab.vue'
+import { useInstallationStore } from '../stores/installationStore'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
@@ -39,6 +40,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const modal = useModal()
 const prefs = useLauncherPrefs()
+const installationStore = useInstallationStore()
 
 const isLocal = computed(() => props.installation?.sourceCategory === 'local')
 const isCloud = computed(() => props.installation?.sourceCategory === 'cloud')
@@ -339,6 +341,11 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
   }
 }
 
+function navigateToInstallation(installationId: string): void {
+  const inst = installationStore.getById(installationId)
+  if (inst) emit('update:installation', inst)
+}
+
 function handleOverlayMouseDown(event: MouseEvent): void {
   mouseDownOnOverlay.value = event.target === contentRef.value?.parentElement
 }
@@ -410,6 +417,7 @@ function handleOverlayClick(event: MouseEvent): void {
             :installation-id="installation.id"
             @run-action="runAction"
             @refresh-all="refreshAllSections"
+            @navigate-installation="navigateToInstallation"
           />
           <template v-else>
             <DetailSectionComponent

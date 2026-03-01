@@ -492,7 +492,12 @@
     "timeJustNow": "just now",
     "timeMinutesAgo": "{count}m ago",
     "timeHoursAgo": "{count}h ago",
-    "timeDaysAgo": "{count}d ago"
+    "timeDaysAgo": "{count}d ago",
+    "copiedAs": "Copied as",
+    "copyUpdatedAs": "Copy & Updated as",
+    "releaseUpdatedAs": "Release Updated as",
+    "copyDeleted": "deleted",
+    "viewInstall": "View"
   },
 
   "portable": {

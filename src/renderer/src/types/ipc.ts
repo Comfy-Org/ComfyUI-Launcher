@@ -41,6 +41,7 @@ export type {
   UpdateInfo,
   UpdateDownloadProgress,
   TrackResult,
+  CopyEvent,
   SnapshotDiffSummary,
   SnapshotSummary,
   SnapshotListData,

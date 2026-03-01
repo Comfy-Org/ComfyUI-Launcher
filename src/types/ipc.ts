@@ -320,6 +320,14 @@ export interface TrackResult {
 }
 
 // --- Snapshot tab types ---
+export interface CopyEvent {
+  installationId: string
+  installationName: string
+  copiedAt: string
+  copyReason: 'copy' | 'copy-update' | 'release-update'
+  exists: boolean
+}
+
 export interface SnapshotDiffSummary {
   nodesAdded: number
   nodesRemoved: number
@@ -343,6 +351,7 @@ export interface SnapshotSummary {
 
 export interface SnapshotListData {
   snapshots: SnapshotSummary[]
+  copyEvents: CopyEvent[]
   totalCount: number
   context: {
     updateChannel: string
