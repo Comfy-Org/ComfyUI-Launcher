@@ -729,7 +729,7 @@ export const standalone: SourcePlugin = {
 
       // Capture a new snapshot reflecting the restored state
       try {
-        const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'post-restore', 'after-restore')
+        const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'post-restore')
         const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
         await update({ lastSnapshot: filename, snapshotCount })
       } catch {}
@@ -852,7 +852,7 @@ export const standalone: SourcePlugin = {
       // Auto-snapshot before update
       let preUpdateFilename: string | undefined
       try {
-        preUpdateFilename = await snapshots.saveSnapshot(installPath, installation, 'pre-update', 'before-update')
+        preUpdateFilename = await snapshots.saveSnapshot(installPath, installation, 'pre-update')
         const snapshotCount = await snapshots.getSnapshotCount(installPath)
         await update({ lastSnapshot: preUpdateFilename, snapshotCount })
       } catch (err) {
@@ -1005,7 +1005,7 @@ export const standalone: SourcePlugin = {
       // Capture post-update snapshot so the history reflects the new state immediately
       try {
         const updatedInstallation = { ...installation, version: displayVersion }
-        const filename = await snapshots.saveSnapshot(installPath, updatedInstallation, 'post-update', 'after-update')
+        const filename = await snapshots.saveSnapshot(installPath, updatedInstallation, 'post-update')
         const snapshotCount = await snapshots.getSnapshotCount(installPath)
         await update({ lastSnapshot: filename, snapshotCount })
 
