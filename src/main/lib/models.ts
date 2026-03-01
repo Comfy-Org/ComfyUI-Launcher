@@ -1,6 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { dataDir } from './paths'
+import { writeFileSafe } from './safe-file'
 
 // Canonical ComfyUI model folder types from folder_paths.py.
 // When ComfyUI adds `all_model_folders` support in extra_model_paths.yaml,
@@ -68,10 +69,7 @@ export function ensureModelPathsConfig(modelsDirs: string[] | null | undefined):
   } catch {}
 
   if (existing !== yaml) {
-    const tmpPath = YAML_PATH + ".tmp"
-    fs.mkdirSync(path.dirname(YAML_PATH), { recursive: true })
-    fs.writeFileSync(tmpPath, yaml)
-    fs.renameSync(tmpPath, YAML_PATH)
+    writeFileSafe(YAML_PATH, yaml)
   }
 
   return YAML_PATH

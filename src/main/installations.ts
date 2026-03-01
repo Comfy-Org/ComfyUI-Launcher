@@ -1,6 +1,6 @@
 import path from 'path'
-import fs from 'fs'
 import { dataDir } from './lib/paths'
+import { readFileSafeAsync, writeFileSafeAsync } from './lib/safe-file'
 
 export interface InstallationRecord {
   id: string
@@ -15,8 +15,6 @@ export interface InstallationRecord {
 }
 
 const dataPath = path.join(dataDir(), "installations.json")
-const backupPath = dataPath + ".bak"
-const tmpPath = dataPath + ".tmp"
 
 // Serialize all load/save operations to prevent concurrent read-modify-write races
 let _queue: Promise<void> = Promise.resolve()
@@ -26,43 +24,19 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   return p
 }
 
-function parseInstallations(raw: string): InstallationRecord[] | null {
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed as InstallationRecord[]
-  } catch {}
-  return null
-}
-
 async function load(): Promise<InstallationRecord[]> {
-  try {
-    const raw = await fs.promises.readFile(dataPath, "utf-8")
-    const result = parseInstallations(raw)
-    if (result) return result
-  } catch {}
-
-  // Primary file missing or corrupt — try backup
-  try {
-    const raw = await fs.promises.readFile(backupPath, "utf-8")
-    const result = parseInstallations(raw)
-    if (result) {
-      // Restore from backup
-      try { await fs.promises.copyFile(backupPath, dataPath) } catch {}
-      return result
-    }
-  } catch {}
-
+  const raw = await readFileSafeAsync(dataPath)
+  if (raw) {
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed as InstallationRecord[]
+    } catch {}
+  }
   return []
 }
 
 async function save(installations: InstallationRecord[]): Promise<void> {
-  await fs.promises.mkdir(path.dirname(dataPath), { recursive: true })
-  const data = JSON.stringify(installations, null, 2)
-  // Write to temp file, then atomically rename over the real file
-  await fs.promises.writeFile(tmpPath, data, "utf-8")
-  // Back up the current file before overwriting
-  try { await fs.promises.copyFile(dataPath, backupPath) } catch {}
-  await fs.promises.rename(tmpPath, dataPath)
+  await writeFileSafeAsync(dataPath, JSON.stringify(installations, null, 2), true)
 }
 
 export async function list(): Promise<InstallationRecord[]> {

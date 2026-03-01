@@ -12,6 +12,7 @@
 import path from 'path'
 import fs from 'fs'
 import { dataDir } from './paths'
+import { writeFileSafe } from './safe-file'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
 
 export interface ReleaseCacheEntry {
@@ -44,10 +45,7 @@ function _ensureLoaded(): void {
 
 function _persist(): void {
   try {
-    fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true })
-    const tmp = CACHE_FILE + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify({ schemaVersion: 1, entries: _entries }, null, 2))
-    fs.renameSync(tmp, CACHE_FILE)
+    writeFileSafe(CACHE_FILE, JSON.stringify({ schemaVersion: 1, entries: _entries }, null, 2))
   } catch {
     // ignore persist errors
   }
