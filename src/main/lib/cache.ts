@@ -5,6 +5,7 @@ export interface Cache {
   getCachePath(folder: string): string
   evict(): void
   touch(folder: string): void
+  cleanPartials(maxAgeMs?: number): void
 }
 
 export function createCache(dir: string, max: number): Cache {
@@ -45,5 +46,33 @@ export function createCache(dir: string, max: number): Cache {
     }
   }
 
-  return { getCachePath, evict, touch }
+  function cleanPartials(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
+    ensureDir()
+    const cutoff = Date.now() - maxAgeMs
+    try {
+      const folders = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory())
+      for (const folder of folders) {
+        const folderPath = path.join(dir, folder.name)
+        try {
+          const entries = fs.readdirSync(folderPath, { withFileTypes: true })
+          for (const entry of entries) {
+            if (!entry.isFile()) continue
+            if (!entry.name.endsWith('.dl-meta')) continue
+            const metaFilePath = path.join(folderPath, entry.name)
+            try {
+              const stat = fs.statSync(metaFilePath)
+              if (stat.mtimeMs < cutoff) {
+                // Remove both the meta file and the associated incomplete data file
+                const dataFilePath = metaFilePath.slice(0, -'.dl-meta'.length)
+                try { fs.unlinkSync(dataFilePath) } catch {}
+                fs.unlinkSync(metaFilePath)
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+    } catch {}
+  }
+
+  return { getCachePath, evict, touch, cleanPartials }
 }
