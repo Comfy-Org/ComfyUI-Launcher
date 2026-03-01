@@ -363,11 +363,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
   migrateDefaults()
 
-  // Sweep empty/broken local installations on startup
+  // Sweep empty/broken local installations on startup, then clean stale settings references
   void (async () => {
     try {
       const all = await installations.list()
-      let removed = false
+      let swept = false
       for (const inst of all) {
         const source = sourceMap[inst.sourceId]
         if (!source || source.skipInstall) continue
@@ -375,9 +375,29 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         if (!isEffectivelyEmptyInstallDir(inst.installPath)) continue
         try { fs.rmSync(inst.installPath, { recursive: true, force: true }) } catch {}
         await installations.remove(inst.id)
-        removed = true
+        swept = true
       }
-      if (removed) _broadcastToRenderer('installations-changed', {})
+
+      // Clean stale references from settings against the current installation list
+      const remaining = swept ? await installations.list() : all
+      const validIds = new Set(remaining.map((i) => i.id))
+      let settingsChanged = false
+
+      const currentPrimary = settings.get('primaryInstallId') as string | undefined
+      if (currentPrimary && !validIds.has(currentPrimary)) {
+        await autoAssignPrimary(currentPrimary)
+        settingsChanged = true
+      }
+
+      const rawPinned = settings.get('pinnedInstallIds')
+      const pinned = Array.isArray(rawPinned) ? rawPinned as string[] : []
+      const filtered = pinned.filter((id) => validIds.has(id))
+      if (filtered.length !== pinned.length) {
+        settings.set('pinnedInstallIds', filtered)
+        settingsChanged = true
+      }
+
+      if (swept || settingsChanged) _broadcastToRenderer('installations-changed', {})
     } catch {}
   })()
 
