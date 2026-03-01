@@ -14,6 +14,8 @@ export interface Settings {
 }
 
 const dataPath = path.join(configDir(), "settings.json")
+const backupPath = dataPath + ".bak"
+const tmpPath = dataPath + ".tmp"
 
 const SHARED_ROOT = path.join(homeDir(), "ComfyUI-Shared")
 
@@ -28,13 +30,24 @@ export const defaults: Settings = {
 
 const systemDefault = defaults.modelsDirs[0]!
 
-function load(): Settings {
-  let result: Settings
+function parseSettings(raw: string): Record<string, unknown> | null {
   try {
-    result = { ...defaults, ...JSON.parse(fs.readFileSync(dataPath, "utf-8")) }
-  } catch {
-    result = { ...defaults }
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>
+  } catch {}
+  return null
+}
+
+function load(): Settings {
+  let parsed = parseSettings((() => { try { return fs.readFileSync(dataPath, "utf-8") } catch { return "" } })())
+  if (!parsed) {
+    // Primary file missing or corrupt — try backup
+    parsed = parseSettings((() => { try { return fs.readFileSync(backupPath, "utf-8") } catch { return "" } })())
+    if (parsed) {
+      try { fs.copyFileSync(backupPath, dataPath) } catch {}
+    }
   }
+  const result: Settings = { ...defaults, ...(parsed || {}) }
   // Ensure system default directory is always present in modelsDirs
   if (!Array.isArray(result.modelsDirs)) {
     result.modelsDirs = [systemDefault]
@@ -60,7 +73,9 @@ function load(): Settings {
 
 function save(settings: Settings): void {
   fs.mkdirSync(path.dirname(dataPath), { recursive: true })
-  fs.writeFileSync(dataPath, JSON.stringify(settings, null, 2))
+  fs.writeFileSync(tmpPath, JSON.stringify(settings, null, 2))
+  try { fs.copyFileSync(dataPath, backupPath) } catch {}
+  fs.renameSync(tmpPath, dataPath)
 }
 
 export function get(key: string): unknown {
