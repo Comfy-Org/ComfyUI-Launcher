@@ -2,7 +2,7 @@
  * Shared release info cache.
  *
  * Stores the latest release metadata (latestTag, releaseName, releaseNotes, etc.)
- * keyed by remote identity (repo + track), so multiple installations pointing at
+ * keyed by remote identity (repo + channel), so multiple installations pointing at
  * the same upstream share a single check result.
  *
  * The cache is kept in memory for fast synchronous reads (getDetailSections,
@@ -58,25 +58,25 @@ function _persist(): void {
  * Today: "github:Comfy-Org/ComfyUI:stable"
  * Future: could include branch/ref overrides per installation.
  */
-export function makeKey(repo: string, track: string): string {
-  return `github:${repo}:${track}`
+export function makeKey(repo: string, channel: string): string {
+  return `github:${repo}:${channel}`
 }
 
 /**
  * Get cached release info (synchronous — reads from memory).
  * Returns the entry object or null.
  */
-export function get(repo: string, track: string): ReleaseCacheEntry | null {
+export function get(repo: string, channel: string): ReleaseCacheEntry | null {
   _ensureLoaded()
-  return _entries[makeKey(repo, track)] ?? null
+  return _entries[makeKey(repo, channel)] ?? null
 }
 
 /**
  * Store release info and persist to disk.
  */
-export function set(repo: string, track: string, entry: ReleaseCacheEntry): void {
+export function set(repo: string, channel: string, entry: ReleaseCacheEntry): void {
   _ensureLoaded()
-  _entries[makeKey(repo, track)] = entry
+  _entries[makeKey(repo, channel)] = entry
   _persist()
 }
 
@@ -90,18 +90,18 @@ const MIN_RECHECK_INTERVAL = 10_000
 /**
  * Fetch release info, deduplicating concurrent calls for the same key.
  * @param repo - e.g. "Comfy-Org/ComfyUI"
- * @param track - "stable" or "latest"
+ * @param channel - "stable" or "latest"
  * @param fetchFn - async () => entry (calls the GitHub API)
  * @param force - bypass cache
  * @returns the release entry
  */
 export async function getOrFetch(
   repo: string,
-  track: string,
+  channel: string,
   fetchFn: () => Promise<ReleaseCacheEntry | null>,
   force: boolean = false
 ): Promise<ReleaseCacheEntry | null> {
-  const key = makeKey(repo, track)
+  const key = makeKey(repo, channel)
   _ensureLoaded()
 
   const cached = _entries[key]
@@ -139,15 +139,15 @@ export async function getOrFetch(
  */
 export function getEffectiveInfo(
   repo: string,
-  track: string,
+  channel: string,
   installation: Record<string, unknown>
 ): (ReleaseCacheEntry & { installedTag: string }) | null {
-  const cached = get(repo, track)
+  const cached = get(repo, channel)
   if (!cached) return null
-  const updateInfoByTrack = installation.updateInfoByTrack as
+  const updateInfoByChannel = installation.updateInfoByChannel as
     | Record<string, Record<string, unknown>>
     | undefined
-  const perInstall = updateInfoByTrack?.[track]
+  const perInstall = updateInfoByChannel?.[channel]
   const installedTag =
     (perInstall?.installedTag as string | undefined) ??
     (installation.version as string | undefined) ??
@@ -161,15 +161,15 @@ export function getEffectiveInfo(
  */
 export async function checkForUpdate(
   repo: string,
-  track: string,
+  channel: string,
   installation: Record<string, unknown>,
   update: (data: Record<string, unknown>) => Promise<void>
 ): Promise<{ ok: boolean; navigate?: string; message?: string }> {
   const entry = await getOrFetch(
     repo,
-    track,
+    channel,
     async () => {
-      const release = await fetchLatestRelease(track)
+      const release = await fetchLatestRelease(channel)
       if (!release) return null
       return {
         checkedAt: Date.now(),
@@ -185,40 +185,40 @@ export async function checkForUpdate(
   if (!entry) {
     return { ok: false, message: 'Could not fetch releases from GitHub.' }
   }
-  const existing = (installation.updateInfoByTrack as Record<string, Record<string, unknown>>) || {}
-  const prevTrackInfo = existing[track]
+  const existing = (installation.updateInfoByChannel as Record<string, Record<string, unknown>>) || {}
+  const prevChannelInfo = existing[channel]
   const installedTag =
-    (prevTrackInfo?.installedTag as string | undefined) ??
+    (prevChannelInfo?.installedTag as string | undefined) ??
     (installation.version as string | undefined) ??
     'unknown'
   await update({
-    updateInfoByTrack: {
+    updateInfoByChannel: {
       ...existing,
-      [track]: { installedTag },
+      [channel]: { installedTag },
     },
   })
   return { ok: true, navigate: 'detail' }
 }
 
 /**
- * Determine if an update is available for the given track, using local data only.
- * Handles cross-track switches (e.g. last update was on "latest" but viewing "stable").
+ * Determine if an update is available for the given channel, using local data only.
+ * Handles cross-channel switches (e.g. last update was on "latest" but viewing "stable").
  */
 export function isUpdateAvailable(
   installation: Record<string, unknown>,
-  track: string,
+  channel: string,
   info: ReleaseCacheEntry | null
 ): boolean {
   if (!info || !info.latestTag) return false
-  // Cross-track: last update was on a different track, so this track's installedTag is stale
+  // Cross-channel: last update was on a different channel, so this channel's installedTag is stale
   const lastRollback = installation.lastRollback as
     | Record<string, unknown>
     | undefined
-  const lastUpdateTrack = lastRollback?.track as string | undefined
-  if (lastUpdateTrack && lastUpdateTrack !== track) return true
+  const lastUpdateChannel = lastRollback?.channel as string | undefined
+  if (lastUpdateChannel && lastUpdateChannel !== channel) return true
   // Installed version string shows commits ahead of the stable tag (e.g. "v0.14.2 + 21 commits")
   const version = (installation.version as string) || ''
-  if (track === 'stable' && version.includes(info.latestTag + ' +')) return true
+  if (channel === 'stable' && version.includes(info.latestTag + ' +')) return true
   // Raw tag/sha mismatch
   if (info.installedTag && info.installedTag !== info.latestTag) return true
   return false

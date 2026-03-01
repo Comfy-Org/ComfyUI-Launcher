@@ -20,9 +20,9 @@ interface GitHubComparison {
 }
 
 export async function fetchLatestRelease(
-  track: string
+  channel: string
 ): Promise<Record<string, unknown> | null> {
-  if (track === 'latest') {
+  if (channel === 'latest') {
     const REPO = 'Comfy-Org/ComfyUI'
     const [commit, releases] = await Promise.all([
       fetchJSON(`https://api.github.com/repos/${REPO}/commits/master`) as Promise<GitHubCommit | null>,

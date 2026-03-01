@@ -74,9 +74,9 @@ export const portable: SourcePlugin = {
   },
 
   getStatusTag(installation: InstallationRecord): StatusTag | undefined {
-    const track = (installation.updateTrack as string | undefined) || 'stable'
-    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, track, installation)
-    if (info && releaseCache.isUpdateAvailable(installation, track, info)) {
+    const channel = (installation.updateChannel as string | undefined) || 'stable'
+    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, channel, installation)
+    if (info && releaseCache.isUpdateAvailable(installation, channel, info)) {
       return { label: t('portable.updateAvailableTag', { version: info.releaseName || info.latestTag || '' }), style: 'update' }
     }
     return undefined
@@ -135,33 +135,33 @@ export const portable: SourcePlugin = {
     ]
 
     // Updates section
-    const track = (installation.updateTrack as string | undefined) || 'stable'
-    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, track, installation)
+    const channel = (installation.updateChannel as string | undefined) || 'stable'
+    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, channel, installation)
 
-    // Build per-track preview info for cards
-    const trackOptions = [
-      { value: 'stable', label: t('portable.trackStable'), description: t('portable.trackStableDesc'), recommended: true },
-      { value: 'latest', label: t('portable.trackLatest'), description: t('portable.trackLatestDesc') },
+    // Build per-channel preview info for cards
+    const channelOptions = [
+      { value: 'stable', label: t('portable.channelStable'), description: t('portable.channelStableDesc'), recommended: true },
+      { value: 'latest', label: t('portable.channelLatest'), description: t('portable.channelLatestDesc') },
     ].map((opt) => {
-      const trackInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
+      const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
       return {
         ...opt,
-        data: trackInfo ? {
-          installedVersion: trackInfo.installedTag || (installation.version as string | undefined) || 'unknown',
-          latestVersion: trackInfo.releaseName || trackInfo.latestTag || '—',
-          lastChecked: trackInfo.checkedAt ? new Date(trackInfo.checkedAt).toLocaleString() : '—',
-          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, trackInfo),
+        data: channelInfo ? {
+          installedVersion: channelInfo.installedTag || (installation.version as string | undefined) || 'unknown',
+          latestVersion: channelInfo.releaseName || channelInfo.latestTag || '—',
+          lastChecked: channelInfo.checkedAt ? new Date(channelInfo.checkedAt).toLocaleString() : '—',
+          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, channelInfo),
         } : undefined,
       }
     })
 
     const updateFields: Record<string, unknown>[] = [
-      { id: 'updateTrack', label: t('portable.updateTrack'), value: track, editable: true,
-        refreshSection: true, onChangeAction: 'check-update', editType: 'track-cards', options: trackOptions },
+      { id: 'updateChannel', label: t('portable.updateChannel'), value: channel, editable: true,
+        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions },
     ]
     const updateActions: Record<string, unknown>[] = []
-    if (info && releaseCache.isUpdateAvailable(installation, track, info)) {
-      const msgKey = track === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'
+    if (info && releaseCache.isUpdateAvailable(installation, channel, info)) {
+      const msgKey = channel === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'
       const notes = truncateNotes(info.releaseNotes || '', 2000)
       updateActions.push({
         id: 'update-comfyui', label: t('portable.updateNow'), style: 'primary', enabled: installed,
@@ -245,8 +245,8 @@ export const portable: SourcePlugin = {
     { update, sendProgress, sendOutput }: ActionTools,
   ): Promise<ActionResult> {
     if (actionId === 'check-update') {
-      const track = (installation.updateTrack as string | undefined) || 'stable'
-      return releaseCache.checkForUpdate(COMFYUI_REPO, track, installation, update)
+      const channel = (installation.updateChannel as string | undefined) || 'stable'
+      return releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
     }
 
     if (actionId === 'update-comfyui') {
@@ -263,8 +263,8 @@ export const portable: SourcePlugin = {
         return { ok: false, message: t('portable.noUpdateDir') }
       }
 
-      const track = (installation.updateTrack as string | undefined) || 'stable'
-      const stableArgs = track === 'stable' ? ['--stable'] : []
+      const channel = (installation.updateChannel as string | undefined) || 'stable'
+      const stableArgs = channel === 'stable' ? ['--stable'] : []
 
       sendProgress('steps', { steps: [
         { phase: 'prepare', label: t('portable.updatePrepare') },
@@ -317,14 +317,14 @@ export const portable: SourcePlugin = {
 
       sendProgress('deps', { percent: -1, status: 'Dependencies checked.' })
 
-      const cachedRelease = releaseCache.get(COMFYUI_REPO, track)
+      const cachedRelease = releaseCache.get(COMFYUI_REPO, channel)
       const latestTag = (cachedRelease?.latestTag as string | undefined) || (installation.version ?? 'unknown')
-      const existing = (installation.updateInfoByTrack as Record<string, Record<string, unknown>> | undefined) || {}
+      const existing = (installation.updateInfoByChannel as Record<string, Record<string, unknown>> | undefined) || {}
       await update({
         version: latestTag,
-        updateInfoByTrack: {
+        updateInfoByChannel: {
           ...existing,
-          [track]: { installedTag: latestTag },
+          [channel]: { installedTag: latestTag },
         },
       })
 
