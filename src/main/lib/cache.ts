@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { META_SUFFIX } from './download'
 
 export interface Cache {
   getCachePath(folder: string): string
@@ -57,13 +58,13 @@ export function createCache(dir: string, max: number): Cache {
           const entries = fs.readdirSync(folderPath, { withFileTypes: true })
           for (const entry of entries) {
             if (!entry.isFile()) continue
-            if (!entry.name.endsWith('.dl-meta')) continue
+            if (!entry.name.endsWith(META_SUFFIX)) continue
             const metaFilePath = path.join(folderPath, entry.name)
             try {
               const stat = fs.statSync(metaFilePath)
               if (stat.mtimeMs < cutoff) {
                 // Remove both the meta file and the associated incomplete data file
-                const dataFilePath = metaFilePath.slice(0, -'.dl-meta'.length)
+                const dataFilePath = metaFilePath.slice(0, -META_SUFFIX.length)
                 try { fs.unlinkSync(dataFilePath) } catch {}
                 fs.unlinkSync(metaFilePath)
               }

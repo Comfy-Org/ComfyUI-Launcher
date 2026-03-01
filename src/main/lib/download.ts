@@ -26,7 +26,7 @@ interface DownloadOptions {
   _maxRedirects?: number
 }
 
-const META_SUFFIX = '.dl-meta'
+export const META_SUFFIX = '.dl-meta'
 
 export function downloadMetaPath(filePath: string): string {
   return filePath + META_SUFFIX
@@ -89,6 +89,11 @@ export function download(
         // URL mismatch or can't stat — start fresh
         try { fs.unlinkSync(destPath) } catch {}
         try { fs.unlinkSync(metaPath) } catch {}
+      } else if (existingMeta.expectedSize > 0 && resumeFrom >= existingMeta.expectedSize) {
+        // File is already fully downloaded but meta wasn't cleaned up (crash after write, before meta delete)
+        try { fs.unlinkSync(metaPath) } catch {}
+        resolve(destPath)
+        return
       }
     } else if (fs.existsSync(metaPath)) {
       // Stale meta without data file
