@@ -353,10 +353,14 @@ export const standalone: SourcePlugin = {
       const snapshotCount = snapshotEntries.length
       const formatLabel = (s: snapshots.SnapshotEntry): string => {
         const date = new Date(s.snapshot.createdAt).toLocaleString()
-        const trigger = s.snapshot.trigger === 'boot' ? t('standalone.snapshotBoot')
-          : s.snapshot.trigger === 'restart' ? t('standalone.snapshotRestart')
-          : s.snapshot.trigger === 'pre-update' ? t('standalone.snapshotPreUpdate')
-          : t('standalone.snapshotManual')
+        const triggerMap: Record<string, string> = {
+          boot: t('standalone.snapshotBoot'),
+          restart: t('standalone.snapshotRestart'),
+          'pre-update': t('standalone.snapshotPreUpdate'),
+          'post-update': t('standalone.snapshotPostUpdate'),
+          'post-restore': t('standalone.snapshotPostRestore'),
+        }
+        const trigger = triggerMap[s.snapshot.trigger] || t('standalone.snapshotManual')
         return s.snapshot.label ? `${trigger}: ${s.snapshot.label}  ·  ${date}` : `${trigger}  ·  ${date}`
       }
       sections.push({
@@ -725,7 +729,7 @@ export const standalone: SourcePlugin = {
 
       // Capture a new snapshot reflecting the restored state
       try {
-        const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'manual', 'after-restore')
+        const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'post-restore', 'after-restore')
         const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
         await update({ lastSnapshot: filename, snapshotCount })
       } catch {}
@@ -1001,7 +1005,7 @@ export const standalone: SourcePlugin = {
       // Capture post-update snapshot so the history reflects the new state immediately
       try {
         const updatedInstallation = { ...installation, version: displayVersion }
-        const filename = await snapshots.saveSnapshot(installPath, updatedInstallation, 'manual', 'after-update')
+        const filename = await snapshots.saveSnapshot(installPath, updatedInstallation, 'post-update', 'after-update')
         const snapshotCount = await snapshots.getSnapshotCount(installPath)
         await update({ lastSnapshot: filename, snapshotCount })
 

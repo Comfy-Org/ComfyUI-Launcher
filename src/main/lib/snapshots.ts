@@ -13,7 +13,7 @@ import type { InstallationRecord } from '../installations'
 export interface Snapshot {
   version: 1
   createdAt: string
-  trigger: 'boot' | 'restart' | 'manual' | 'pre-update'
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update' | 'post-update' | 'post-restore'
   label: string | null
   comfyui: {
     ref: string
@@ -227,7 +227,7 @@ async function deduplicateRestartSnapshot(installPath: string, justSavedFilename
 export async function captureSnapshotIfChanged(
   installPath: string,
   installation: InstallationRecord,
-  trigger: 'boot' | 'restart' | 'manual' | 'pre-update'
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update' | 'post-update' | 'post-restore'
 ): Promise<{ saved: boolean; filename?: string; deduplicated?: string }> {
   return withLock(installPath, async () => {
     const current = await captureState(installPath, installation)
@@ -264,7 +264,7 @@ export async function captureSnapshotIfChanged(
 export async function saveSnapshot(
   installPath: string,
   installation: InstallationRecord,
-  trigger: 'boot' | 'restart' | 'manual' | 'pre-update',
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update' | 'post-update' | 'post-restore',
   label?: string
 ): Promise<string> {
   return withLock(installPath, async () => {
@@ -1212,7 +1212,7 @@ export interface SnapshotDiffSummary {
 export interface SnapshotSummary {
   filename: string
   createdAt: string
-  trigger: 'boot' | 'restart' | 'manual' | 'pre-update'
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update' | 'post-update' | 'post-restore'
   label: string | null
   comfyuiVersion: string
   nodeCount: number

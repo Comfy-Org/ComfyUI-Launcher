@@ -341,7 +341,7 @@ export interface SnapshotDiffSummary {
 export interface SnapshotSummary {
   filename: string
   createdAt: string
-  trigger: 'boot' | 'restart' | 'manual' | 'pre-update'
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update' | 'post-update' | 'post-restore'
   label: string | null
   comfyuiVersion: string
   nodeCount: number

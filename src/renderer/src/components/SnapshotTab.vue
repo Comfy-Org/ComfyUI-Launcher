@@ -93,6 +93,8 @@ function triggerLabel(trigger: string): string {
     case 'restart': return t('snapshots.triggerRestart')
     case 'manual': return t('snapshots.triggerManual')
     case 'pre-update': return t('snapshots.triggerPreUpdate')
+    case 'post-update': return t('snapshots.triggerPostUpdate')
+    case 'post-restore': return t('snapshots.triggerPostRestore')
     default: return trigger
   }
 }
@@ -103,6 +105,8 @@ function triggerClass(trigger: string): string {
     case 'restart': return 'trigger-restart'
     case 'manual': return 'trigger-manual'
     case 'pre-update': return 'trigger-preupdate'
+    case 'post-update': return 'trigger-postupdate'
+    case 'post-restore': return 'trigger-postrestore'
     default: return ''
   }
 }
@@ -605,6 +609,8 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 .timeline-dot.trigger-boot { background: var(--text-muted); }
 .timeline-dot.trigger-manual { background: var(--warning, #fd9903); }
 .timeline-dot.trigger-preupdate { background: var(--success, #00cd72); }
+.timeline-dot.trigger-postupdate { background: var(--success, #00cd72); }
+.timeline-dot.trigger-postrestore { background: var(--warning, #fd9903); }
 .timeline-dot.trigger-restart { background: var(--info, #58a6ff); }
 .timeline-dot.trigger-copy { background: var(--text-muted); }
 
@@ -647,6 +653,8 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 .timeline-trigger.trigger-boot { color: var(--text-muted); }
 .timeline-trigger.trigger-manual { color: var(--warning, #fd9903); }
 .timeline-trigger.trigger-preupdate { color: var(--success, #00cd72); }
+.timeline-trigger.trigger-postupdate { color: var(--success, #00cd72); }
+.timeline-trigger.trigger-postrestore { color: var(--warning, #fd9903); }
 .timeline-trigger.trigger-restart { color: var(--info, #58a6ff); }
 .timeline-trigger.trigger-copy { color: var(--text-muted); }
 
