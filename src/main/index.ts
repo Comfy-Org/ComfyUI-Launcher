@@ -35,6 +35,30 @@ function createLauncherWindow(): void {
   })
 
   launcherWindow.setMenuBarVisibility(false)
+  launcherWindow.webContents.on('did-finish-load', () => {
+    if (launcherWindow && !launcherWindow.isDestroyed()) {
+      launcherWindow.webContents.setZoomLevel(0)
+    }
+  })
+
+  function notifyZoomLevel(): void {
+    if (launcherWindow && !launcherWindow.isDestroyed()) {
+      const level = launcherWindow.webContents.getZoomLevel()
+      launcherWindow.webContents.send('zoom-changed', level)
+    }
+  }
+
+  // Pinch-to-zoom
+  launcherWindow.webContents.on('zoom-changed', () => notifyZoomLevel())
+
+  // Keyboard zoom (Ctrl/Cmd + =/-/0)
+  launcherWindow.webContents.on('before-input-event', (_e, input) => {
+    if (input.type !== 'keyDown') return
+    const mod = input.control || input.meta
+    if (mod && (input.key === '=' || input.key === '+' || input.key === '-' || input.key === '0')) {
+      setTimeout(notifyZoomLevel, 50)
+    }
+  })
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     launcherWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -251,6 +275,12 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
 }
 
 ipcMain.handle('quit-app', () => quitApp())
+
+ipcMain.handle('reset-zoom', () => {
+  if (launcherWindow && !launcherWindow.isDestroyed()) {
+    launcherWindow.webContents.setZoomLevel(0)
+  }
+})
 
 ipcMain.handle('focus-comfy-window', (_event, installationId: string) => {
   const win = comfyWindows.get(installationId)

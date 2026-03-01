@@ -68,6 +68,7 @@ const api: ElectronApi = {
 
   // App
   quitApp: () => ipcRenderer.invoke('quit-app'),
+  resetZoom: () => ipcRenderer.invoke('reset-zoom'),
 
   // Updates
   checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
@@ -140,6 +141,11 @@ const api: ElectronApi = {
     const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
     ipcRenderer.on('update-error', handler)
     return () => ipcRenderer.removeListener('update-error', handler)
+  },
+  onZoomChanged: (callback) => {
+    const handler = (_event: IpcRendererEvent, level: unknown) => callback(level as number)
+    ipcRenderer.on('zoom-changed', handler)
+    return () => ipcRenderer.removeListener('zoom-changed', handler)
   },
 }
 
