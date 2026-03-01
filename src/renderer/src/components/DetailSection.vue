@@ -30,9 +30,9 @@ const emit = defineEmits<{
 const isCollapsed = ref(props.collapsed === true)
 const sectionRef = ref<HTMLDivElement | null>(null)
 
-// Track-cards draft state: local selection before committing
+// Channel-cards draft state: local selection before committing
 const draftValues = reactive<Record<string, string>>({})
-const switchingTrack = ref(false)
+const switchingChannel = ref(false)
 
 function getDraft(f: DetailField): string {
   return draftValues[f.id] ?? String(f.value)
@@ -46,20 +46,20 @@ function getSelectedOption(f: DetailField): DetailFieldOption | undefined {
 // Reset draft when the committed value changes (e.g., after refresh)
 watch(() => props.fields, () => {
   for (const f of props.fields ?? []) {
-    if (f.editType === 'track-cards' && draftValues[f.id] === String(f.value)) {
+    if (f.editType === 'channel-cards' && draftValues[f.id] === String(f.value)) {
       delete draftValues[f.id]
     }
   }
 }, { deep: true })
 
-async function switchTrack(field: DetailField): Promise<void> {
+async function switchChannel(field: DetailField): Promise<void> {
   const draft = draftValues[field.id]
   if (!draft || draft === String(field.value)) return
-  switchingTrack.value = true
+  switchingChannel.value = true
   try {
     await handleFieldChange(field, draft)
   } finally {
-    switchingTrack.value = false
+    switchingChannel.value = false
     delete draftValues[field.id]
   }
 }
@@ -128,51 +128,51 @@ v-for="a in item.actions" :key="a.id"
       <!-- Fields -->
       <div v-if="fields?.length" class="detail-fields">
         <div v-for="f in fields" :key="f.id">
-          <!-- Track cards -->
-          <template v-if="f.editable && f.editType === 'track-cards'">
+          <!-- Channel cards -->
+          <template v-if="f.editable && f.editType === 'channel-cards'">
             <div class="detail-field-label">{{ f.label }}</div>
-            <div class="track-cards-row">
+            <div class="channel-cards-row">
               <button
                 v-for="opt in f.options" :key="opt.value"
-                class="track-card"
+                class="channel-card"
                 :class="{ selected: getDraft(f) === opt.value, current: String(f.value) === opt.value }"
                 @click="draftValues[f.id] = opt.value"
               >
-                <div class="track-card-header">
-                  <span class="track-card-label">{{ opt.label }}</span>
-                  <span v-if="opt.recommended" class="track-card-badge">{{ $t('newInstall.recommended') }}</span>
+                <div class="channel-card-header">
+                  <span class="channel-card-label">{{ opt.label }}</span>
+                  <span v-if="opt.recommended" class="channel-card-badge">{{ $t('newInstall.recommended') }}</span>
                 </div>
-                <div v-if="opt.description" class="track-card-desc">{{ opt.description }}</div>
+                <div v-if="opt.description" class="channel-card-desc">{{ opt.description }}</div>
               </button>
             </div>
-            <div v-if="getSelectedOption(f)?.data" class="track-preview">
-              <div class="track-preview-row">
-                <span class="track-preview-label">{{ $t('trackCards.installedVersion') }}</span>
-                <span class="track-preview-value">{{ (getSelectedOption(f)!.data as Record<string, unknown>).installedVersion }}</span>
+            <div v-if="getSelectedOption(f)?.data" class="channel-preview">
+              <div class="channel-preview-row">
+                <span class="channel-preview-label">{{ $t('channelCards.installedVersion') }}</span>
+                <span class="channel-preview-value">{{ (getSelectedOption(f)!.data as Record<string, unknown>).installedVersion }}</span>
               </div>
-              <div class="track-preview-row">
-                <span class="track-preview-label">{{ $t('trackCards.latestVersion') }}</span>
-                <span class="track-preview-value">{{ (getSelectedOption(f)!.data as Record<string, unknown>).latestVersion }}</span>
+              <div class="channel-preview-row">
+                <span class="channel-preview-label">{{ $t('channelCards.latestVersion') }}</span>
+                <span class="channel-preview-value">{{ (getSelectedOption(f)!.data as Record<string, unknown>).latestVersion }}</span>
               </div>
-              <div class="track-preview-row">
-                <span class="track-preview-label">{{ $t('trackCards.lastChecked') }}</span>
-                <span class="track-preview-value">{{ (getSelectedOption(f)!.data as Record<string, unknown>).lastChecked }}</span>
+              <div class="channel-preview-row">
+                <span class="channel-preview-label">{{ $t('channelCards.lastChecked') }}</span>
+                <span class="channel-preview-value">{{ (getSelectedOption(f)!.data as Record<string, unknown>).lastChecked }}</span>
               </div>
-              <div class="track-preview-row">
-                <span class="track-preview-label">{{ $t('trackCards.status') }}</span>
-                <span class="track-preview-value">{{ (getSelectedOption(f)!.data as Record<string, unknown>).updateAvailable ? $t('trackCards.updateAvailable') : $t('trackCards.upToDate') }}</span>
+              <div class="channel-preview-row">
+                <span class="channel-preview-label">{{ $t('channelCards.status') }}</span>
+                <span class="channel-preview-value">{{ (getSelectedOption(f)!.data as Record<string, unknown>).updateAvailable ? $t('channelCards.updateAvailable') : $t('channelCards.upToDate') }}</span>
               </div>
             </div>
-            <div v-else-if="getDraft(f) !== String(f.value)" class="track-preview track-preview-empty">
-              {{ $t('trackCards.noInfo') }}
+            <div v-else-if="getDraft(f) !== String(f.value)" class="channel-preview channel-preview-empty">
+              {{ $t('channelCards.noInfo') }}
             </div>
             <button
               v-if="getDraft(f) !== String(f.value)"
-              class="primary track-switch-btn"
-              :disabled="switchingTrack"
-              @click="switchTrack(f)"
+              class="primary channel-switch-btn"
+              :disabled="switchingChannel"
+              @click="switchChannel(f)"
             >
-              {{ switchingTrack ? $t('trackCards.switching') : $t('trackCards.switchTrack') }}
+              {{ switchingChannel ? $t('channelCards.switching') : $t('channelCards.switchChannel') }}
             </button>
           </template>
           <template v-else>

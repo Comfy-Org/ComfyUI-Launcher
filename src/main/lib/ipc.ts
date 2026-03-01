@@ -282,24 +282,16 @@ async function migrateDefaults(): Promise<void> {
         changed = true
       }
     }
-    if (inst.updateInfo && !inst.updateInfoByTrack) {
-      const updateInfo = inst.updateInfo as Record<string, unknown>
-      const track = (updateInfo.track as string | undefined) || (inst.updateTrack as string | undefined) || 'stable'
-      const { track: _t, ...rest } = updateInfo
-      inst.updateInfoByTrack = { [track]: rest }
-      delete inst.updateInfo
-      changed = true
-    }
-    if (inst.updateInfoByTrack) {
+    if (inst.updateInfoByChannel) {
       const repo = 'Comfy-Org/ComfyUI'
-      const trackMap = inst.updateInfoByTrack as Record<string, Record<string, unknown>>
-      for (const [track, info] of Object.entries(trackMap)) {
-        if (info.latestTag && !releaseCache.get(repo, track)) {
+      const channelMap = inst.updateInfoByChannel as Record<string, Record<string, unknown>>
+      for (const [channel, info] of Object.entries(channelMap)) {
+        if (info.latestTag && !releaseCache.get(repo, channel)) {
           const { installedTag: _it, available: _av, ...releaseFields } = info
-          releaseCache.set(repo, track, releaseFields)
+          releaseCache.set(repo, channel, releaseFields)
         }
         if (info.latestTag || info.releaseName || info.releaseNotes) {
-          trackMap[track] = { installedTag: info.installedTag }
+          channelMap[channel] = { installedTag: info.installedTag }
           changed = true
         }
       }
@@ -318,19 +310,19 @@ function resolveTheme(): ResolvedTheme {
 async function checkInstallationUpdates(): Promise<void> {
   try {
     const all = await installations.list()
-    const tracks = new Set<string>()
+    const channels = new Set<string>()
     for (const inst of all) {
       const source = sourceMap[inst.sourceId]
       if (!source || source.skipInstall) continue
       if (inst.status !== 'installed') continue
-      const track = (inst.updateTrack as string | undefined) || 'stable'
-      tracks.add(track)
+      const channel = (inst.updateChannel as string | undefined) || 'stable'
+      channels.add(channel)
     }
-    if (tracks.size === 0) return
+    if (channels.size === 0) return
     await Promise.allSettled(
-      [...tracks].map((track) =>
-        releaseCache.getOrFetch(COMFYUI_REPO, track, async () => {
-          const release = await fetchLatestRelease(track)
+      [...channels].map((channel) =>
+        releaseCache.getOrFetch(COMFYUI_REPO, channel, async () => {
+          const release = await fetchLatestRelease(channel)
           if (!release) return null
           return {
             checkedAt: Date.now(),
