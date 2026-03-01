@@ -323,7 +323,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
               <span v-if="item.snapshotIndex === 0" class="timeline-current-tag">{{ t('snapshots.current') }}</span>
               <span class="timeline-time" :title="formatDate(item.snapshot.createdAt)">{{ formatRelative(item.snapshot.createdAt) }}</span>
             </div>
-            <div v-if="item.snapshot.label" class="timeline-label">{{ item.snapshot.label }}</div>
+            <div v-if="item.snapshot.label && !['after-update', 'before-update', 'after-restore'].includes(item.snapshot.label)" class="timeline-label">{{ item.snapshot.label }}</div>
             <div class="timeline-card-body">
               <div class="timeline-meta">
                 <span>{{ item.snapshot.comfyuiVersion }}</span>
