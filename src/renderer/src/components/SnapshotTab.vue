@@ -952,7 +952,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.node-enabled { background: var(--text-muted); }
+.node-enabled { background: var(--info, #58a6ff); }
 .node-disabled { background: var(--text-faint); }
 
 .node-name {
