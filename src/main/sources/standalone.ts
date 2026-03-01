@@ -351,28 +351,24 @@ export const standalone: SourcePlugin = {
     if (installed && installation.installPath) {
       const snapshotEntries = snapshots.listSnapshotsSync(installation.installPath)
       const snapshotCount = snapshotEntries.length
-      const formatLabel = (s: snapshots.SnapshotEntry, isCurrent: boolean): string => {
+      const formatLabel = (s: snapshots.SnapshotEntry): string => {
         const date = new Date(s.snapshot.createdAt).toLocaleString()
         const trigger = s.snapshot.trigger === 'boot' ? t('standalone.snapshotBoot')
           : s.snapshot.trigger === 'restart' ? t('standalone.snapshotRestart')
           : s.snapshot.trigger === 'pre-update' ? t('standalone.snapshotPreUpdate')
           : t('standalone.snapshotManual')
-        if (isCurrent) {
-          return s.snapshot.label
-            ? `★ ${t('standalone.snapshotCurrent')}  ·  ${trigger}: ${s.snapshot.label}  ·  ${date}`
-            : `★ ${t('standalone.snapshotCurrent')}  ·  ${trigger}  ·  ${date}`
-        }
         return s.snapshot.label ? `${trigger}: ${s.snapshot.label}  ·  ${date}` : `${trigger}  ·  ${date}`
       }
       sections.push({
         tab: 'status',
         title: t('standalone.snapshotHistory'),
         description: snapshotCount > 0
-          ? t('standalone.snapshotHistoryDesc', { count: snapshotCount })
+          ? (snapshotCount === 1 ? t('standalone.snapshotHistoryDescOne') : t('standalone.snapshotHistoryDesc', { count: snapshotCount }))
           : t('standalone.snapshotHistoryEmpty'),
         collapsed: snapshotCount > 0,
         items: snapshotEntries.slice(0, 20).map((s, i) => ({
-          label: formatLabel(s, i === 0),
+          label: formatLabel(s),
+          ...(i === 0 ? { tag: t('standalone.snapshotCurrent') } : {}),
           actions: [
             { id: 'snapshot-view', label: t('standalone.snapshotView'),
               data: { file: s.filename } },
@@ -381,9 +377,6 @@ export const standalone: SourcePlugin = {
                 data: { file: s.filename },
                 showProgress: true, progressTitle: t('standalone.snapshotRestoringTitle'), cancellable: true,
                 confirm: { title: t('standalone.snapshotRestoreTitle'), message: t('standalone.snapshotRestoreMessage') } },
-              { id: 'snapshot-delete', label: t('standalone.snapshotDelete'), style: 'danger' as const,
-                data: { file: s.filename },
-                confirm: { title: t('standalone.snapshotDeleteTitle'), message: t('standalone.snapshotDeleteMessage') } },
             ]),
           ],
         })),
@@ -742,6 +735,8 @@ export const standalone: SourcePlugin = {
         ...(totalFailures > 0 ? { message: `${totalFailures} operation(s) failed` } : {}) }
     }
 
+    // Handler kept for potential future use (e.g., context menu). Button removed from UI since
+    // snapshots are tiny (~5 KB) and auto-pruned, so manual deletion adds more risk than value.
     if (actionId === 'snapshot-delete') {
       const file = actionData?.file as string | undefined
       if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
@@ -851,10 +846,11 @@ export const standalone: SourcePlugin = {
       sendProgress('prepare', { percent: -1, status: t('standalone.updatePrepareSnapshot') })
 
       // Auto-snapshot before update
+      let preUpdateFilename: string | undefined
       try {
-        const filename = await snapshots.saveSnapshot(installPath, installation, 'pre-update', 'before-update')
+        preUpdateFilename = await snapshots.saveSnapshot(installPath, installation, 'pre-update', 'before-update')
         const snapshotCount = await snapshots.getSnapshotCount(installPath)
-        await update({ lastSnapshot: filename, snapshotCount })
+        await update({ lastSnapshot: preUpdateFilename, snapshotCount })
       } catch (err) {
         console.warn('Pre-update snapshot failed:', err)
       }
@@ -1001,6 +997,25 @@ export const standalone: SourcePlugin = {
           [channel]: { installedTag },
         },
       })
+
+      // Capture post-update snapshot so the history reflects the new state immediately
+      try {
+        const updatedInstallation = { ...installation, version: displayVersion }
+        const filename = await snapshots.saveSnapshot(installPath, updatedInstallation, 'manual', 'after-update')
+        const snapshotCount = await snapshots.getSnapshotCount(installPath)
+        await update({ lastSnapshot: filename, snapshotCount })
+
+        // Remove pre-update snapshot if it was identical to the one before it
+        if (preUpdateFilename) {
+          const pruned = await snapshots.deduplicatePreUpdateSnapshot(installPath, preUpdateFilename)
+          if (pruned) {
+            const updatedCount = await snapshots.getSnapshotCount(installPath)
+            await update({ snapshotCount: updatedCount })
+          }
+        }
+      } catch (err) {
+        console.warn('Post-update snapshot failed:', err)
+      }
 
       sendProgress('done', { percent: 100, status: 'Complete' })
       return { ok: true, navigate: 'detail' }

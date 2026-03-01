@@ -80,6 +80,7 @@ export interface DetailSection {
 export interface DetailItem {
   label: string
   active?: boolean
+  tag?: string
   actions?: ActionDef[]
 }
 

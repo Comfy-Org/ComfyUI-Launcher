@@ -54,7 +54,7 @@ export interface SnapshotDiff {
 
 const SNAPSHOTS_DIR = path.join('.launcher', 'snapshots')
 const MANIFEST_FILE = 'manifest.json'
-const AUTO_SNAPSHOT_LIMIT = 50
+const AUTO_SNAPSHOT_LIMIT = 200
 
 // --- Per-install mutex ---
 
@@ -434,6 +434,26 @@ export async function diffAgainstCurrent(
     ...state,
   }
   return diffSnapshots(current, target)
+}
+
+/**
+ * After a successful update, check if the pre-update snapshot is identical to
+ * the snapshot before it. If so, it's redundant and can be removed.
+ */
+export async function deduplicatePreUpdateSnapshot(installPath: string, preUpdateFilename: string): Promise<boolean> {
+  const entries = await listSnapshots(installPath)
+  const idx = entries.findIndex((e) => e.filename === preUpdateFilename)
+  if (idx < 0 || idx >= entries.length - 1) return false
+
+  const preUpdate = entries[idx]!
+  if (preUpdate.snapshot.trigger !== 'pre-update') return false
+
+  const prev = entries[idx + 1]!
+  if (statesMatch(preUpdate.snapshot, prev.snapshot)) {
+    await deleteSnapshot(installPath, preUpdateFilename)
+    return true
+  }
+  return false
 }
 
 export async function pruneAutoSnapshots(installPath: string, keep: number): Promise<number> {

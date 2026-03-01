@@ -113,7 +113,7 @@ v-if="title" class="detail-section-title"
       <!-- Items -->
       <div v-if="items?.length" class="detail-item-list">
         <div v-for="item in items" :key="item.label" class="detail-item" :class="{ active: item.active }">
-          <div class="detail-item-label">{{ item.label }}{{ item.active ? ' (active)' : '' }}</div>
+          <div class="detail-item-label">{{ item.label }}{{ item.active ? ' (active)' : '' }}<span v-if="item.tag" class="detail-item-tag">{{ item.tag }}</span></div>
           <div v-if="item.actions" class="detail-item-actions">
             <button
 v-for="a in item.actions" :key="a.id"
