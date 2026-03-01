@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard } from 'electron'
 import path from 'path'
 import type { ChildProcess } from 'child_process'
 import todesktop from '@todesktop/runtime'
@@ -30,6 +30,46 @@ const POPUP_ALLOWED_PREFIXES = [
 
 function shouldOpenInPopup(url: string): boolean {
   return POPUP_ALLOWED_PREFIXES.some((prefix) => url.startsWith(prefix))
+}
+
+function attachContextMenu(comfyWindow: BrowserWindow): void {
+  comfyWindow.webContents.on('context-menu', (_event, params) => {
+    const { editFlags, isEditable, selectionText, linkURL } = params
+    const hasSelection = selectionText.trim().length > 0
+    const hasLink = linkURL.length > 0
+
+    if (!isEditable && !hasSelection && !hasLink) return
+
+    const menuItems: Electron.MenuItemConstructorOptions[] = []
+
+    if (hasLink) {
+      menuItems.push(
+        { label: i18n.t('contextMenu.openLinkInBrowser'), click: () => shell.openExternal(linkURL) },
+        { label: i18n.t('contextMenu.copyLinkAddress'), click: () => clipboard.writeText(linkURL) },
+      )
+    }
+
+    if (hasLink && (isEditable || hasSelection)) {
+      menuItems.push({ type: 'separator' })
+    }
+
+    if (isEditable) {
+      menuItems.push(
+        { label: i18n.t('contextMenu.cut'), role: 'cut', enabled: editFlags.canCut },
+        { label: i18n.t('contextMenu.copy'), role: 'copy', enabled: editFlags.canCopy },
+        { label: i18n.t('contextMenu.paste'), role: 'paste', enabled: editFlags.canPaste },
+        { type: 'separator' },
+        { label: i18n.t('contextMenu.selectAll'), role: 'selectAll', enabled: editFlags.canSelectAll },
+      )
+    } else if (hasSelection) {
+      menuItems.push(
+        { label: i18n.t('contextMenu.copy'), role: 'copy', enabled: editFlags.canCopy },
+        { label: i18n.t('contextMenu.selectAll'), role: 'selectAll', enabled: editFlags.canSelectAll },
+      )
+    }
+
+    Menu.buildFromTemplate(menuItems).popup({ window: comfyWindow })
+  })
 }
 
 let launcherWindow: BrowserWindow | null = null
@@ -260,6 +300,8 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
       .executeJavaScript(getModelDownloadContentScript())
       .catch(() => {})
   })
+
+  attachContextMenu(comfyWindow)
 
   comfyWindow.loadURL(comfyUrl)
 
