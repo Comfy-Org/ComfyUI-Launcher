@@ -72,6 +72,8 @@ const cloudInstall = computed(() =>
   installationStore.installations.find((i) => i.sourceCategory === 'cloud') ?? null
 )
 
+const hasAnyPins = computed(() => prefs.pinnedInstallIds.value.length > 0)
+
 // --- Pinned installs (exclude cloud, primary, latest) ---
 const pinnedInstalls = computed(() => {
   const excludeIds = new Set<string>()
@@ -335,12 +337,12 @@ async function changePrimary(): Promise<void> {
       </div>
 
       <!-- Pinned section -->
-      <div v-if="pinnedInstalls.length > 0" class="dashboard-section">
+      <div v-if="primaryInstall" class="dashboard-section">
         <div class="dashboard-section-label">
           <Pin :size="14" style="vertical-align: -2px; margin-right: 4px;" />
           {{ $t('dashboard.pinned') }}
         </div>
-        <div class="dashboard-quick-launch">
+        <div v-if="pinnedInstalls.length > 0" class="dashboard-quick-launch">
           <div
             v-for="pinned in pinnedInstalls"
             :key="pinned.id"
@@ -362,6 +364,9 @@ async function changePrimary(): Promise<void> {
               </template>
             </DashboardCard>
           </div>
+        </div>
+        <div v-else-if="!hasAnyPins" class="dashboard-empty-hint">
+          {{ $t('dashboard.noPinned') }}
         </div>
       </div>
 

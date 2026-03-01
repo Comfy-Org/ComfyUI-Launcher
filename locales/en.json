@@ -15,6 +15,7 @@
     "setPrimary": "Set as Primary",
     "cloudSection": "ComfyUI Cloud",
     "pinned": "Pinned",
+    "noPinned": "No pinned installations. Right-click an install to pin it to the dashboard.",
     "pinToDashboard": "Pin to Dashboard",
     "unpinFromDashboard": "Unpin from Dashboard"
   },
