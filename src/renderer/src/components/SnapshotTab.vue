@@ -630,7 +630,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   box-sizing: content-box;
 }
 .timeline-dot.trigger-boot { background: var(--text-muted); }
-.timeline-dot.trigger-manual { background: var(--warning, #fd9903); }
+.timeline-dot.trigger-manual { background: var(--success, #00cd72); }
 .timeline-dot.trigger-preupdate { background: var(--success, #00cd72); }
 .timeline-dot.trigger-postupdate { background: var(--warning, #fd9903); }
 .timeline-dot.trigger-postrestore { background: var(--warning, #fd9903); }
@@ -674,7 +674,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   background: var(--bg);
 }
 .timeline-trigger.trigger-boot { color: var(--text-muted); }
-.timeline-trigger.trigger-manual { color: var(--warning, #fd9903); }
+.timeline-trigger.trigger-manual { color: var(--success, #00cd72); }
 .timeline-trigger.trigger-preupdate { color: var(--success, #00cd72); }
 .timeline-trigger.trigger-postupdate { color: var(--warning, #fd9903); }
 .timeline-trigger.trigger-postrestore { color: var(--warning, #fd9903); }
