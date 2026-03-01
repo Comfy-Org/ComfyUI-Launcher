@@ -228,6 +228,23 @@ function handleRestore(filename: string): void {
   emit('run-action', action, null)
 }
 
+async function handleDelete(filename: string): Promise<void> {
+  const confirmed = await modal.confirm({
+    title: t('standalone.snapshotDelete'),
+    message: t('snapshots.deleteConfirm'),
+  })
+  if (!confirmed) return
+  await window.api.runAction(props.installationId, 'snapshot-delete', { file: filename })
+  if (selectedFilename.value === filename) {
+    selectedFilename.value = null
+    detail.value = null
+    diffData.value = null
+    diffMode.value = null
+  }
+  await load()
+  emit('refresh-all')
+}
+
 const filteredCustomNodes = computed(() => {
   if (!detail.value) return []
   if (!nodeSearch.value) return detail.value.customNodes
@@ -340,6 +357,12 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
               >
                 {{ t('snapshots.restore') }}
               </button>
+              <!-- Delete button (manual snapshots only) -->
+              <button
+                v-if="item.snapshot.trigger === 'manual'"
+                class="timeline-delete-btn"
+                @click.stop="handleDelete(item.snapshot.filename)"
+              >✕</button>
               <ChevronDown :size="14" class="timeline-expand-icon" :class="{ expanded: selectedFilename === item.snapshot.filename }" />
             </div>
             <div v-if="changeSummary(item.snapshot).length > 0" class="timeline-changes">
@@ -772,6 +795,28 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 .timeline-restore-btn:hover {
   color: var(--text);
   border-color: var(--accent);
+}
+
+.timeline-delete-btn {
+  padding: 3px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.timeline-card:hover .timeline-delete-btn,
+.timeline-delete-btn:focus-visible {
+  opacity: 1;
+}
+.timeline-delete-btn:hover {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .timeline-expand-icon {
