@@ -384,6 +384,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     } catch {}
   })()
 
+  // Clean up partial downloads left over from previous interrupted sessions
+  void (async () => {
+    try {
+      const cache = createCache(settings.get('cacheDir') as string, settings.get('maxCachedFiles') as number)
+      await cache.cleanPartials()
+    } catch {}
+  })()
+
   // Pre-warm the ETag cache for GitHub API URLs
   void (async () => {
     try {

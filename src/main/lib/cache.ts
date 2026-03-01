@@ -1,10 +1,12 @@
 import fs from 'fs'
 import path from 'path'
+import { META_SUFFIX } from './download'
 
 export interface Cache {
   getCachePath(folder: string): string
   evict(): void
   touch(folder: string): void
+  cleanPartials(maxAgeMs?: number): Promise<void>
 }
 
 export function createCache(dir: string, max: number): Cache {
@@ -45,5 +47,33 @@ export function createCache(dir: string, max: number): Cache {
     }
   }
 
-  return { getCachePath, evict, touch }
+  async function cleanPartials(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<void> {
+    ensureDir()
+    const cutoff = Date.now() - maxAgeMs
+    try {
+      const folders = (await fs.promises.readdir(dir, { withFileTypes: true })).filter((d) => d.isDirectory())
+      for (const folder of folders) {
+        const folderPath = path.join(dir, folder.name)
+        try {
+          const entries = await fs.promises.readdir(folderPath, { withFileTypes: true })
+          for (const entry of entries) {
+            if (!entry.isFile()) continue
+            if (!entry.name.endsWith(META_SUFFIX)) continue
+            const metaFilePath = path.join(folderPath, entry.name)
+            try {
+              const stat = await fs.promises.stat(metaFilePath)
+              if (stat.mtimeMs < cutoff) {
+                // Remove both the meta file and the associated incomplete data file
+                const dataFilePath = metaFilePath.slice(0, -META_SUFFIX.length)
+                try { await fs.promises.unlink(dataFilePath) } catch {}
+                await fs.promises.unlink(metaFilePath)
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+    } catch {}
+  }
+
+  return { getCachePath, evict, touch, cleanPartials }
 }
