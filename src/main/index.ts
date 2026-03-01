@@ -146,12 +146,15 @@ function createLauncherWindow(): void {
     minWidth: 650,
     minHeight: 500,
     icon: APP_ICON,
+    backgroundColor: '#202020',
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, '../preload/index.js'),
     },
   })
+  launcherWindow.once('ready-to-show', () => launcherWindow?.show())
 
   launcherWindow.setMenuBarVisibility(false)
   launcherWindow.webContents.on('did-finish-load', () => {
