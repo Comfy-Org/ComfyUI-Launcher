@@ -55,6 +55,13 @@ const api: ElectronApi = {
   runAction: (installationId, actionId, actionData?) =>
     ipcRenderer.invoke('run-action', installationId, actionId, actionData),
 
+  // Snapshots
+  getSnapshots: (installationId) => ipcRenderer.invoke('get-snapshots', installationId),
+  getSnapshotDetail: (installationId, filename) =>
+    ipcRenderer.invoke('get-snapshot-detail', installationId, filename),
+  getSnapshotDiff: (installationId, filename, mode) =>
+    ipcRenderer.invoke('get-snapshot-diff', installationId, filename, mode),
+
   // Settings
   getSettingsSections: () => ipcRenderer.invoke('get-settings-sections'),
   getModelsSections: () => ipcRenderer.invoke('get-models-sections'),

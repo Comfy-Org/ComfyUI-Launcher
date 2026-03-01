@@ -28,7 +28,8 @@ import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
-import { captureSnapshotIfChanged, getSnapshotCount } from './snapshots'
+import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot } from './snapshots'
+import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import type { Theme, ResolvedTheme } from '../../types/ipc'
 import type { LaunchCmd } from './process'
@@ -720,6 +721,47 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   ipcMain.handle('get-detail-sections', async (_event, installationId: string) => {
     const inst = await resolveInstallation(installationId)
     return resolveSource(inst.sourceId).getDetailSections(inst)
+  })
+
+  // Snapshots
+  ipcMain.handle('get-snapshots', async (_event, installationId: string) => {
+    const inst = await resolveInstallation(installationId)
+    if (!inst.installPath) return { snapshots: [], totalCount: 0, context: { updateChannel: '', pythonVersion: '', variant: '', variantLabel: '' } }
+    const data = await getSnapshotListData(inst.installPath)
+    return {
+      ...data,
+      context: {
+        updateChannel: (inst.updateChannel as string | undefined) || 'stable',
+        pythonVersion: (inst.pythonVersion as string | undefined) || '',
+        variant: (inst.variant as string | undefined) || '',
+        variantLabel: (inst.variant as string | undefined) ? getVariantLabel(inst.variant as string) : '',
+      },
+    }
+  })
+
+  ipcMain.handle('get-snapshot-detail', async (_event, installationId: string, filename: string) => {
+    const inst = await resolveInstallation(installationId)
+    if (!inst.installPath) throw new Error('Installation has no install path')
+    const detail = await getSnapshotDetailData(inst.installPath, filename)
+    // Fill in context from installation record if snapshot doesn't have it
+    if (!detail.pythonVersion) detail.pythonVersion = (inst.pythonVersion as string | undefined) || undefined
+    if (!detail.updateChannel) detail.updateChannel = (inst.updateChannel as string | undefined) || undefined
+    return detail
+  })
+
+  ipcMain.handle('get-snapshot-diff', async (_event, installationId: string, filename: string, mode: 'previous' | 'current') => {
+    const inst = await resolveInstallation(installationId)
+    if (!inst.installPath) throw new Error('Installation has no install path')
+    if (mode === 'previous') {
+      return getSnapshotDiffVsPrevious(inst.installPath, filename)
+    }
+    // mode === 'current'
+    const target = await loadSnapshot(inst.installPath, filename)
+    const diff = await diffAgainstCurrent(inst.installPath, inst, target)
+    const empty = !diff.comfyuiChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
+                  diff.nodesChanged.length === 0 && diff.pipsAdded.length === 0 && diff.pipsRemoved.length === 0 &&
+                  diff.pipsChanged.length === 0
+    return { mode: 'current' as const, baseLabel: 'Current state', diff, empty }
   })
 
   // Settings

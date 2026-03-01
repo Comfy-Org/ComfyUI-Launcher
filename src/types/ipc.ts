@@ -319,6 +319,96 @@ export interface TrackResult {
   message?: string
 }
 
+// --- Snapshot tab types ---
+export interface SnapshotDiffSummary {
+  nodesAdded: number
+  nodesRemoved: number
+  nodesChanged: number
+  pipsAdded: number
+  pipsRemoved: number
+  pipsChanged: number
+  comfyuiChanged: boolean
+}
+
+export interface SnapshotSummary {
+  filename: string
+  createdAt: string
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update'
+  label: string | null
+  comfyuiVersion: string
+  nodeCount: number
+  pipPackageCount: number
+  diffVsPrevious?: SnapshotDiffSummary
+}
+
+export interface SnapshotListData {
+  snapshots: SnapshotSummary[]
+  totalCount: number
+  context: {
+    updateChannel: string
+    pythonVersion: string
+    variant: string
+    variantLabel: string
+  }
+}
+
+export interface SnapshotNodeInfo {
+  id: string
+  type: 'cnr' | 'git' | 'file'
+  dirName: string
+  enabled: boolean
+  version?: string
+  commit?: string
+  url?: string
+}
+
+export interface SnapshotDetailData {
+  filename: string
+  createdAt: string
+  trigger: string
+  label: string | null
+  comfyui: {
+    ref: string
+    commit: string | null
+    releaseTag: string
+    variant: string
+    displayVersion?: string
+  }
+  pythonVersion?: string
+  updateChannel?: string
+  customNodes: SnapshotNodeInfo[]
+  pipPackageCount: number
+  pipPackages: Record<string, string>
+}
+
+export interface SnapshotDiffNodeChange {
+  id: string
+  type: string
+  from: { version?: string; commit?: string; enabled: boolean }
+  to: { version?: string; commit?: string; enabled: boolean }
+}
+
+export interface SnapshotDiffResult {
+  comfyuiChanged: boolean
+  comfyui?: {
+    from: { ref: string; commit: string | null; displayVersion?: string }
+    to: { ref: string; commit: string | null; displayVersion?: string }
+  }
+  nodesAdded: SnapshotNodeInfo[]
+  nodesRemoved: SnapshotNodeInfo[]
+  nodesChanged: SnapshotDiffNodeChange[]
+  pipsAdded: Array<{ name: string; version: string }>
+  pipsRemoved: Array<{ name: string; version: string }>
+  pipsChanged: Array<{ name: string; from: string; to: string }>
+}
+
+export interface SnapshotDiffData {
+  mode: 'previous' | 'current'
+  baseLabel: string
+  diff: SnapshotDiffResult
+  empty: boolean
+}
+
 // --- IPC API interface ---
 export interface ElectronApi {
   // Sources / New Install
@@ -376,6 +466,11 @@ export interface ElectronApi {
     actionId: string,
     actionData?: Record<string, unknown>
   ): Promise<ActionResult>
+
+  // Snapshots
+  getSnapshots(installationId: string): Promise<SnapshotListData>
+  getSnapshotDetail(installationId: string, filename: string): Promise<SnapshotDetailData>
+  getSnapshotDiff(installationId: string, filename: string, mode: 'previous' | 'current'): Promise<SnapshotDiffData>
 
   // Settings
   getSettingsSections(): Promise<SettingsSection[]>

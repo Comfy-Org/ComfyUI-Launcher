@@ -48,7 +48,7 @@ const PLATFORM_PREFIX: Record<string, string> = {
   linux: 'linux-',
 }
 
-function getVariantLabel(variantId: string): string {
+export function getVariantLabel(variantId: string): string {
   const stripped = variantId.replace(/^(win|mac|linux)-/, '')
   if (VARIANT_LABELS[stripped]) return VARIANT_LABELS[stripped]!
   for (const [key, label] of Object.entries(VARIANT_LABELS)) {
@@ -360,7 +360,7 @@ export const standalone: SourcePlugin = {
         return s.snapshot.label ? `${trigger}: ${s.snapshot.label}  ·  ${date}` : `${trigger}  ·  ${date}`
       }
       sections.push({
-        tab: 'status',
+        tab: 'snapshots',
         title: t('standalone.snapshotHistory'),
         description: snapshotCount > 0
           ? (snapshotCount === 1 ? t('standalone.snapshotHistoryDescOne') : t('standalone.snapshotHistoryDesc', { count: snapshotCount }))

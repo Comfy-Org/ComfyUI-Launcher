@@ -41,5 +41,13 @@ export type {
   UpdateInfo,
   UpdateDownloadProgress,
   TrackResult,
+  SnapshotDiffSummary,
+  SnapshotSummary,
+  SnapshotListData,
+  SnapshotNodeInfo,
+  SnapshotDetailData,
+  SnapshotDiffNodeChange,
+  SnapshotDiffResult,
+  SnapshotDiffData,
   ElectronApi,
 } from '../../../types/ipc'

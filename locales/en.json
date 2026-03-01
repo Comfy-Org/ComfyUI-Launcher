@@ -88,6 +88,7 @@
     "advanced": "Advanced",
     "tabStatus": "Status",
     "tabUpdate": "Update",
+    "tabSnapshots": "Snapshots",
     "tabSettings": "Settings"
   },
 
@@ -453,6 +454,45 @@
     "snapshotDiffPackages": "Pip Packages:",
     "snapshotDiffNoChanges": "No differences — environment matches this snapshot.",
     "snapshotNoFile": "No snapshot file specified."
+  },
+
+  "snapshots": {
+    "empty": "No snapshots yet. Snapshots are captured automatically when ComfyUI starts.",
+    "saveSnapshot": "Save Snapshot",
+    "current": "Current",
+    "triggerBoot": "Boot",
+    "triggerRestart": "Restart",
+    "triggerManual": "Manual",
+    "triggerPreUpdate": "Pre-update",
+    "environment": "Environment",
+    "comfyuiVersion": "ComfyUI",
+    "releaseTag": "Release",
+    "variant": "Variant",
+    "updateChannel": "Channel",
+    "pythonVersion": "Python",
+    "capturedAt": "Captured",
+    "trigger": "Trigger",
+    "customNodes": "Custom Nodes",
+    "pipPackages": "Pip Packages",
+    "diffPrevious": "Changes from previous",
+    "diffCurrent": "Differences vs. current",
+    "diffNoChanges": "No changes",
+    "nodesCount": "{count} nodes",
+    "packagesCount": "{count} packages",
+    "searchPackages": "Search packages…",
+    "searchNodes": "Search nodes…",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "restore": "Restore",
+    "comfyuiUpdated": "ComfyUI updated",
+    "noPrevious": "First snapshot — no previous to compare",
+    "added": "Added",
+    "removed": "Removed",
+    "changed": "Changed",
+    "timeJustNow": "just now",
+    "timeMinutesAgo": "{count}m ago",
+    "timeHoursAgo": "{count}h ago",
+    "timeDaysAgo": "{count}d ago"
   },
 
   "portable": {

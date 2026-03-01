@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import DetailSectionComponent from '../components/DetailSection.vue'
+import SnapshotTab from '../components/SnapshotTab.vue'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
@@ -53,6 +54,7 @@ const sections = ref<DetailSection[]>([])
 const tabLabels = computed<Record<string, string>>(() => ({
   status: t('common.tabStatus'),
   update: t('common.tabUpdate'),
+  snapshots: t('common.tabSnapshots'),
   settings: t('common.tabSettings'),
 }))
 
@@ -63,7 +65,7 @@ const availableTabs = computed(() => {
   for (const s of sections.value) {
     if (s.tab && !s.pinBottom) tabIds.add(s.tab)
   }
-  const ORDER = ['status', 'update', 'settings']
+  const ORDER = ['status', 'update', 'snapshots', 'settings']
   return [...ORDER.filter((id) => tabIds.has(id)), ...Array.from(tabIds).filter((id) => !ORDER.includes(id))]
 })
 
@@ -403,20 +405,28 @@ function handleOverlayClick(event: MouseEvent): void {
           </button>
         </div>
         <div ref="scrollRef" class="view-scroll">
-          <DetailSectionComponent
-            v-for="section in mainSections"
-            :key="section.title ?? 'untitled'"
+          <SnapshotTab
+            v-if="activeTab === 'snapshots'"
             :installation-id="installation.id"
-            :title="section.title"
-            :description="section.description"
-            :collapsed="section.collapsed"
-            :items="section.items"
-            :fields="section.fields"
-            :actions="section.actions"
             @run-action="runAction"
-            @refresh="refreshSection"
             @refresh-all="refreshAllSections"
           />
+          <template v-else>
+            <DetailSectionComponent
+              v-for="section in mainSections"
+              :key="section.title ?? 'untitled'"
+              :installation-id="installation.id"
+              :title="section.title"
+              :description="section.description"
+              :collapsed="section.collapsed"
+              :items="section.items"
+              :fields="section.fields"
+              :actions="section.actions"
+              @run-action="runAction"
+              @refresh="refreshSection"
+              @refresh-all="refreshAllSections"
+            />
+          </template>
         </div>
 
         <!-- Bottom pinned actions -->

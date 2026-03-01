@@ -24,6 +24,8 @@ export interface Snapshot {
   }
   customNodes: ScannedNode[]
   pipPackages: Record<string, string>
+  pythonVersion?: string
+  updateChannel?: string
 }
 
 export interface SnapshotEntry {
@@ -157,6 +159,8 @@ async function captureState(installPath: string, installation: InstallationRecor
     },
     customNodes,
     pipPackages,
+    pythonVersion: (installation.pythonVersion as string | undefined) || undefined,
+    updateChannel: (installation.updateChannel as string | undefined) || undefined,
   }
 }
 
@@ -282,6 +286,8 @@ async function writeSnapshot(
     comfyui: data.comfyui,
     customNodes: data.customNodes,
     pipPackages: data.pipPackages,
+    pythonVersion: data.pythonVersion,
+    updateChannel: data.updateChannel,
   }
 
   const dir = snapshotsDir(installPath)
@@ -1189,4 +1195,137 @@ export async function restoreCustomNodes(
 
   sendProgress('restore-nodes', { percent: 100, status: 'Node restore complete' })
   return result
+}
+
+// --- Snapshot Tab Data ---
+
+export interface SnapshotDiffSummary {
+  nodesAdded: number
+  nodesRemoved: number
+  nodesChanged: number
+  pipsAdded: number
+  pipsRemoved: number
+  pipsChanged: number
+  comfyuiChanged: boolean
+}
+
+export interface SnapshotSummary {
+  filename: string
+  createdAt: string
+  trigger: 'boot' | 'restart' | 'manual' | 'pre-update'
+  label: string | null
+  comfyuiVersion: string
+  nodeCount: number
+  pipPackageCount: number
+  diffVsPrevious?: SnapshotDiffSummary
+}
+
+export interface SnapshotDetailData {
+  filename: string
+  createdAt: string
+  trigger: string
+  label: string | null
+  comfyui: {
+    ref: string
+    commit: string | null
+    releaseTag: string
+    variant: string
+    displayVersion?: string
+  }
+  pythonVersion?: string
+  updateChannel?: string
+  customNodes: ScannedNode[]
+  pipPackageCount: number
+  pipPackages: Record<string, string>
+}
+
+export interface SnapshotDiffData {
+  mode: 'previous' | 'current'
+  baseLabel: string
+  diff: SnapshotDiff
+  empty: boolean
+}
+
+function summarizeDiff(diff: SnapshotDiff): SnapshotDiffSummary {
+  return {
+    nodesAdded: diff.nodesAdded.length,
+    nodesRemoved: diff.nodesRemoved.length,
+    nodesChanged: diff.nodesChanged.length,
+    pipsAdded: diff.pipsAdded.length,
+    pipsRemoved: diff.pipsRemoved.length,
+    pipsChanged: diff.pipsChanged.length,
+    comfyuiChanged: diff.comfyuiChanged,
+  }
+}
+
+export async function getSnapshotListData(installPath: string): Promise<{ snapshots: SnapshotSummary[]; totalCount: number }> {
+  const entries = await listSnapshots(installPath)
+  const summaries: SnapshotSummary[] = entries.map((entry, i) => {
+    const s = entry.snapshot
+    const summary: SnapshotSummary = {
+      filename: entry.filename,
+      createdAt: s.createdAt,
+      trigger: s.trigger,
+      label: s.label,
+      comfyuiVersion: s.comfyui.displayVersion || s.comfyui.ref,
+      nodeCount: s.customNodes.length,
+      pipPackageCount: Object.keys(s.pipPackages).length,
+    }
+    // Diff against the next entry (which is the previous snapshot, since sorted newest-first)
+    if (i < entries.length - 1) {
+      const prev = entries[i + 1]!.snapshot
+      const diff = diffSnapshots(prev, s)
+      const ds = summarizeDiff(diff)
+      // Only include if there are actual changes
+      if (ds.comfyuiChanged || ds.nodesAdded || ds.nodesRemoved || ds.nodesChanged ||
+          ds.pipsAdded || ds.pipsRemoved || ds.pipsChanged) {
+        summary.diffVsPrevious = ds
+      }
+    }
+    return summary
+  })
+  return { snapshots: summaries, totalCount: entries.length }
+}
+
+export async function getSnapshotDetailData(installPath: string, filename: string): Promise<SnapshotDetailData> {
+  const snapshot = await loadSnapshot(installPath, filename)
+  return {
+    filename,
+    createdAt: snapshot.createdAt,
+    trigger: snapshot.trigger,
+    label: snapshot.label,
+    comfyui: snapshot.comfyui,
+    pythonVersion: snapshot.pythonVersion,
+    updateChannel: snapshot.updateChannel,
+    customNodes: snapshot.customNodes,
+    pipPackageCount: Object.keys(snapshot.pipPackages).length,
+    pipPackages: snapshot.pipPackages,
+  }
+}
+
+export async function getSnapshotDiffVsPrevious(installPath: string, filename: string): Promise<SnapshotDiffData> {
+  const entries = await listSnapshots(installPath)
+  const idx = entries.findIndex((e) => e.filename === filename)
+  if (idx < 0) throw new Error(`Snapshot not found: ${filename}`)
+  if (idx >= entries.length - 1) {
+    // This is the oldest snapshot — no previous to diff against
+    return {
+      mode: 'previous',
+      baseLabel: '',
+      diff: { comfyuiChanged: false, nodesAdded: [], nodesRemoved: [], nodesChanged: [], pipsAdded: [], pipsRemoved: [], pipsChanged: [] },
+      empty: true,
+    }
+  }
+  const current = entries[idx]!.snapshot
+  const prev = entries[idx + 1]!.snapshot
+  const diff = diffSnapshots(prev, current)
+  const prevDate = new Date(prev.createdAt).toLocaleString()
+  return {
+    mode: 'previous',
+    baseLabel: prevDate,
+    diff,
+    empty: !diff.comfyuiChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
+           diff.nodesChanged.length === 0 && diff.pipsAdded.length === 0 && diff.pipsRemoved.length === 0 &&
+           diff.pipsChanged.length === 0,
+  }
 }
