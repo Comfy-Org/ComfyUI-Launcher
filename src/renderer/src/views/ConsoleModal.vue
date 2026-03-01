@@ -124,11 +124,17 @@ function handleOverlayClick(event: MouseEvent): void {
             {{ $t('console.openInBrowser') }}
           </button>
           <button
-            v-if="!isExited"
+            v-if="!isExited && !errorInfo"
             class="danger"
             @click="api.stopComfyUI(installationId!)"
           >
             {{ $t('console.stop') }}
+          </button>
+          <button
+            v-if="errorInfo"
+            @click="sessionStore.clearErrorInstance(installationId!); emit('close')"
+          >
+            {{ $t('running.dismiss') }}
           </button>
         </div>
         <button class="view-modal-close" @click="emit('close')">✕</button>

@@ -108,8 +108,7 @@ watch(
     if (!id || !props.visible) { primaryActions.value = []; return }
     if (
       !sessionStore.isRunning(id) &&
-      !sessionStore.activeSessions.has(id) &&
-      !sessionStore.errorInstances.has(id)
+      !sessionStore.activeSessions.has(id)
     ) {
       const actions = await window.api.getListActions(id)
       if (gen === primaryGen) primaryActions.value = actions
@@ -128,8 +127,7 @@ watch(
     if (!id || !props.visible || id === primaryInstall.value?.id) { latestActions.value = []; return }
     if (
       !sessionStore.isRunning(id) &&
-      !sessionStore.activeSessions.has(id) &&
-      !sessionStore.errorInstances.has(id)
+      !sessionStore.activeSessions.has(id)
     ) {
       const actions = await window.api.getListActions(id)
       if (gen === latestGen) latestActions.value = actions
@@ -170,8 +168,7 @@ watch(
       pinnedGenById.set(inst.id, gen)
       if (
         !sessionStore.isRunning(inst.id) &&
-        !sessionStore.activeSessions.has(inst.id) &&
-        !sessionStore.errorInstances.has(inst.id)
+        !sessionStore.activeSessions.has(inst.id)
       ) {
         const actions = await window.api.getListActions(inst.id)
         if (pinnedGenById.get(inst.id) === gen) result[inst.id] = actions
@@ -290,7 +287,7 @@ async function changePrimary(): Promise<void> {
           <div v-if="showLatestCard && latestInstall" class="dashboard-card" @contextmenu.prevent="openCardMenu($event, latestInstall!)">
             <div class="dashboard-card-badge">
               <Clock :size="14" />
-              {{ $t('dashboard.latest') }}
+              {{ $t('dashboard.recent') }}
             </div>
             <DashboardCard
               :installation="latestInstall"

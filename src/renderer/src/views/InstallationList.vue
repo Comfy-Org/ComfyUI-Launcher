@@ -45,8 +45,7 @@ async function refresh(): Promise<void> {
   for (const inst of installationStore.installations) {
     if (
       !sessionStore.isRunning(inst.id) &&
-      !sessionStore.activeSessions.has(inst.id) &&
-      !sessionStore.errorInstances.has(inst.id)
+      !sessionStore.activeSessions.has(inst.id)
     ) {
       const actions = await window.api.getListActions(inst.id)
       listActions.value.set(inst.id, actions)
@@ -80,11 +79,8 @@ function getMetaParts(inst: Installation): MetaPart[] {
   if (inst.version) parts.push({ text: inst.version })
   if (sessionStore.isRunning(inst.id)) {
     parts.push({ text: t('list.running'), class: 'status-running' })
-  }
-  const errorInstance = sessionStore.errorInstances.get(inst.id)
-  if (errorInstance) {
-    const label = errorInstance.message || t('running.crashed')
-    parts.push({ text: label, class: 'status-danger' })
+  } else if (sessionStore.errorInstances.has(inst.id)) {
+    parts.push({ text: t('running.crashed'), class: 'status-danger' })
   }
   const activeSession = sessionStore.activeSessions.get(inst.id)
   if (!sessionStore.isRunning(inst.id) && activeSession) {
@@ -353,17 +349,7 @@ defineExpose({ refresh })
               </button>
             </template>
 
-            <!-- Error -->
-            <template v-else-if="sessionStore.errorInstances.has(inst.id)">
-              <button v-if="inst.hasConsole" @click="emit('show-console', inst.id)">
-                {{ $t('list.console') }}
-              </button>
-              <button @click="sessionStore.clearErrorInstance(inst.id)">
-                {{ $t('running.dismiss') }}
-              </button>
-            </template>
-
-            <!-- Idle: list actions -->
+            <!-- Idle / Error: list actions -->
             <template v-else>
               <button
                 v-for="a in (listActions.get(inst.id) || [])"
@@ -373,6 +359,9 @@ defineExpose({ refresh })
                 @click="handleListAction(inst, a)"
               >
                 {{ a.label }}
+              </button>
+              <button v-if="sessionStore.errorInstances.has(inst.id) && inst.hasConsole" @click="emit('show-console', inst.id)">
+                {{ $t('list.viewError') }}
               </button>
             </template>
 

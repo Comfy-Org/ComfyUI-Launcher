@@ -258,9 +258,9 @@ export const standalone: SourcePlugin = {
   },
 
   getStatusTag(installation: InstallationRecord): StatusTag | undefined {
-    const track = (installation.updateTrack as string | undefined) || 'stable'
-    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, track, installation)
-    if (info && releaseCache.isUpdateAvailable(installation, track, info)) {
+    const channel = (installation.updateChannel as string | undefined) || 'stable'
+    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, channel, installation)
+    if (info && releaseCache.isUpdateAvailable(installation, channel, info)) {
       return { label: t('standalone.updateAvailableTag', { version: info.releaseName || info.latestTag || '' }), style: 'update' }
     }
     return undefined
@@ -397,40 +397,36 @@ export const standalone: SourcePlugin = {
 
     // Updates section
     const hasGit = installed && installation.installPath && fs.existsSync(path.join(installation.installPath, 'ComfyUI', '.git'))
-    const track = (installation.updateTrack as string | undefined) || 'stable'
-    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, track, installation)
+    const channel = (installation.updateChannel as string | undefined) || 'stable'
+    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, channel, installation)
 
-    // Build per-track preview info for cards
-    const trackOptions = [
-      { value: 'stable', label: t('standalone.trackStable'), description: t('standalone.trackStableDesc'), recommended: true },
-      { value: 'latest', label: t('standalone.trackLatest'), description: t('standalone.trackLatestDesc') },
+    // Build per-channel preview info for cards
+    const channelOptions = [
+      { value: 'stable', label: t('standalone.channelStable'), description: t('standalone.channelStableDesc'), recommended: true },
+      { value: 'latest', label: t('standalone.channelLatest'), description: t('standalone.channelLatestDesc') },
     ].map((opt) => {
-      const trackInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
+      const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
       return {
         ...opt,
-        data: trackInfo ? {
-          installedVersion: (installation.version as string | undefined) || trackInfo.installedTag || 'unknown',
-          latestVersion: trackInfo.releaseName || trackInfo.latestTag || '—',
-          lastChecked: trackInfo.checkedAt ? new Date(trackInfo.checkedAt).toLocaleString() : '—',
-          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, trackInfo),
+        data: channelInfo ? {
+          installedVersion: (installation.version as string | undefined) || channelInfo.installedTag || 'unknown',
+          latestVersion: channelInfo.releaseName || channelInfo.latestTag || '—',
+          lastChecked: channelInfo.checkedAt ? new Date(channelInfo.checkedAt).toLocaleString() : '—',
+          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, channelInfo),
         } : undefined,
       }
     })
 
-    const updateFields: Record<string, unknown>[] = [
-      { id: 'updateTrack', label: t('standalone.updateTrack'), value: track, editable: true,
-        refreshSection: true, onChangeAction: 'check-update', editType: 'track-cards', options: trackOptions },
-    ]
-    const updateActions: Record<string, unknown>[] = []
-    if (info && releaseCache.isUpdateAvailable(installation, track, info) && hasGit) {
+    const channelActions: Record<string, unknown>[] = []
+    if (info && releaseCache.isUpdateAvailable(installation, channel, info) && hasGit) {
       const installedDisplay = (installation.version as string | undefined) || info.installedTag || 'unknown'
       const latestDisplay = info.releaseName || info.latestTag || '—'
-      const isDowngrade = track === 'stable' && installedDisplay.includes(latestDisplay + ' +')
+      const isDowngrade = channel === 'stable' && installedDisplay.includes(latestDisplay + ' +')
       const msgKey = isDowngrade ? 'standalone.updateConfirmMessageDowngrade'
-        : track === 'latest' ? 'standalone.updateConfirmMessageLatest'
+        : channel === 'latest' ? 'standalone.updateConfirmMessageLatest'
         : 'standalone.updateConfirmMessage'
       const notes = truncateNotes(info.releaseNotes || '', 2000)
-      updateActions.push({
+      channelActions.push({
         id: 'update-comfyui', label: t('standalone.updateNow'), style: 'primary', enabled: installed,
         showProgress: true, progressTitle: t('standalone.updatingTitle', { version: latestDisplay }),
         confirm: {
@@ -443,7 +439,7 @@ export const standalone: SourcePlugin = {
           }),
         },
       })
-      updateActions.push({
+      channelActions.push({
         id: 'copy-update', label: t('standalone.copyAndUpdate'), style: 'default', enabled: installed,
         showProgress: true, progressTitle: t('standalone.copyUpdatingTitle', { version: latestDisplay }),
         cancellable: true,
@@ -457,9 +453,14 @@ export const standalone: SourcePlugin = {
         },
       })
     }
-    updateActions.push({
-      id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed,
-    })
+    const updateFields: Record<string, unknown>[] = [
+      { id: 'updateChannel', label: t('standalone.updateChannel'), value: channel, editable: true,
+        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions,
+        channelActions: channelActions.length ? channelActions : undefined },
+    ]
+    const updateActions: Record<string, unknown>[] = [
+      { id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed },
+    ]
     sections.push({
       tab: 'update',
       title: t('standalone.updates'),
@@ -749,8 +750,8 @@ export const standalone: SourcePlugin = {
     }
 
     if (actionId === 'check-update') {
-      const track = (installation.updateTrack as string | undefined) || 'stable'
-      return releaseCache.checkForUpdate(COMFYUI_REPO, track, installation, update)
+      const channel = (installation.updateChannel as string | undefined) || 'stable'
+      return releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
     }
 
     if (actionId === 'update-comfyui') {
@@ -767,8 +768,8 @@ export const standalone: SourcePlugin = {
         return { ok: false, message: 'Master Python not found.' }
       }
 
-      const track = (installation.updateTrack as string | undefined) || 'stable'
-      const stableArgs = track === 'stable' ? ['--stable'] : []
+      const channel = (installation.updateChannel as string | undefined) || 'stable'
+      const stableArgs = channel === 'stable' ? ['--stable'] : []
 
       const reqPath = path.join(comfyuiDir, 'requirements.txt')
       let preReqs = ''
@@ -913,7 +914,7 @@ export const standalone: SourcePlugin = {
         sendProgress('deps', { percent: -1, status: t('standalone.updateDepsUpToDate') })
       }
 
-      const cachedRelease = releaseCache.get(COMFYUI_REPO, track) || {}
+      const cachedRelease = releaseCache.get(COMFYUI_REPO, channel) || {}
       const postHead = markers.POST_UPDATE_HEAD ? markers.POST_UPDATE_HEAD.slice(0, 7) : null
       const installedTag = markers.CHECKED_OUT_TAG || postHead || cachedRelease.latestTag || (installation.version as string | undefined) || 'unknown'
       const displayVersion = markers.CHECKED_OUT_TAG || cachedRelease.releaseName || installedTag
@@ -921,16 +922,16 @@ export const standalone: SourcePlugin = {
         preUpdateHead: markers.PRE_UPDATE_HEAD || null,
         postUpdateHead: markers.POST_UPDATE_HEAD || null,
         backupBranch: markers.BACKUP_BRANCH || null,
-        track,
+        channel,
         updatedAt: Date.now(),
       }
-      const existing = (installation.updateInfoByTrack as Record<string, Record<string, unknown>> | undefined) || {}
+      const existing = (installation.updateInfoByChannel as Record<string, Record<string, unknown>> | undefined) || {}
       await update({
         version: displayVersion,
         lastRollback: rollback,
-        updateInfoByTrack: {
+        updateInfoByChannel: {
           ...existing,
-          [track]: { installedTag },
+          [channel]: { installedTag },
         },
       })
 
