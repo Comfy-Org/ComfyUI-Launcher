@@ -131,7 +131,7 @@ export async function switchCnrVersion(
 
     // Copy extracted files into nodePath (overwriting existing)
     await fs.promises.mkdir(nodePath, { recursive: true })
-    fs.cpSync(tmpExtract, nodePath, { recursive: true, force: true })
+    await fs.promises.cp(tmpExtract, nodePath, { recursive: true, force: true })
 
     const garbageFiles: string[] = []
     const garbageDirs = new Set<string>()

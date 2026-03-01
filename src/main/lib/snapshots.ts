@@ -592,9 +592,9 @@ async function createTargetedBackup(sitePackages: string, packageNames: string[]
       const src = path.join(sitePackages, entry)
       const dst = path.join(backupDir, entry)
       try {
-        const stat = fs.statSync(src)
+        const stat = await fs.promises.stat(src)
         if (stat.isDirectory()) {
-          fs.cpSync(src, dst, { recursive: true })
+          await fs.promises.cp(src, dst, { recursive: true })
         } else {
           await fs.promises.mkdir(path.dirname(dst), { recursive: true })
           await fs.promises.copyFile(src, dst)
@@ -622,9 +622,9 @@ async function restoreFromBackup(backupDir: string, sitePackages: string): Promi
       const src = path.join(backupDir, entry)
       const dst = path.join(sitePackages, entry)
       await fs.promises.rm(dst, { recursive: true, force: true }).catch(() => {})
-      const stat = fs.statSync(src)
+      const stat = await fs.promises.stat(src)
       if (stat.isDirectory()) {
-        fs.cpSync(src, dst, { recursive: true })
+        await fs.promises.cp(src, dst, { recursive: true })
       } else {
         await fs.promises.copyFile(src, dst)
       }
@@ -639,21 +639,33 @@ function runUvPip(
   uvPath: string,
   args: string[],
   cwd: string,
-  sendOutput: (text: string) => void
+  sendOutput: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<number> {
+  if (signal?.aborted) return Promise.resolve(1)
   return new Promise<number>((resolve) => {
     const proc = spawn(uvPath, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
+
+    const onAbort = () => {
+      proc.kill()
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+
     proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
     proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
     proc.on('error', (err) => {
+      signal?.removeEventListener('abort', onAbort)
       sendOutput(`Error: ${err.message}\n`)
       resolve(1)
     })
-    proc.on('exit', (code) => resolve(code ?? 1))
+    proc.on('exit', (code) => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve(code ?? 1)
+    })
   })
 }
 
@@ -777,7 +789,7 @@ export async function restorePipPackages(
 
       // Try bulk install first
       sendOutput(`\nInstalling ${specs.length} package(s)…\n`)
-      const bulkResult = await runUvPip(uvPath, ['pip', 'install', ...specs, '--python', pythonPath], installPath, sendOutput)
+      const bulkResult = await runUvPip(uvPath, ['pip', 'install', ...specs, '--python', pythonPath], installPath, sendOutput, signal)
 
       if (bulkResult !== 0) {
         sendOutput('\n⚠ Bulk install failed, falling back to one-by-one with --no-deps\n\n')
@@ -790,7 +802,7 @@ export async function restorePipPackages(
           sendProgress('restore', { percent, status: `Installing ${name}…` })
 
           const singleResult = await runUvPip(
-            uvPath, ['pip', 'install', spec, '--no-deps', '--python', pythonPath], installPath, sendOutput
+            uvPath, ['pip', 'install', spec, '--no-deps', '--python', pythonPath], installPath, sendOutput, signal
           )
 
           if (singleResult !== 0) {
@@ -815,7 +827,7 @@ export async function restorePipPackages(
       sendOutput(`\nRemoving ${toRemove.length} extra package(s)…\n`)
 
       const removeResult = await runUvPip(
-        uvPath, ['pip', 'uninstall', ...toRemove, '--python', pythonPath], installPath, sendOutput
+        uvPath, ['pip', 'uninstall', ...toRemove, '--python', pythonPath], installPath, sendOutput, signal
       )
 
       if (removeResult === 0) {
@@ -823,7 +835,7 @@ export async function restorePipPackages(
       } else {
         for (const name of toRemove) {
           const singleResult = await runUvPip(
-            uvPath, ['pip', 'uninstall', name, '--python', pythonPath], installPath, sendOutput
+            uvPath, ['pip', 'uninstall', name, '--python', pythonPath], installPath, sendOutput, signal
           )
           if (singleResult === 0) {
             result.removed.push(name)
@@ -910,7 +922,8 @@ async function runPostInstallScripts(
   uvPath: string,
   pythonPath: string,
   installPath: string,
-  sendOutput: (text: string) => void
+  sendOutput: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const reqPath = path.join(nodePath, 'requirements.txt')
   if (fs.existsSync(reqPath)) {
@@ -939,13 +952,23 @@ async function runPostInstallScripts(
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
         })
+
+        const onAbort = () => {
+          proc.kill()
+        }
+        signal?.addEventListener('abort', onAbort, { once: true })
+
         proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
         proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
         proc.on('error', (err) => {
+          signal?.removeEventListener('abort', onAbort)
           sendOutput(`⚠ install.py error: ${err.message}\n`)
           resolve()
         })
-        proc.on('exit', () => resolve())
+        proc.on('exit', () => {
+          signal?.removeEventListener('abort', onAbort)
+          resolve()
+        })
       })
     } catch (err) {
       sendOutput(`⚠ install.py failed for ${path.basename(nodePath)}: ${(err as Error).message}\n`)
@@ -1186,7 +1209,7 @@ export async function restoreCustomNodes(
       sendProgress('restore-nodes', { percent: 92, status: 'Installing node dependencies…' })
       for (const nodePath of nodesNeedingPostInstall) {
         sendOutput(`\nRunning post-install for ${path.basename(nodePath)}…\n`)
-        await runPostInstallScripts(nodePath, uvPath, pythonPath, installPath, sendOutput)
+        await runPostInstallScripts(nodePath, uvPath, pythonPath, installPath, sendOutput, signal)
       }
     } else {
       sendOutput('⚠ Cannot run post-install scripts: uv or Python environment not found\n')
