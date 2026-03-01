@@ -166,6 +166,7 @@ v-for="a in item.actions" :key="a.id"
             <div v-else-if="getDraft(f) !== String(f.value)" class="channel-preview channel-preview-empty">
               {{ $t('channelCards.noInfo') }}
             </div>
+            <!-- Switch Channel: shown when a different channel is selected -->
             <button
               v-if="getDraft(f) !== String(f.value)"
               class="primary channel-switch-btn"
@@ -174,6 +175,17 @@ v-for="a in item.actions" :key="a.id"
             >
               {{ switchingChannel ? $t('channelCards.switching') : $t('channelCards.switchChannel') }}
             </button>
+            <!-- Channel actions (e.g. Update Now): shown when current channel is selected -->
+            <div v-else-if="f.channelActions?.length" class="channel-actions">
+              <button
+                v-for="a in f.channelActions" :key="a.id"
+                :class="[a.style, { 'looks-disabled': a.enabled === false && a.disabledMessage }]"
+                :disabled="a.enabled === false && !a.disabledMessage"
+                @click="handleAction(a, $event)"
+              >
+                {{ a.label }}
+              </button>
+            </div>
           </template>
           <template v-else>
             <div class="detail-field-label">{{ f.label }}</div>

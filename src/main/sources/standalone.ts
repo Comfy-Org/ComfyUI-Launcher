@@ -348,11 +348,7 @@ export const standalone: SourcePlugin = {
       }
     })
 
-    const updateFields: Record<string, unknown>[] = [
-      { id: 'updateChannel', label: t('standalone.updateChannel'), value: channel, editable: true,
-        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions },
-    ]
-    const updateActions: Record<string, unknown>[] = []
+    const channelActions: Record<string, unknown>[] = []
     if (info && releaseCache.isUpdateAvailable(installation, channel, info) && hasGit) {
       const installedDisplay = (installation.version as string | undefined) || info.installedTag || 'unknown'
       const latestDisplay = info.releaseName || info.latestTag || '—'
@@ -361,7 +357,7 @@ export const standalone: SourcePlugin = {
         : channel === 'latest' ? 'standalone.updateConfirmMessageLatest'
         : 'standalone.updateConfirmMessage'
       const notes = truncateNotes(info.releaseNotes || '', 2000)
-      updateActions.push({
+      channelActions.push({
         id: 'update-comfyui', label: t('standalone.updateNow'), style: 'primary', enabled: installed,
         showProgress: true, progressTitle: t('standalone.updatingTitle', { version: latestDisplay }),
         confirm: {
@@ -374,7 +370,7 @@ export const standalone: SourcePlugin = {
           }),
         },
       })
-      updateActions.push({
+      channelActions.push({
         id: 'copy-update', label: t('standalone.copyAndUpdate'), style: 'default', enabled: installed,
         showProgress: true, progressTitle: t('standalone.copyUpdatingTitle', { version: latestDisplay }),
         cancellable: true,
@@ -388,9 +384,14 @@ export const standalone: SourcePlugin = {
         },
       })
     }
-    updateActions.push({
-      id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed,
-    })
+    const updateFields: Record<string, unknown>[] = [
+      { id: 'updateChannel', label: t('standalone.updateChannel'), value: channel, editable: true,
+        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions,
+        channelActions: channelActions.length ? channelActions : undefined },
+    ]
+    const updateActions: Record<string, unknown>[] = [
+      { id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed },
+    ]
     sections.push({
       tab: 'update',
       title: t('standalone.updates'),

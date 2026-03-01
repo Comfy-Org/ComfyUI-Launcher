@@ -98,6 +98,7 @@ export interface DetailField {
   editable?: boolean
   editType?: 'select' | 'boolean' | 'text' | 'channel-cards'
   options?: DetailFieldOption[]
+  channelActions?: ActionDef[]
   refreshSection?: boolean
   onChangeAction?: string
 }

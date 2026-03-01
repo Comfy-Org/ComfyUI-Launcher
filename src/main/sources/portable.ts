@@ -155,15 +155,11 @@ export const portable: SourcePlugin = {
       }
     })
 
-    const updateFields: Record<string, unknown>[] = [
-      { id: 'updateChannel', label: t('portable.updateChannel'), value: channel, editable: true,
-        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions },
-    ]
-    const updateActions: Record<string, unknown>[] = []
+    const channelActions: Record<string, unknown>[] = []
     if (info && releaseCache.isUpdateAvailable(installation, channel, info)) {
       const msgKey = channel === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'
       const notes = truncateNotes(info.releaseNotes || '', 2000)
-      updateActions.push({
+      channelActions.push({
         id: 'update-comfyui', label: t('portable.updateNow'), style: 'primary', enabled: installed,
         showProgress: true, progressTitle: t('portable.updatingTitle', { version: info.latestTag || '' }),
         confirm: {
@@ -177,9 +173,14 @@ export const portable: SourcePlugin = {
         },
       })
     }
-    updateActions.push({
-      id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed,
-    })
+    const updateFields: Record<string, unknown>[] = [
+      { id: 'updateChannel', label: t('portable.updateChannel'), value: channel, editable: true,
+        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions,
+        channelActions: channelActions.length ? channelActions : undefined },
+    ]
+    const updateActions: Record<string, unknown>[] = [
+      { id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed },
+    ]
     sections.push({
       tab: 'update',
       title: t('portable.updates'),
