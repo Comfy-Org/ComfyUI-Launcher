@@ -108,7 +108,7 @@ jobs:
       - name: Fetch ToDesktop build metadata by ID
         env:
           BUILD_ID: ${{ steps.build_id.outputs.build_id }}
-        run: todesktop builds "${BUILD_ID}" --config=todesktop.json --format=json --exit > todesktop-build.raw 2>&1
+        run: todesktop builds "${BUILD_ID}" --config=todesktop.json --exit > todesktop-build.raw 2>&1
 
       - name: Extract build details
         id: extract
@@ -118,16 +118,6 @@ jobs:
           const fs = require('node:fs')
 
           const parseBuildOutput = (raw, expectedBuildId) => {
-            try {
-              const parsed = JSON.parse(raw)
-              const build = Array.isArray(parsed) ? parsed[0] : parsed
-              if (build && typeof build === 'object') {
-                return build
-              }
-            } catch {
-              // Fallback to parsing plain-text CLI output.
-            }
-
             const buildIdPattern =
               /https?:\/\/(?:app\.todesktop\.com\/apps|dl\.todesktop\.com)\/[^/\s]+\/builds\/([A-Za-z0-9_-]+)/g
             const buildIds = [...new Set([...raw.matchAll(buildIdPattern)].map((match) => match[1]))].filter(
