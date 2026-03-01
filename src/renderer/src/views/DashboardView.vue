@@ -72,8 +72,6 @@ const cloudInstall = computed(() =>
   installationStore.installations.find((i) => i.sourceCategory === 'cloud') ?? null
 )
 
-const hasAnyPins = computed(() => prefs.pinnedInstallIds.value.length > 0)
-
 // --- Pinned installs (exclude cloud, primary, latest) ---
 const pinnedInstalls = computed(() => {
   const excludeIds = new Set<string>()
@@ -83,6 +81,14 @@ const pinnedInstalls = computed(() => {
   return prefs.pinnedInstallIds.value
     .map((id) => installationStore.installations.find((i) => i.id === id))
     .filter((i): i is Installation => !!i && i.sourceCategory !== 'cloud' && !excludeIds.has(i.id))
+})
+
+const allPinsInQuickLaunch = computed(() => {
+  if (pinnedInstalls.value.length > 0) return false
+  const quickLaunchIds = new Set<string>()
+  if (primaryInstall.value) quickLaunchIds.add(primaryInstall.value.id)
+  if (showLatestCard.value && latestInstall.value) quickLaunchIds.add(latestInstall.value.id)
+  return prefs.pinnedInstallIds.value.some((id) => quickLaunchIds.has(id))
 })
 
 // --- Actions for cards (separate generation counters) ---
@@ -365,8 +371,8 @@ async function changePrimary(): Promise<void> {
             </DashboardCard>
           </div>
         </div>
-        <div v-else-if="!hasAnyPins" class="dashboard-empty-hint">
-          {{ $t('dashboard.noPinned') }}
+        <div v-else class="dashboard-empty-hint">
+          {{ $t(allPinsInQuickLaunch ? 'dashboard.pinnedInQuickLaunch' : 'dashboard.noPinned') }}
         </div>
       </div>
 

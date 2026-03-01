@@ -245,9 +245,11 @@ function _broadcastToRenderer(channel: string, data: Record<string, unknown>): v
 function _addSession(installationId: string, { proc, port, url, mode, installationName }: Omit<SessionInfo, 'startedAt'>): void {
   _runningSessions.set(installationId, { proc, port, url, mode, installationName, startedAt: Date.now() })
   _broadcastToRenderer('instance-started', { installationId, port, url, mode, installationName })
-  installations.update(installationId, { lastLaunchedAt: Date.now() }).catch((err) => {
-    console.error('Failed to update lastLaunchedAt:', err)
-  })
+  installations.update(installationId, { lastLaunchedAt: Date.now() })
+    .then(() => _broadcastToRenderer('installations-changed', {}))
+    .catch((err) => {
+      console.error('Failed to update lastLaunchedAt:', err)
+    })
 }
 
 function _removeSession(installationId: string): void {

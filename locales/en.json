@@ -16,6 +16,7 @@
     "cloudSection": "ComfyUI Cloud",
     "pinned": "Pinned",
     "noPinned": "No pinned installations. Right-click an install to pin it to the dashboard.",
+    "pinnedInQuickLaunch": "Pinned installations are already shown in Quick Launch above.",
     "pinToDashboard": "Pin to Dashboard",
     "unpinFromDashboard": "Unpin from Dashboard"
   },
