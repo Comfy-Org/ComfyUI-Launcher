@@ -1,12 +1,13 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard, screen } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import type { ChildProcess } from 'child_process'
 import todesktop from '@todesktop/runtime'
 import * as ipc from './lib/ipc'
 import * as updater from './lib/updater'
 import * as settings from './settings'
 import * as i18n from './lib/i18n'
-import { migrateXdgPaths } from './lib/paths'
+import { configDir, migrateXdgPaths } from './lib/paths'
 import { waitForPort } from './lib/process'
 import type { InstallationRecord } from './installations'
 import {
@@ -30,6 +31,67 @@ const POPUP_ALLOWED_PREFIXES = [
 
 function shouldOpenInPopup(url: string): boolean {
   return POPUP_ALLOWED_PREFIXES.some((prefix) => url.startsWith(prefix))
+}
+
+interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+  maximized: boolean
+}
+
+const windowStatePath = path.join(configDir(), 'window-state.json')
+let windowStateCache: Record<string, WindowBounds> | null = null
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+function getWindowStateCache(): Record<string, WindowBounds> {
+  if (!windowStateCache) {
+    try {
+      windowStateCache = JSON.parse(fs.readFileSync(windowStatePath, 'utf-8'))
+    } catch {
+      windowStateCache = {}
+    }
+  }
+  return windowStateCache!
+}
+
+function flushWindowState(): void {
+  if (!windowStateCache) return
+  try {
+    fs.mkdirSync(path.dirname(windowStatePath), { recursive: true })
+    fs.writeFileSync(windowStatePath, JSON.stringify(windowStateCache, null, 2))
+  } catch {}
+}
+
+function saveWindowBounds(installationId: string, window: BrowserWindow): void {
+  const state = getWindowStateCache()
+  const maximized = window.isMaximized()
+  const bounds = window.getBounds()
+  state[installationId] = {
+    ...(maximized ? (state[installationId] ?? bounds) : bounds),
+    maximized,
+  }
+  if (flushTimer) clearTimeout(flushTimer)
+  flushTimer = setTimeout(flushWindowState, 500)
+}
+
+function getSavedBounds(installationId: string): WindowBounds | undefined {
+  return getWindowStateCache()[installationId]
+}
+
+function getWindowOptions(installationId: string): Partial<Electron.BrowserWindowConstructorOptions> {
+  const saved = getSavedBounds(installationId)
+  if (!saved) return { width: 1280, height: 900 }
+
+  const savedRect = { x: saved.x, y: saved.y, width: saved.width, height: saved.height }
+  const display = screen.getDisplayMatching(savedRect)
+  const { x: wx, y: wy, width: ww, height: wh } = display.workArea
+  const width = Math.min(saved.width, ww)
+  const height = Math.min(saved.height, wh)
+  const x = Math.max(wx, Math.min(saved.x, wx + ww - width))
+  const y = Math.max(wy, Math.min(saved.y, wy + wh - height))
+  return { x, y, width, height }
 }
 
 function attachContextMenu(comfyWindow: BrowserWindow): void {
@@ -261,13 +323,15 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     return
   }
 
+  const saved = getSavedBounds(installationId)
+  const windowOptions = getWindowOptions(installationId)
   const comfyWindow = new BrowserWindow({
-    width: 1280,
-    height: 900,
+    ...windowOptions,
     minWidth: 800,
     minHeight: 600,
     icon: APP_ICON,
     title: installation.name,
+    backgroundColor: '#171717',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -278,6 +342,11 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     },
   })
   comfyWindow.setMenuBarVisibility(false)
+
+  if (saved?.maximized) comfyWindow.maximize()
+
+  comfyWindow.on('resize', () => saveWindowBounds(installationId, comfyWindow))
+  comfyWindow.on('move', () => saveWindowBounds(installationId, comfyWindow))
   comfyWindow.webContents.on('did-create-window', (childWindow) => {
     childWindow.setIcon(APP_ICON)
   })
