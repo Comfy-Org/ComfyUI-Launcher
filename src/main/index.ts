@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, shell } from 'electron'
 import path from 'path'
 import type { ChildProcess } from 'child_process'
 import todesktop from '@todesktop/runtime'
@@ -21,6 +21,16 @@ todesktop.init({ autoUpdater: false })
 
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x256.png')
 const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x32.png')
+
+const POPUP_ALLOWED_PREFIXES = [
+  'https://dreamboothy.firebaseapp.com/',
+  'https://dreamboothy-dev.firebaseapp.com/',
+  'https://checkout.comfy.org/',
+]
+
+function shouldOpenInPopup(url: string): boolean {
+  return POPUP_ALLOWED_PREFIXES.some((prefix) => url.startsWith(prefix))
+}
 
 let launcherWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -234,6 +244,13 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   comfyWindow.webContents.on('page-title-updated', (e, title) => {
     e.preventDefault()
     comfyWindow.setTitle(`${title} — ${installation.name}`)
+  })
+  comfyWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (shouldOpenInPopup(url)) {
+      return { action: 'allow' }
+    }
+    shell.openExternal(url)
+    return { action: 'deny' }
   })
 
   // Download management: attach session handler and inject content script
