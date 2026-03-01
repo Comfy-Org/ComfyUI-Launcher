@@ -166,6 +166,15 @@ export function download(
       const sizeFromHeaders = chunkTotalBytes > 0 ? totalBytes : 0
       const effectiveSize = expectedSize || sizeFromHeaders
 
+      // Fail fast if caller's expectedSize conflicts with server's Content-Length
+      if (expectedSize && sizeFromHeaders > 0 && expectedSize !== sizeFromHeaders) {
+        cleanup()
+        safeReject(new Error(
+          `Download size mismatch: expected ${expectedSize} bytes but server reported ${sizeFromHeaders}`
+        ))
+        return
+      }
+
       // Write meta to mark this download as in-progress (enables resume if interrupted)
       const etag = headerString(response.headers['etag'])
       const lastModified = headerString(response.headers['last-modified'])
