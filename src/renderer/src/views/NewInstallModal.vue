@@ -208,22 +208,22 @@ async function open(): Promise<void> {
   pathIssues.value = []
   initializing.value = true
 
-  const [, installDir] = await Promise.all([loadSources(), installDirPromise])
+  try {
+    const [, installDir] = await Promise.all([loadSources(), installDirPromise])
 
-  defaultInstPath.value = installDir ?? ''
-  instPath.value = defaultInstPath.value
+    defaultInstPath.value = installDir ?? ''
+    instPath.value = defaultInstPath.value
 
-  // Auto-select standalone and skip to device selection (step 2)
-  hardwareValidation = await window.api.validateHardware()
-  const standalone = sources.value.find((s) => s.id === 'standalone')
-  if (standalone && hardwareValidation.supported) {
-    currentStep.value = 2
-    initializing.value = false
-    await selectSourceCard(standalone)
-  } else {
-    if (standalone) {
+    // Auto-select standalone and skip to device selection (step 2)
+    hardwareValidation = await window.api.validateHardware()
+    const standalone = sources.value.find((s) => s.id === 'standalone')
+    if (standalone && hardwareValidation.supported) {
+      currentStep.value = 2
+      await selectSourceCard(standalone)
+    } else if (standalone) {
       detectedGpu.value = hardwareValidation.error || t('newInstall.noGpuDetected')
     }
+  } finally {
     initializing.value = false
   }
 }
