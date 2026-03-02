@@ -305,16 +305,19 @@ export async function listSnapshots(installPath: string): Promise<SnapshotEntry[
   const dir = snapshotsDir(installPath)
   try {
     const files = await fs.promises.readdir(dir)
-    const entries: SnapshotEntry[] = []
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue
-      try {
-        const content = await fs.promises.readFile(path.join(dir, file), 'utf-8')
-        entries.push({ filename: file, snapshot: JSON.parse(content) as Snapshot })
-      } catch (err) {
-        console.warn(`Snapshot: failed to read ${file}:`, (err as Error).message)
-      }
-    }
+    const jsonFiles = files.filter((f) => f.endsWith('.json'))
+    const results = await Promise.all(
+      jsonFiles.map(async (file) => {
+        try {
+          const content = await fs.promises.readFile(path.join(dir, file), 'utf-8')
+          return { filename: file, snapshot: JSON.parse(content) as Snapshot }
+        } catch (err) {
+          console.warn(`Snapshot: failed to read ${file}:`, (err as Error).message)
+          return null
+        }
+      })
+    )
+    const entries = results.filter((e): e is SnapshotEntry => e !== null)
     // Sort newest first
     entries.sort((a, b) => b.snapshot.createdAt.localeCompare(a.snapshot.createdAt))
     return entries
@@ -323,26 +326,7 @@ export async function listSnapshots(installPath: string): Promise<SnapshotEntry[
   }
 }
 
-export function listSnapshotsSync(installPath: string): SnapshotEntry[] {
-  const dir = snapshotsDir(installPath)
-  try {
-    const files = fs.readdirSync(dir)
-    const entries: SnapshotEntry[] = []
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue
-      try {
-        const content = fs.readFileSync(path.join(dir, file), 'utf-8')
-        entries.push({ filename: file, snapshot: JSON.parse(content) as Snapshot })
-      } catch (err) {
-        console.warn(`Snapshot: failed to read ${file}:`, (err as Error).message)
-      }
-    }
-    entries.sort((a, b) => b.snapshot.createdAt.localeCompare(a.snapshot.createdAt))
-    return entries
-  } catch {
-    return []
-  }
-}
+
 
 export async function loadSnapshot(installPath: string, filename: string): Promise<Snapshot> {
   const filePath = resolveSnapshotPath(installPath, filename)

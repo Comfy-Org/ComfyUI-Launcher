@@ -353,52 +353,11 @@ export const standalone: SourcePlugin = {
       },
     ]
 
-    // Snapshot history section
+    // Snapshot tab — minimal section so the tab appears; SnapshotTab.vue handles rendering
     if (installed && installation.installPath) {
-      const snapshotEntries = snapshots.listSnapshotsSync(installation.installPath)
-      const snapshotCount = snapshotEntries.length
-      const formatLabel = (s: snapshots.SnapshotEntry): string => {
-        const date = new Date(s.snapshot.createdAt).toLocaleString()
-        const triggerMap: Record<string, string> = {
-          boot: t('standalone.snapshotBoot'),
-          restart: t('standalone.snapshotRestart'),
-          'pre-update': t('standalone.snapshotPreUpdate'),
-          'post-update': t('standalone.snapshotPostUpdate'),
-          'post-restore': t('standalone.snapshotPostRestore'),
-        }
-        const trigger = triggerMap[s.snapshot.trigger] || t('standalone.snapshotManual')
-        return s.snapshot.label ? `${trigger}: ${s.snapshot.label}  ·  ${date}` : `${trigger}  ·  ${date}`
-      }
       sections.push({
         tab: 'snapshots',
         title: t('standalone.snapshotHistory'),
-        description: snapshotCount > 0
-          ? (snapshotCount === 1 ? t('standalone.snapshotHistoryDescOne') : t('standalone.snapshotHistoryDesc', { count: snapshotCount }))
-          : t('standalone.snapshotHistoryEmpty'),
-        collapsed: snapshotCount > 0,
-        items: snapshotEntries.slice(0, 20).map((s, i) => ({
-          label: formatLabel(s),
-          ...(i === 0 ? { tag: t('standalone.snapshotCurrent') } : {}),
-          actions: [
-            { id: 'snapshot-view', label: t('standalone.snapshotView'),
-              data: { file: s.filename } },
-            ...(i === 0 ? [] : [
-              { id: 'snapshot-restore', label: t('standalone.snapshotRestore'),
-                data: { file: s.filename },
-                showProgress: true, progressTitle: t('standalone.snapshotRestoringTitle'), cancellable: true,
-                confirm: { title: t('standalone.snapshotRestoreTitle'), message: t('standalone.snapshotRestoreMessage') } },
-            ]),
-          ],
-        })),
-        actions: [
-          { id: 'snapshot-save', label: t('standalone.snapshotSave'),
-            prompt: {
-              title: t('standalone.snapshotSaveTitle'),
-              message: t('standalone.snapshotSaveMessage'),
-              placeholder: t('standalone.snapshotLabelPlaceholder'),
-              field: 'label',
-            } },
-        ],
       })
     }
 

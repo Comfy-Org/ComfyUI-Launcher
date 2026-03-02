@@ -203,7 +203,12 @@ async function saveSnapshot(): Promise<void> {
     required: false,
   })
   if (label === null) return
-  await window.api.runAction(props.installationId, 'snapshot-save', { label: label || undefined })
+  try {
+    await window.api.runAction(props.installationId, 'snapshot-save', { label: label || undefined })
+  } catch (err: unknown) {
+    await modal.alert({ title: t('snapshots.saveSnapshot'), message: (err as Error).message || String(err) })
+    return
+  }
   selectedFilename.value = null
   detail.value = null
   diffData.value = null
