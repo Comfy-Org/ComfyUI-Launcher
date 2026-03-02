@@ -735,7 +735,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 
 .timeline-time {
   font-size: 12px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   margin-left: auto;
 }
 
@@ -757,7 +757,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 }
 
 .timeline-meta-sep {
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 
 .timeline-changes {
@@ -808,7 +808,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   border-radius: 4px;
   background: none;
   border: 1px solid transparent;
-  color: var(--text-faint);
+  color: var(--text-muted);
   cursor: pointer;
   opacity: 0;
   transition: all 0.15s;
@@ -825,7 +825,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 }
 
 .timeline-expand-icon {
-  color: var(--text-faint);
+  color: var(--text-muted);
   flex-shrink: 0;
   margin-left: auto;
   transition: transform 0.15s;
@@ -896,7 +896,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 .diff-section-title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 4px;
@@ -932,7 +932,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 .inspector-section-title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 6px;
@@ -950,7 +950,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 
 .inspector-empty {
   font-size: 13px;
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 
 /* Environment grid */
@@ -968,7 +968,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 
 .inspector-field-label {
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 
 .inspector-field-value {
@@ -1018,7 +1018,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--text-muted);
   padding: 0 4px;
   border: 1px solid var(--border);
   border-radius: 3px;

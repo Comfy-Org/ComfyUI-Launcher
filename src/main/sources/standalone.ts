@@ -1281,11 +1281,10 @@ export const standalone: SourcePlugin = {
       if (latest && !releases.some((r) => r.id === latest.id)) {
         releases.unshift(latest)
       }
-      return releases
-        .filter((r) => r.assets.some((a) => a.name === 'manifests.json'))
-        .map((r) => {
+      const filtered = releases.filter((r) => r.assets.some((a) => a.name === 'manifests.json'))
+      return filtered.map((r, i) => {
           const name = r.name && r.name !== r.tag_name ? `${r.tag_name}  —  ${r.name}` : r.tag_name
-          return { value: r.tag_name, label: name, data: r as unknown as Record<string, unknown> }
+          return { value: r.tag_name, label: name, recommended: i === 0, data: r as unknown as Record<string, unknown> }
         })
     }
 
