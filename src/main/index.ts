@@ -9,6 +9,13 @@ import * as i18n from './lib/i18n'
 import { migrateXdgPaths } from './lib/paths'
 import { waitForPort } from './lib/process'
 import type { InstallationRecord } from './installations'
+import {
+  attachSessionDownloadHandler,
+  cleanupWindowDownloads,
+  registerDownloadIpc,
+  setLauncherWindow,
+} from './lib/comfyDownloadManager'
+import { getModelDownloadContentScript } from './lib/comfyContentScript'
 
 todesktop.init({ autoUpdater: false })
 
@@ -58,6 +65,13 @@ function createLauncherWindow(): void {
     if (mod && (input.key === '=' || input.key === '+' || input.key === '-' || input.key === '0')) {
       setTimeout(notifyZoomLevel, 50)
     }
+  })
+
+  setLauncherWindow(launcherWindow)
+
+  launcherWindow.on('closed', () => {
+    launcherWindow = null
+    setLauncherWindow(null)
   })
 
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -207,6 +221,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, '../preload/comfyPreload.js'),
       partition: (installation.browserPartition as string | undefined) === 'unique'
         ? `persist:${installation.id}`
         : 'persist:shared',
@@ -220,6 +235,15 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     e.preventDefault()
     comfyWindow.setTitle(`${title} — ${installation.name}`)
   })
+
+  // Download management: attach session handler and inject content script
+  attachSessionDownloadHandler(comfyWindow.webContents.session)
+  comfyWindow.webContents.on('dom-ready', () => {
+    comfyWindow.webContents
+      .executeJavaScript(getModelDownloadContentScript())
+      .catch(() => {})
+  })
+
   comfyWindow.loadURL(comfyUrl)
 
   const reloadComfy = (): void => {
@@ -257,6 +281,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
 
   comfyWindow.on('close', (e) => {
     e.preventDefault()
+    cleanupWindowDownloads(comfyWindow)
     ipc.stopRunning(installationId)
     comfyWindow.destroy()
   })
@@ -297,6 +322,7 @@ app.whenReady().then(() => {
 
   const locale = (settings.get('language') as string | undefined) || app.getLocale().split('-')[0]
   i18n.init(locale)
+  registerDownloadIpc()
   ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
   updater.register()
   createTray()

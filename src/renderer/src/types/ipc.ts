@@ -40,6 +40,8 @@ export type {
   PathIssue,
   UpdateInfo,
   UpdateDownloadProgress,
+  ModelDownloadStatus,
+  ModelDownloadProgress,
   TrackResult,
   CopyEvent,
   SnapshotDiffSummary,

@@ -77,6 +77,12 @@ const api: ElectronApi = {
   quitApp: () => ipcRenderer.invoke('quit-app'),
   resetZoom: () => ipcRenderer.invoke('reset-zoom'),
 
+  // Model downloads
+  listModelDownloads: () => ipcRenderer.invoke('model-download-list'),
+  pauseModelDownload: (url) => ipcRenderer.invoke('model-download-pause', { url }),
+  resumeModelDownload: (url) => ipcRenderer.invoke('model-download-resume', { url }),
+  cancelModelDownload: (url) => ipcRenderer.invoke('model-download-cancel', { url }),
+
   // Updates
   checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
@@ -153,6 +159,11 @@ const api: ElectronApi = {
     const handler = (_event: IpcRendererEvent, level: unknown) => callback(level as number)
     ipcRenderer.on('zoom-changed', handler)
     return () => ipcRenderer.removeListener('zoom-changed', handler)
+  },
+  onModelDownloadProgress: (callback) => {
+    const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
+    ipcRenderer.on('model-download-progress', handler)
+    return () => ipcRenderer.removeListener('model-download-progress', handler)
   },
 }
 

@@ -38,6 +38,22 @@
     "showWindow": "Show Window"
   },
 
+  "downloads": {
+    "title": "Model Downloads",
+    "empty": "No downloads in progress.",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "dismiss": "Dismiss",
+    "pending": "Starting…",
+    "downloading": "Downloading… {percent}%",
+    "paused": "Paused · {percent}%",
+    "completed": "Complete",
+    "cancelled": "Cancelled",
+    "error": "Failed",
+    "sizeProgress": "{received} / {total}"
+  },
+
   "media": {
     "title": "Media",
     "sharedDirs": "Shared Directories",
