@@ -324,12 +324,13 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .instance-card.is-idle { transition: transform 0.12s ease; }
 .instance-card.is-draggable { z-index: 10; user-select: none; }
 .drag-handle {
-  display: flex; flex-direction: column; gap: 3px;
-  padding: 8px 10px 8px 2px; cursor: grab;
-  opacity: 0.35; transition: opacity 0.15s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  align-self: stretch; padding: 0 18px; margin: -14px 0 -14px -16px;
+  border-radius: 8px 0 0 8px; cursor: grab;
+  opacity: 0.35; transition: opacity 0.15s, background-color 0.15s;
 }
-.drag-handle:hover { opacity: 0.7; }
-.is-draggable .drag-handle { cursor: grabbing; opacity: 0.7; }
+.drag-handle:hover { opacity: 0.7; background: rgba(255, 255, 255, 0.04); }
+.is-draggable .drag-handle { cursor: grabbing; opacity: 0.7; background: rgba(255, 255, 255, 0.06); }
 .drag-handle span { display: block; width: 16px; height: 2px; background: var(--text); border-radius: 1px; }
 .instance-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .instance-name { font-size: 16px; font-weight: 600; }
