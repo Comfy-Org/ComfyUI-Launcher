@@ -30,6 +30,7 @@ const defaultInstPath = ref('')
 const detectedGpu = ref('')
 const saveDisabled = ref(true)
 const sourcesLoading = ref(false)
+const initializing = ref(false)
 const currentStep = ref(1)
 
 // Per-field state
@@ -205,21 +206,25 @@ async function open(): Promise<void> {
   diskSpace.value = null
   diskSpaceLoading.value = false
   pathIssues.value = []
+  initializing.value = true
 
-  const [, installDir] = await Promise.all([loadSources(), installDirPromise])
+  try {
+    const [, installDir] = await Promise.all([loadSources(), installDirPromise])
 
-  defaultInstPath.value = installDir ?? ''
-  instPath.value = defaultInstPath.value
+    defaultInstPath.value = installDir ?? ''
+    instPath.value = defaultInstPath.value
 
-  // Preselect standalone if available (skip on unsupported hardware)
-  hardwareValidation = await window.api.validateHardware()
-  const standalone = sources.value.find((s) => s.id === 'standalone')
-  if (standalone) {
-    if (hardwareValidation.supported) {
+    // Auto-select standalone and skip to device selection (step 2)
+    hardwareValidation = await window.api.validateHardware()
+    const standalone = sources.value.find((s) => s.id === 'standalone')
+    if (standalone && hardwareValidation.supported) {
+      currentStep.value = 2
       await selectSourceCard(standalone)
-    } else {
+    } else if (standalone) {
       detectedGpu.value = hardwareValidation.error || t('newInstall.noGpuDetected')
     }
+  } finally {
+    initializing.value = false
   }
 }
 
@@ -644,7 +649,7 @@ defineExpose({ open })
         <div class="view-scroll">
           <!-- Step 1: Source Selection -->
           <div v-if="currentStep === 1" class="wizard-step">
-            <div v-if="sourcesLoading" class="wizard-loading">
+            <div v-if="sourcesLoading || initializing" class="wizard-loading">
               {{ $t('newInstall.loading') }}
             </div>
             <template v-else>
@@ -848,7 +853,7 @@ defineExpose({ open })
                           :key="opt.value"
                           :value="i"
                         >
-                          {{ opt.description ? `${opt.label}  —  ${opt.description}` : opt.label }}
+                          {{ opt.description ? `${opt.label}  —  ${opt.description}` : opt.label }}{{ opt.recommended ? ` (${$t('newInstall.latest')})` : '' }}
                         </option>
                       </template>
                     </select>
@@ -918,7 +923,7 @@ defineExpose({ open })
             class="wizard-back"
             @click="prevStep"
           >
-            ← {{ $t('common.back') }}
+            ← {{ currentStep === 2 ? $t('newInstall.changeInstallType') : $t('common.back') }}
           </button>
           <div v-else class="wizard-back-placeholder"></div>
 
