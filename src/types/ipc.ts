@@ -313,6 +313,29 @@ export interface UpdateDownloadProgress {
   percent: number
 }
 
+// --- Model download types ---
+export type ModelDownloadStatus =
+  | 'pending'
+  | 'downloading'
+  | 'paused'
+  | 'completed'
+  | 'error'
+  | 'cancelled'
+
+export interface ModelDownloadProgress {
+  url: string
+  filename: string
+  directory?: string
+  savePath?: string
+  progress: number
+  receivedBytes?: number
+  totalBytes?: number
+  speedBytesPerSec?: number
+  etaSeconds?: number
+  status: ModelDownloadStatus
+  error?: string
+}
+
 // --- Track types ---
 export interface TrackResult {
   ok: boolean
@@ -502,6 +525,13 @@ export interface ElectronApi {
   installUpdate(): Promise<void>
   getPendingUpdate(): Promise<UpdateInfo | null>
 
+  // Model downloads
+  listModelDownloads(): Promise<ModelDownloadProgress[]>
+  pauseModelDownload(url: string): Promise<boolean>
+  resumeModelDownload(url: string): Promise<boolean>
+  cancelModelDownload(url: string): Promise<boolean>
+  showDownloadInFolder(savePath: string): Promise<void>
+
   // Event listeners (return unsubscribe functions)
   onInstallProgress(callback: (data: ProgressData) => void): Unsubscribe
   onComfyOutput(callback: (data: ComfyOutputData) => void): Unsubscribe
@@ -517,4 +547,5 @@ export interface ElectronApi {
   onUpdateDownloaded(callback: (info: UpdateInfo) => void): Unsubscribe
   onUpdateError(callback: (err: { message: string }) => void): Unsubscribe
   onZoomChanged(callback: (level: number) => void): Unsubscribe
+  onModelDownloadProgress(callback: (progress: ModelDownloadProgress) => void): Unsubscribe
 }

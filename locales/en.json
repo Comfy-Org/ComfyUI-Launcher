@@ -38,6 +38,23 @@
     "showWindow": "Show Window"
   },
 
+  "downloads": {
+    "title": "Model Downloads",
+    "empty": "No downloads in progress.",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "dismiss": "Dismiss",
+    "view": "View",
+    "pending": "Starting…",
+    "downloading": "Downloading… {percent}%",
+    "paused": "Paused · {percent}%",
+    "completed": "Complete",
+    "cancelled": "Cancelled",
+    "error": "Failed",
+    "sizeProgress": "{received} / {total}"
+  },
+
   "media": {
     "title": "Media",
     "sharedDirs": "Shared Directories",
@@ -580,5 +597,14 @@
     "portConflictKilling": "Stopping…",
     "portConflictKillFailed": "Could not free port {port}. The process may require manual termination.",
     "duplicateName": "An install named \"{name}\" already exists. Please choose a different name."
+  },
+
+  "contextMenu": {
+    "openLinkInBrowser": "Open Link in Browser",
+    "copyLinkAddress": "Copy Link Address",
+    "cut": "Cut",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select All"
   }
 }

@@ -1,19 +1,138 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard, screen } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import type { ChildProcess } from 'child_process'
 import todesktop from '@todesktop/runtime'
 import * as ipc from './lib/ipc'
 import * as updater from './lib/updater'
 import * as settings from './settings'
 import * as i18n from './lib/i18n'
-import { migrateXdgPaths } from './lib/paths'
+import { configDir, migrateXdgPaths } from './lib/paths'
 import { waitForPort } from './lib/process'
 import type { InstallationRecord } from './installations'
+import {
+  attachSessionDownloadHandler,
+  cleanupTempDownloads,
+  detachWindowDownloads,
+  registerDownloadIpc,
+  setLauncherWindow,
+} from './lib/comfyDownloadManager'
+import { getModelDownloadContentScript } from './lib/comfyContentScript'
 
 todesktop.init({ autoUpdater: false })
 
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x256.png')
 const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x32.png')
+
+const POPUP_ALLOWED_PREFIXES = [
+  'https://dreamboothy.firebaseapp.com/',
+  'https://checkout.comfy.org/',
+]
+
+function shouldOpenInPopup(url: string): boolean {
+  return POPUP_ALLOWED_PREFIXES.some((prefix) => url.startsWith(prefix))
+}
+
+interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+  maximized: boolean
+}
+
+const windowStatePath = path.join(configDir(), 'window-state.json')
+let windowStateCache: Record<string, WindowBounds> | null = null
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+function getWindowStateCache(): Record<string, WindowBounds> {
+  if (!windowStateCache) {
+    try {
+      windowStateCache = JSON.parse(fs.readFileSync(windowStatePath, 'utf-8'))
+    } catch {
+      windowStateCache = {}
+    }
+  }
+  return windowStateCache!
+}
+
+async function flushWindowState(): Promise<void> {
+  if (!windowStateCache) return
+  try {
+    await fs.promises.mkdir(path.dirname(windowStatePath), { recursive: true })
+    await fs.promises.writeFile(windowStatePath, JSON.stringify(windowStateCache, null, 2))
+  } catch {}
+}
+
+function saveWindowBounds(installationId: string, window: BrowserWindow): void {
+  const state = getWindowStateCache()
+  const maximized = window.isMaximized()
+  const bounds = window.getBounds()
+  state[installationId] = {
+    ...(maximized ? (state[installationId] ?? bounds) : bounds),
+    maximized,
+  }
+  if (flushTimer) clearTimeout(flushTimer)
+  flushTimer = setTimeout(flushWindowState, 500)
+}
+
+function getSavedBounds(installationId: string): WindowBounds | undefined {
+  return getWindowStateCache()[installationId]
+}
+
+function getWindowOptions(installationId: string): Partial<Electron.BrowserWindowConstructorOptions> {
+  const saved = getSavedBounds(installationId)
+  if (!saved) return { width: 1280, height: 900 }
+
+  const savedRect = { x: saved.x, y: saved.y, width: saved.width, height: saved.height }
+  const display = screen.getDisplayMatching(savedRect)
+  const { x: wx, y: wy, width: ww, height: wh } = display.workArea
+  const width = Math.min(saved.width, ww)
+  const height = Math.min(saved.height, wh)
+  const x = Math.max(wx, Math.min(saved.x, wx + ww - width))
+  const y = Math.max(wy, Math.min(saved.y, wy + wh - height))
+  return { x, y, width, height }
+}
+
+function attachContextMenu(comfyWindow: BrowserWindow): void {
+  comfyWindow.webContents.on('context-menu', (_event, params) => {
+    const { editFlags, isEditable, selectionText, linkURL } = params
+    const hasSelection = selectionText.trim().length > 0
+    const hasLink = linkURL.length > 0
+
+    if (!isEditable && !hasSelection && !hasLink) return
+
+    const menuItems: Electron.MenuItemConstructorOptions[] = []
+
+    if (hasLink) {
+      menuItems.push(
+        { label: i18n.t('contextMenu.openLinkInBrowser'), click: () => shell.openExternal(linkURL) },
+        { label: i18n.t('contextMenu.copyLinkAddress'), click: () => clipboard.writeText(linkURL) },
+      )
+    }
+
+    if (hasLink && (isEditable || hasSelection)) {
+      menuItems.push({ type: 'separator' })
+    }
+
+    if (isEditable) {
+      menuItems.push(
+        { label: i18n.t('contextMenu.cut'), role: 'cut', enabled: editFlags.canCut },
+        { label: i18n.t('contextMenu.copy'), role: 'copy', enabled: editFlags.canCopy },
+        { label: i18n.t('contextMenu.paste'), role: 'paste', enabled: editFlags.canPaste },
+        { type: 'separator' },
+        { label: i18n.t('contextMenu.selectAll'), role: 'selectAll', enabled: editFlags.canSelectAll },
+      )
+    } else if (hasSelection) {
+      menuItems.push(
+        { label: i18n.t('contextMenu.copy'), role: 'copy', enabled: editFlags.canCopy },
+        { label: i18n.t('contextMenu.selectAll'), role: 'selectAll', enabled: editFlags.canSelectAll },
+      )
+    }
+
+    Menu.buildFromTemplate(menuItems).popup({ window: comfyWindow })
+  })
+}
 
 let launcherWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -27,12 +146,15 @@ function createLauncherWindow(): void {
     minWidth: 650,
     minHeight: 500,
     icon: APP_ICON,
+    backgroundColor: '#202020',
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, '../preload/index.js'),
     },
   })
+  launcherWindow.once('ready-to-show', () => launcherWindow?.show())
 
   launcherWindow.setMenuBarVisibility(false)
   launcherWindow.webContents.on('did-finish-load', () => {
@@ -58,6 +180,13 @@ function createLauncherWindow(): void {
     if (mod && (input.key === '=' || input.key === '+' || input.key === '-' || input.key === '0')) {
       setTimeout(notifyZoomLevel, 50)
     }
+  })
+
+  setLauncherWindow(launcherWindow)
+
+  launcherWindow.on('closed', () => {
+    launcherWindow = null
+    setLauncherWindow(null)
   })
 
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -197,22 +326,30 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     return
   }
 
+  const saved = getSavedBounds(installationId)
+  const windowOptions = getWindowOptions(installationId)
   const comfyWindow = new BrowserWindow({
-    width: 1280,
-    height: 900,
+    ...windowOptions,
     minWidth: 800,
     minHeight: 600,
     icon: APP_ICON,
     title: installation.name,
+    backgroundColor: '#171717',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, '../preload/comfyPreload.js'),
       partition: (installation.browserPartition as string | undefined) === 'unique'
         ? `persist:${installation.id}`
         : 'persist:shared',
     },
   })
   comfyWindow.setMenuBarVisibility(false)
+
+  if (saved?.maximized) comfyWindow.maximize()
+
+  comfyWindow.on('resize', () => saveWindowBounds(installationId, comfyWindow))
+  comfyWindow.on('move', () => saveWindowBounds(installationId, comfyWindow))
   comfyWindow.webContents.on('did-create-window', (childWindow) => {
     childWindow.setIcon(APP_ICON)
   })
@@ -220,6 +357,27 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     e.preventDefault()
     comfyWindow.setTitle(`${title} — ${installation.name}`)
   })
+  comfyWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (shouldOpenInPopup(url)) {
+      return { action: 'allow' }
+    }
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  // Download management: attach session handler and inject content script
+  const isLocal = !url
+  attachSessionDownloadHandler(comfyWindow.webContents.session)
+  if (isLocal) {
+    comfyWindow.webContents.on('dom-ready', () => {
+      comfyWindow.webContents
+        .executeJavaScript(getModelDownloadContentScript())
+        .catch(() => {})
+    })
+  }
+
+  attachContextMenu(comfyWindow)
+
   comfyWindow.loadURL(comfyUrl)
 
   const reloadComfy = (): void => {
@@ -257,6 +415,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
 
   comfyWindow.on('close', (e) => {
     e.preventDefault()
+    detachWindowDownloads(comfyWindow)
     ipc.stopRunning(installationId)
     comfyWindow.destroy()
   })
@@ -292,23 +451,40 @@ ipcMain.handle('focus-comfy-window', (_event, installationId: string) => {
   return false
 })
 
-app.whenReady().then(() => {
-  migrateXdgPaths()
-
-  const locale = (settings.get('language') as string | undefined) || app.getLocale().split('-')[0]
-  i18n.init(locale)
-  ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
-  updater.register()
-  createTray()
-  createLauncherWindow()
-})
-
-app.on('before-quit', () => {
-  isQuitting = true
-})
-
-app.on('window-all-closed', () => {
-  if (!tray && !ipc.hasRunningSessions()) {
-    app.quit()
+if (app.isPackaged && !app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  if (app.isPackaged) {
+    app.on('second-instance', () => {
+      if (launcherWindow && !launcherWindow.isDestroyed()) {
+        launcherWindow.show()
+        if (launcherWindow.isMinimized()) launcherWindow.restore()
+        launcherWindow.focus()
+      }
+    })
   }
-})
+
+  app.whenReady().then(() => {
+    migrateXdgPaths()
+
+    const locale = (settings.get('language') as string | undefined) || app.getLocale().split('-')[0]
+    i18n.init(locale)
+    registerDownloadIpc()
+    cleanupTempDownloads()
+    ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
+    updater.register()
+    createTray()
+    createLauncherWindow()
+  })
+
+  app.on('before-quit', () => {
+    isQuitting = true
+    cleanupTempDownloads()
+  })
+
+  app.on('window-all-closed', () => {
+    if (!tray && !ipc.hasRunningSessions()) {
+      app.quit()
+    }
+  })
+}

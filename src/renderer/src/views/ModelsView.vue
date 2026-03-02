@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import DirCard from '../components/DirCard.vue'
+import DownloadsPanel from '../components/DownloadsPanel.vue'
 import type { ModelsSection } from '../types/ipc'
 
 const systemDefault = ref('')
@@ -98,6 +99,8 @@ defineExpose({ loadModels })
           </div>
         </div>
       </div>
+
+      <DownloadsPanel />
     </div>
   </div>
 </template>
