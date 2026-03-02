@@ -391,6 +391,23 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     browserPartition: 'shared',
     status: 'installed',
   })
+
+  // Auto-track Desktop install if detected (Windows/Mac only)
+  if (process.platform === 'win32' || process.platform === 'darwin') {
+    const desktopInfo = detectDesktopInstall()
+    if (desktopInfo) {
+      installations.ensureExists('desktop', {
+        name: 'ComfyUI Desktop',
+        sourceId: 'desktop',
+        installPath: desktopInfo.basePath,
+        version: 'desktop',
+        launchMode: 'external',
+        desktopExePath: desktopInfo.executablePath || undefined,
+        status: 'installed',
+      })
+    }
+  }
+
   migrateDefaults()
 
   // Sweep empty/broken local installations on startup, then clean stale settings references
