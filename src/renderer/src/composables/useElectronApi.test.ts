@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { ElectronApi } from '../types/ipc'
 import { useElectronApi } from './useElectronApi'
 
 describe('useElectronApi', () => {
   beforeEach(() => {
-    ;(window as any).api = { testMethod: vi.fn() }
+    window.api = { testMethod: vi.fn() } as unknown as ElectronApi
   })
 
   it('returns window.api reference', () => {
     const { api } = useElectronApi()
-    expect(api).toBe((window as any).api)
+    expect(api).toBe(window.api)
   })
 
   it('listen() calls the subscribe function with the callback', () => {

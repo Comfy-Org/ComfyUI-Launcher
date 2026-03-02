@@ -2,7 +2,7 @@ import { createTestingPinia } from '@pinia/testing'
 import { setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ModelDownloadProgress } from '../types/ipc'
+import type { ElectronApi, ModelDownloadProgress } from '../types/ipc'
 import { useDownloadStore } from './downloadStore'
 
 function makeProgress(
@@ -20,10 +20,10 @@ describe('useDownloadStore', () => {
   let store: ReturnType<typeof useDownloadStore>
 
   beforeEach(() => {
-    ;(window as any).api = {
+    window.api = {
       listModelDownloads: vi.fn().mockResolvedValue([]),
       onModelDownloadProgress: vi.fn(() => vi.fn()),
-    }
+    } as unknown as ElectronApi
 
     setActivePinia(createTestingPinia({ stubActions: false }))
     store = useDownloadStore()
