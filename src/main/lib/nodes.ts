@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { parse as parseToml } from 'smol-toml'
 import { hasGitDir, readGitHead, readGitRemoteUrl } from './git'
 
 export interface ScannedNode {
@@ -20,16 +21,9 @@ export function nodeKey(node: ScannedNode): string {
 function readTomlProjectField(tomlPath: string, field: string): string | null {
   try {
     const content = fs.readFileSync(tomlPath, 'utf-8')
-    // Simple TOML parser: find [project] section, then the field
-    const projectMatch = content.match(/\[project\]/)
-    if (!projectMatch) return null
-    const afterProject = content.slice(projectMatch.index! + projectMatch[0].length)
-    // Stop at next section header
-    const nextSection = afterProject.search(/^\[/m)
-    const section = nextSection >= 0 ? afterProject.slice(0, nextSection) : afterProject
-    const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const fieldMatch = section.match(new RegExp(`^${escapedField}\\s*=\\s*["']([^"']*)["']`, 'm'))
-    return fieldMatch ? fieldMatch[1]! : null
+    const parsed = parseToml(content)
+    const value = (parsed.project as Record<string, unknown> | undefined)?.[field]
+    return typeof value === 'string' ? value : null
   } catch {
     return null
   }
