@@ -440,7 +440,6 @@ export const standalone: SourcePlugin = {
         tab: 'settings',
         title: t('common.launchSettings'),
         fields: [
-          { id: 'useSharedPaths', label: t('common.useSharedPaths'), value: (installation.useSharedPaths as boolean | undefined) !== false, editable: true, editType: 'boolean' },
           { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true,
             editType: 'args-builder', data: { schema: ARG_SCHEMA, version: installation.version as string | undefined } },
           { id: 'launchMode', label: t('common.launchMode'), value: (installation.launchMode as string | undefined) || 'window', editable: true,
@@ -448,15 +447,16 @@ export const standalone: SourcePlugin = {
               { value: 'window', label: t('common.launchModeWindow') },
               { value: 'console', label: t('common.launchModeConsole') },
             ] },
-          { id: 'browserPartition', label: t('common.browserPartition'), value: (installation.browserPartition as string | undefined) || 'shared', editable: true,
-            editType: 'select', options: [
-              { value: 'shared', label: t('common.partitionShared') },
-              { value: 'unique', label: t('common.partitionUnique') },
-            ] },
           { id: 'portConflict', label: t('common.portConflict'), value: (installation.portConflict as string | undefined) || 'ask', editable: true,
             editType: 'select', options: [
               { value: 'ask', label: t('common.portConflictAsk') },
               { value: 'auto', label: t('common.portConflictAuto') },
+            ] },
+          { id: 'useSharedPaths', label: t('common.useSharedPaths'), value: (installation.useSharedPaths as boolean | undefined) !== false, editable: true, editType: 'boolean' },
+          { id: 'browserPartition', label: t('common.browserPartition'), value: (installation.browserPartition as string | undefined) || 'shared', editable: true,
+            editType: 'select', options: [
+              { value: 'shared', label: t('common.partitionShared') },
+              { value: 'unique', label: t('common.partitionUnique') },
             ] },
         ],
       },
