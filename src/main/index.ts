@@ -18,6 +18,7 @@ import {
   setLauncherWindow,
 } from './lib/comfyDownloadManager'
 import { getModelDownloadContentScript } from './lib/comfyContentScript'
+import { initTelemetry, shutdownTelemetry, track } from './lib/telemetry'
 
 todesktop.init({ autoUpdater: false })
 
@@ -473,6 +474,8 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
 
     const locale = (settings.get('language') as string | undefined) || app.getLocale().split('-')[0]
     i18n.init(locale)
+    initTelemetry()
+    track('app:launched')
     registerDownloadIpc()
     cleanupTempDownloads()
     ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
@@ -481,9 +484,10 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
     createLauncherWindow()
   })
 
-  app.on('before-quit', () => {
+  app.on('before-quit', async () => {
     isQuitting = true
     cleanupTempDownloads()
+    await shutdownTelemetry()
   })
 
   app.on('window-all-closed', () => {

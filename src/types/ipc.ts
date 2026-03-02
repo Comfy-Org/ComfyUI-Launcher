@@ -510,6 +510,9 @@ export interface ElectronApi {
   getSnapshotDetail(installationId: string, filename: string): Promise<SnapshotDetailData>
   getSnapshotDiff(installationId: string, filename: string, mode: 'previous' | 'current'): Promise<SnapshotDiffData>
 
+  // Analytics
+  shouldShowAnalyticsConsent(): Promise<boolean>
+
   // Settings
   getSettingsSections(): Promise<SettingsSection[]>
   getModelsSections(): Promise<ModelsResult>

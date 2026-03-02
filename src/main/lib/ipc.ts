@@ -30,6 +30,7 @@ import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
 import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot } from './snapshots'
+import { initTelemetry, shutdownTelemetry, track, captureError } from './telemetry'
 import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
@@ -229,6 +230,8 @@ async function performCopy(
     try { fs.writeFileSync(path.join(destPath, MARKER_FILE), entry.id) } catch {}
 
     await copyBrowserPartition(inst.id, entry.id, inst.browserPartition as string | undefined)
+
+    track('install:copied', { copy_reason: copyReason })
 
     return { entry, destPath }
   } catch (err) {
@@ -697,11 +700,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           }
           return { ok: true, navigate: 'list' }
         }
+        captureError(err, { operation: 'install', source_id: inst.sourceId })
         await installations.update(installationId, { status: 'failed' })
         return { ok: false, message: (err as Error).message }
       }
       _operationAborts.delete(installationId)
       await installations.update(installationId, { status: 'installed' })
+      track('install:created', { source_id: inst.sourceId })
       return { ok: true }
     }
 
@@ -828,6 +833,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               { value: 'github', label: i18n.t('settings.themeGithub') },
             ] },
           { id: 'autoUpdate', label: i18n.t('settings.autoUpdate'), type: 'boolean', value: s.autoUpdate !== false },
+          { id: 'sendAnalytics', label: i18n.t('settings.sendAnalytics'), type: 'boolean', value: s.sendAnalytics === true },
           { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || 'quit',
             options: [
               { value: 'quit', label: i18n.t('settings.closeQuit') },
@@ -914,6 +920,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       })
       if (_onLocaleChanged) _onLocaleChanged()
     }
+    if (key === 'sendAnalytics') {
+      if (value === true) initTelemetry()
+      else void shutdownTelemetry()
+    }
+  })
+
+  ipcMain.handle('should-show-analytics-consent', () => {
+    return settings.get('sendAnalytics') === undefined
   })
 
   ipcMain.handle('get-setting', (_event, key: string) => {
@@ -1046,6 +1060,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       _operationAborts.delete(installationId)
       await installations.remove(installationId)
       await autoAssignPrimary(installationId)
+      track('install:deleted', { source_id: inst.sourceId })
       return { ok: true, navigate: 'list' }
     }
     if (actionId === 'open-folder') {
@@ -1509,6 +1524,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const launchResult = await tryLaunch()
       if (!launchResult.ok) {
         _operationAborts.delete(installationId)
+        if (!launchResult.cancelled) {
+          track('comfyui:launch_failed', { error_message: launchResult.message })
+        }
         if (launchResult.cancelled) return { ok: false, cancelled: true }
         return { ok: false, message: launchResult.message }
       }
@@ -1518,12 +1536,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const mode = (inst.launchMode as string | undefined) || 'window'
       _addSession(installationId, { proc, port: launchCmd.port!, mode, installationName: inst.name })
       writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
+      track('comfyui:launched', { launch_mode: mode, comfyui_version: inst.version })
 
       // Capture snapshot in background after successful launch
       if (inst.sourceId === 'standalone') {
         captureSnapshotIfChanged(inst.installPath, inst, 'boot')
           .then(async ({ saved, filename }) => {
             if (saved) {
+              track('snapshot:captured', { trigger: 'boot' })
               const snapshotCount = await getSnapshotCount(inst.installPath)
               installations.update(installationId, { lastSnapshot: filename, snapshotCount })
             }
@@ -1549,6 +1569,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
                 captureSnapshotIfChanged(currentInst.installPath, currentInst, 'restart')
                   .then(async ({ saved, filename }) => {
                     if (saved) {
+                      track('snapshot:captured', { trigger: 'restart' })
                       const snapshotCount = await getSnapshotCount(currentInst.installPath)
                       installations.update(installationId, { lastSnapshot: filename, snapshotCount })
                     }
@@ -1558,8 +1579,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             }
             return
           }
+          const session = _runningSessions.get(installationId)
+          const uptime = session?.startedAt ? Math.round((Date.now() - session.startedAt) / 1000) : undefined
           const crashed = _runningSessions.has(installationId)
           _removeSession(installationId)
+          track('comfyui:stopped', { exit_code: code, crashed, uptime_seconds: uptime })
           if (!sender.isDestroyed()) {
             sender.send('comfy-exited', { installationId, crashed, exitCode: code, installationName: inst.name })
           }

@@ -13,6 +13,7 @@ import { t } from '../lib/i18n'
 import * as installations from '../installations'
 import { listCustomNodes, findComfyUIDir, backupDir, mergeDirFlat } from '../lib/migrate'
 import * as settings from '../settings'
+import { track, captureError } from '../lib/telemetry'
 import * as snapshots from '../lib/snapshots'
 import type { InstallationRecord } from '../installations'
 import type {
@@ -620,6 +621,7 @@ export const standalone: SourcePlugin = {
       const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'manual', label)
       const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
       await update({ lastSnapshot: filename, snapshotCount })
+      track('snapshot:saved_manual')
       return { ok: true, navigate: 'detail' }
     }
 
@@ -689,7 +691,13 @@ export const standalone: SourcePlugin = {
       sendOutput(`\n${totalFailures > 0 ? '⚠' : '✓'} ${t('standalone.snapshotRestoreComplete')}: ${summary.join('; ')}\n`)
 
       if (pipResult.failed.length > 0) {
+        captureError(new Error('Snapshot restore failed: pip packages'), { operation: 'snapshot_restore', error_phase: 'pip' })
+        track('snapshot:restore_failed', { error_phase: 'pip' })
         return { ok: false, message: t('standalone.snapshotRestoreReverted') }
+      }
+
+      if (nodeResult.failed.length > 0) {
+        track('snapshot:restore_failed', { error_phase: 'nodes', failed_count: nodeResult.failed.length })
       }
 
       // Capture a new snapshot reflecting the restored state
@@ -699,6 +707,11 @@ export const standalone: SourcePlugin = {
         await update({ lastSnapshot: filename, snapshotCount })
       } catch {}
 
+      track('snapshot:restored', {
+        success: totalFailures === 0,
+        node_changes: nodeActions,
+        pip_changes: pipResult.installed.length + pipResult.changed.length + pipResult.removed.length,
+      })
       sendProgress('done', { percent: 100, status: t('standalone.snapshotRestoreComplete') })
       return { ok: totalFailures === 0, navigate: 'detail',
         ...(totalFailures > 0 ? { message: `${totalFailures} operation(s) failed` } : {}) }
@@ -710,6 +723,7 @@ export const standalone: SourcePlugin = {
       const file = actionData?.file as string | undefined
       if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
       await snapshots.deleteSnapshot(installation.installPath, file)
+      track('snapshot:deleted')
       const remaining = await snapshots.listSnapshots(installation.installPath)
       const snapshotCount = remaining.length
       const lastSnapshot = remaining.length > 0 ? remaining[0]!.filename : null
@@ -801,6 +815,7 @@ export const standalone: SourcePlugin = {
 
       const channel = (installation.updateChannel as string | undefined) || 'stable'
       const stableArgs = channel === 'stable' ? ['--stable'] : []
+      track('update:started', { from_version: installation.version, channel })
 
       const reqPath = path.join(comfyuiDir, 'requirements.txt')
       let preReqs = ''
@@ -865,6 +880,8 @@ export const standalone: SourcePlugin = {
       }
 
       if (exitCode !== 0) {
+        captureError(new Error(`Update exited with code ${exitCode}`), { operation: 'update', channel })
+        track('update:failed', { channel })
         return { ok: false, message: t('standalone.updateFailed', { code: exitCode }) }
       }
 
@@ -986,6 +1003,7 @@ export const standalone: SourcePlugin = {
         console.warn('Post-update snapshot failed:', err)
       }
 
+      track('update:completed', { from_version: installation.version, to_version: displayVersion, channel })
       sendProgress('done', { percent: 100, status: 'Complete' })
       return { ok: true, navigate: 'detail' }
     }

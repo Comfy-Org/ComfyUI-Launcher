@@ -62,6 +62,9 @@ const api: ElectronApi = {
   getSnapshotDiff: (installationId, filename, mode) =>
     ipcRenderer.invoke('get-snapshot-diff', installationId, filename, mode),
 
+  // Analytics
+  shouldShowAnalyticsConsent: () => ipcRenderer.invoke('should-show-analytics-consent'),
+
   // Settings
   getSettingsSections: () => ipcRenderer.invoke('get-settings-sections'),
   getModelsSections: () => ipcRenderer.invoke('get-models-sections'),

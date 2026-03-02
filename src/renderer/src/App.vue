@@ -26,6 +26,7 @@ import ProgressModal from './views/ProgressModal.vue'
 import NewInstallModal from './views/NewInstallModal.vue'
 import QuickInstallModal from './views/QuickInstallModal.vue'
 import TrackModal from './views/TrackModal.vue'
+import AnalyticsConsentModal from './components/AnalyticsConsentModal.vue'
 
 // Lucide icons
 import { LayoutDashboard, Box, Play, FolderOpen, Image, Settings } from 'lucide-vue-next'
@@ -50,6 +51,7 @@ const progressInstallationId = ref<string | null>(null)
 const showNewInstall = ref(false)
 const showQuickInstall = ref(false)
 const showTrack = ref(false)
+const showAnalyticsConsent = ref(false)
 
 // --- Template refs ---
 const listRef = ref<InstanceType<typeof InstallationList> | null>(null)
@@ -214,6 +216,9 @@ onMounted(async () => {
   setupQuitConfirmation()
   setupLocaleListener()
   listRef.value?.refresh()
+  if (await window.api.shouldShowAnalyticsConsent()) {
+    showAnalyticsConsent.value = true
+  }
 })
 </script>
 
@@ -344,6 +349,12 @@ onMounted(async () => {
     ref="trackRef"
     @close="closeTrack"
     @navigate-list="handleNavigateList"
+  />
+
+  <!-- Analytics consent (first launch) -->
+  <AnalyticsConsentModal
+    v-if="showAnalyticsConsent"
+    @close="showAnalyticsConsent = false"
   />
 
   <!-- Global modal dialog (alerts/confirms/prompts/selects) -->

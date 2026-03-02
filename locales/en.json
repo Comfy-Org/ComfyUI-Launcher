@@ -252,6 +252,7 @@
     "closeQuitOperations": "In Progress",
     "closeQuitDownloads": "Downloading",
     "autoUpdate": "Check for updates on startup",
+    "sendAnalytics": "Send anonymous usage data",
     "models": "Shared Models",
     "downloads": "Downloads",
     "cacheDir": "Cache Directory",
@@ -602,6 +603,15 @@
     "portConflictKilling": "Stopping…",
     "portConflictKillFailed": "Could not free port {port}. The process may require manual termination.",
     "duplicateName": "An install named \"{name}\" already exists. Please choose a different name."
+  },
+
+  "analytics": {
+    "consentTitle": "Help improve ComfyUI Launcher",
+    "consentDescription": "Share anonymous usage data to help us find bugs and improve the app. No personal information is collected — we only track things like how often features are used and whether operations succeed or fail.",
+    "consentPrivacy": "For more info, read our",
+    "privacyPolicy": "privacy policy",
+    "metricsEnabled": "Analytics Enabled",
+    "metricsDisabled": "Analytics Disabled"
   },
 
   "contextMenu": {
