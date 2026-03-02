@@ -52,15 +52,20 @@ function getTempDir(): string {
   return path.join(getModelsBaseDir(), TEMP_DIR_NAME)
 }
 
-function isPathContained(filePath: string, baseDir: string): boolean {
+export function isPathContained(filePath: string, baseDir: string): boolean {
   const resolved = path.resolve(filePath)
   const resolvedBase = path.resolve(baseDir)
   return resolved.startsWith(resolvedBase + path.sep)
 }
 
-function hasValidExtension(filename: string): boolean {
+export function hasValidExtension(filename: string): boolean {
   const lower = filename.toLowerCase()
   return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
+
+export function stripQueryParams(rawFilename: string): string {
+  const qIdx = rawFilename.indexOf('?')
+  return qIdx >= 0 ? rawFilename.substring(0, qIdx) : rawFilename
 }
 
 function broadcastProgress(progress: DownloadProgress): void {
@@ -130,8 +135,7 @@ export async function startModelDownload(
   rawFilename: string,
   directory: string,
 ): Promise<boolean> {
-  const qIdx = rawFilename.indexOf('?')
-  const filename = qIdx >= 0 ? rawFilename.substring(0, qIdx) : rawFilename
+  const filename = stripQueryParams(rawFilename)
   const baseDir = getModelsBaseDir()
   const savePath = path.join(baseDir, directory, filename)
   const tempDir = getTempDir()
