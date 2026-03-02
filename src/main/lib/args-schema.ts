@@ -8,9 +8,11 @@ export interface ArgDef {
   /** Short description shown as tooltip/hint */
   description: string
   /** Argument type */
-  type: 'boolean' | 'number' | 'string' | 'select'
+  type: 'boolean' | 'number' | 'string' | 'select' | 'optional-string'
   /** For select type: available choices */
   choices?: { value: string; label: string }[]
+  /** Placeholder text for inputs */
+  placeholder?: string
   /** Group this arg belongs to */
   group: string
   /** ComfyUI version that introduced this arg (semver), or undefined if always available */
@@ -20,10 +22,10 @@ export interface ArgDef {
 }
 
 export const ARG_SCHEMA: ArgDef[] = [
-  { name: 'port', label: 'Port', description: 'Set the listen port (default: 8188)', type: 'number', group: 'common' },
-  { name: 'listen', label: 'Listen Address', description: 'IP address to listen on. Leave empty for 0.0.0.0 (all interfaces)', type: 'string', group: 'common' },
-  { name: 'front-end-version', label: 'Frontend Version', description: 'Format: owner/repo@version (e.g. comfyanonymous/ComfyUI@latest)', type: 'string', group: 'common' },
-  { name: 'enable-manager', label: 'Enable Manager', description: 'Enable the ComfyUI-Manager extension', type: 'boolean', group: 'common' },
+  { name: 'port', label: '--port', description: 'Set the listen port (default: 8188)', type: 'number', group: 'common' },
+  { name: 'listen', label: '--listen', description: 'Allow connections from other devices on your network', type: 'optional-string', placeholder: '0.0.0.0', group: 'common' },
+  { name: 'front-end-version', label: '--front-end-version', description: 'Use a specific frontend build', type: 'select', choices: [{ value: '', label: 'Latest' }], placeholder: 'Comfy-Org/ComfyUI_frontend@1.2.3', group: 'common' },
+  { name: 'enable-manager', label: '--enable-manager', description: 'Enable the ComfyUI-Manager extension', type: 'boolean', group: 'common' },
 ]
 
 /**
