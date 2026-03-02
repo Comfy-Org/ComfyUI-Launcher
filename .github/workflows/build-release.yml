@@ -108,7 +108,7 @@ jobs:
       - name: Fetch ToDesktop build metadata by ID
         env:
           BUILD_ID: ${{ steps.build_id.outputs.build_id }}
-        run: todesktop builds "${BUILD_ID}" --config=todesktop.json --format=json --exit > todesktop-build.json
+        run: todesktop builds "${BUILD_ID}" --config=todesktop.json --exit > todesktop-build.raw 2>&1
 
       - name: Extract build details
         id: extract
@@ -117,40 +117,41 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs')
 
-          const parseBuildOutput = (filePath) => {
-            const raw = fs.readFileSync(filePath, 'utf8')
-            const start = raw.indexOf('[')
-            const end = raw.lastIndexOf(']')
-            const jsonText =
-              start !== -1 && end !== -1 && end > start
-                ? raw.slice(start, end + 1)
-                : raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)
-
-            let parsed
-            try {
-              parsed = JSON.parse(jsonText)
-            } catch (err) {
-              console.error(`Failed to parse ToDesktop build JSON output from ${filePath}`)
-              console.error(raw.slice(0, 1000))
-              throw err
+          const parseBuildOutput = (raw, expectedBuildId) => {
+            const buildIdPattern =
+              /https?:\/\/(?:app\.todesktop\.com\/apps|dl\.todesktop\.com)\/[^/\s]+\/builds\/([A-Za-z0-9_-]+)/g
+            const buildIds = [...new Set([...raw.matchAll(buildIdPattern)].map((match) => match[1]))].filter(
+              Boolean
+            )
+            if (expectedBuildId && buildIds.length > 0 && !buildIds.includes(expectedBuildId)) {
+              throw new Error(
+                `Build ID mismatch in raw CLI output. Expected ${expectedBuildId}, found ${buildIds.join(', ')}`
+              )
             }
 
-            if (Array.isArray(parsed)) {
-              if (parsed.length === 0) {
-                throw new Error(`No builds returned in ${filePath}`)
-              }
-              return parsed[0]
+            const buildId = expectedBuildId || buildIds[0] || ''
+            if (!buildId) {
+              throw new Error('Could not extract a ToDesktop build ID from metadata output.')
             }
 
-            if (parsed && typeof parsed === 'object') {
-              return parsed
-            }
+            const appUrl = [...raw.matchAll(/https?:\/\/app\.todesktop\.com\/apps\/[^/\s]+\/builds\/[A-Za-z0-9_-]+/g)]
+              .map((match) => match[0])
+              .at(-1)
+            const downloadUrl = [...raw.matchAll(/https?:\/\/dl\.todesktop\.com\/[^/\s]+\/builds\/[A-Za-z0-9_-]+/g)]
+              .map((match) => match[0])
+              .at(-1)
 
-            throw new Error(`Unexpected ToDesktop build output shape in ${filePath}`)
+            return {
+              id: buildId,
+              status: /Build complete!/i.test(raw) ? 'succeeded' : 'unknown',
+              standardUniversalDownloadUrl: downloadUrl || '',
+              __appUrl: appUrl || ''
+            }
           }
 
           const expectedBuildId = process.env.EXPECTED_BUILD_ID || ''
-          const build = parseBuildOutput('todesktop-build.json')
+          const rawBuildOutput = fs.readFileSync('todesktop-build.raw', 'utf8')
+          const build = parseBuildOutput(rawBuildOutput, expectedBuildId)
           const safeUrl = (value) => (typeof value === 'string' ? value : '')
           const macUrl = safeUrl(build?.mac?.standardDownloadUrl)
           const windowsUrl = safeUrl(build?.windows?.standardDownloadUrl)
@@ -235,7 +236,9 @@ jobs:
 
           const todesktopConfig = JSON.parse(fs.readFileSync('todesktop.json', 'utf8'))
           const appId = todesktopConfig.id
-          const buildPageUrl = `https://app.todesktop.com/apps/${appId}/builds/${buildId}`
+          const configBuildPageUrl =
+            appId && buildId ? `https://app.todesktop.com/apps/${appId}/builds/${buildId}` : ''
+          const buildPageUrl = safeUrl(build?.__appUrl) || configBuildPageUrl
 
           fs.writeFileSync(
             'release-assets.json',
@@ -265,7 +268,8 @@ jobs:
           fs.appendFileSync(output, `windows_url=${windowsUrl}\n`)
           fs.appendFileSync(output, `linux_url=${linuxUrl}\n`)
 
-          if (status !== 'succeeded') {
+          const successStatuses = new Set(['succeeded', 'success', 'finished', 'complete', 'completed'])
+          if (!successStatuses.has(String(status).toLowerCase())) {
             throw new Error(`ToDesktop build did not succeed (status=${status})`)
           }
           NODE

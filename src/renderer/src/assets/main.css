@@ -1,5 +1,22 @@
 @import 'tailwindcss';
 
+/* Inter Font Family — matches ComfyUI frontend design system */
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/inter-latin-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/inter-latin-italic.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: block;
+}
+
 /*
  * Design tokens from renderer/styles.css — extracted into CSS custom properties
  * and Tailwind @theme for the Vue rework. These bridge the old CSS class names
@@ -7,6 +24,7 @@
  */
 
 @theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
   --color-bg: #202020;
   --color-text: #ffffff;
   --color-text-muted: #8a8a8a;
@@ -138,7 +156,7 @@
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
 body {
-  font-family: system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   user-select: none;
@@ -587,6 +605,17 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .update-banner .update-text { flex: 1; color: var(--text); }
 .update-banner .update-text strong { color: var(--accent); }
 .update-banner button { flex-shrink: 0; }
+
+/* Zoom banner */
+.zoom-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); font-size: 14px;
+  color: var(--text-muted);
+}
+.zoom-banner-actions { display: flex; gap: 8px; margin-left: auto; }
+.zoom-banner-actions button { flex-shrink: 0; }
 
 /* Card progress bar */
 .card-progress { flex: 1; min-width: 0; margin-top: 4px; }

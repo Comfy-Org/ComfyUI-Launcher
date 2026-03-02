@@ -11,6 +11,7 @@ import type { Installation, ActionResult } from './types/ipc'
 
 import ModalDialog from './components/ModalDialog.vue'
 import UpdateBanner from './components/UpdateBanner.vue'
+import ZoomBanner from './components/ZoomBanner.vue'
 import DashboardView from './views/DashboardView.vue'
 import InstallationList from './views/InstallationList.vue'
 import RunningView from './views/RunningView.vue'
@@ -231,6 +232,7 @@ onMounted(async () => {
 
     <!-- Content Area -->
     <main class="content">
+      <ZoomBanner />
       <DashboardView
         v-show="activeView === 'dashboard'"
         :visible="activeView === 'dashboard'"

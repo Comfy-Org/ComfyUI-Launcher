@@ -78,12 +78,6 @@ function resolveSource(sourceId: string): SourcePlugin {
   return source
 }
 
-async function resolveInstallation(id: string): Promise<InstallationRecord> {
-  const inst = await installations.get(id)
-  if (!inst) throw new Error(`Unknown installation: ${id}`)
-  return inst
-}
-
 async function findDuplicatePath(installPath: string): Promise<InstallationRecord | null> {
   const normalized = path.resolve(installPath)
   return (await installations.list()).find((i) => i.installPath && path.resolve(i.installPath) === normalized) ?? null
@@ -398,10 +392,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
   migrateDefaults()
 
-  // Sweep empty/broken local installations on startup
+  // Sweep empty/broken local installations on startup, then clean stale settings references
   void (async () => {
     try {
       const all = await installations.list()
+      let swept = false
       for (const inst of all) {
         const source = sourceMap[inst.sourceId]
         if (!source || source.skipInstall) continue
@@ -409,7 +404,37 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         if (!isEffectivelyEmptyInstallDir(inst.installPath)) continue
         try { fs.rmSync(inst.installPath, { recursive: true, force: true }) } catch {}
         await installations.remove(inst.id)
+        swept = true
       }
+
+      // Clean stale references from settings against the current installation list
+      const remaining = swept ? await installations.list() : all
+      const validIds = new Set(remaining.map((i) => i.id))
+      let settingsChanged = false
+
+      const currentPrimary = settings.get('primaryInstallId') as string | undefined
+      if (currentPrimary && !validIds.has(currentPrimary)) {
+        await autoAssignPrimary(currentPrimary)
+        settingsChanged = true
+      }
+
+      const rawPinned = settings.get('pinnedInstallIds')
+      const pinned = Array.isArray(rawPinned) ? rawPinned as string[] : []
+      const filtered = pinned.filter((id) => validIds.has(id))
+      if (filtered.length !== pinned.length) {
+        settings.set('pinnedInstallIds', filtered)
+        settingsChanged = true
+      }
+
+      if (swept || settingsChanged) _broadcastToRenderer('installations-changed', {})
+    } catch {}
+  })()
+
+  // Clean up partial downloads left over from previous interrupted sessions
+  void (async () => {
+    try {
+      const cache = createCache(settings.get('cacheDir') as string, settings.get('maxCachedFiles') as number)
+      await cache.cleanPartials()
     } catch {}
   })()
 
@@ -595,7 +620,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('install-instance', async (_event, installationId: string) => {
-    const inst = await resolveInstallation(installationId)
+    const inst = await installations.get(installationId)
+    if (!inst) return { ok: false, message: 'Installation not found.' }
     if (_operationAborts.has(installationId)) {
       return { ok: false, message: 'Another operation is already running for this installation.' }
     }
@@ -684,14 +710,16 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   // List actions
   ipcMain.handle('get-list-actions', async (_event, installationId: string) => {
-    const inst = await resolveInstallation(installationId)
+    const inst = await installations.get(installationId)
+    if (!inst) return []
     const source = resolveSource(inst.sourceId)
     return source.getListActions ? source.getListActions(inst) : []
   })
 
   // Detail — validate editable fields dynamically from source schema
   ipcMain.handle('update-installation', async (_event, installationId: string, data: Record<string, unknown>) => {
-    const inst = await resolveInstallation(installationId)
+    const inst = await installations.get(installationId)
+    if (!inst) return { ok: false, message: 'Installation not found.' }
     const source = resolveSource(inst.sourceId)
     const sections = source.getDetailSections(inst)
     const allowedIds = new Set(['name', 'seen'])
@@ -719,14 +747,15 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('get-detail-sections', async (_event, installationId: string) => {
-    const inst = await resolveInstallation(installationId)
+    const inst = await installations.get(installationId)
+    if (!inst) return []
     return resolveSource(inst.sourceId).getDetailSections(inst)
   })
 
   // Snapshots
   ipcMain.handle('get-snapshots', async (_event, installationId: string) => {
-    const inst = await resolveInstallation(installationId)
-    if (!inst.installPath) return { snapshots: [], copyEvents: [], totalCount: 0, context: { updateChannel: '', pythonVersion: '', variant: '', variantLabel: '' } }
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) return { snapshots: [], copyEvents: [], totalCount: 0, context: { updateChannel: '', pythonVersion: '', variant: '', variantLabel: '' } }
     const data = await getSnapshotListData(inst.installPath)
 
     // Find installations that were copied from this one
@@ -754,8 +783,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('get-snapshot-detail', async (_event, installationId: string, filename: string) => {
-    const inst = await resolveInstallation(installationId)
-    if (!inst.installPath) throw new Error('Installation has no install path')
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) throw new Error('Installation not found or has no install path')
     const detail = await getSnapshotDetailData(inst.installPath, filename)
     // Fill in context from installation record if snapshot doesn't have it
     if (!detail.pythonVersion) detail.pythonVersion = (inst.pythonVersion as string | undefined) || undefined
@@ -764,8 +793,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('get-snapshot-diff', async (_event, installationId: string, filename: string, mode: 'previous' | 'current') => {
-    const inst = await resolveInstallation(installationId)
-    if (!inst.installPath) throw new Error('Installation has no install path')
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) throw new Error('Installation not found or has no install path')
     if (mode === 'previous') {
       return getSnapshotDiffVsPrevious(inst.installPath, filename)
     }
@@ -938,7 +967,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('run-action', async (_event, installationId: string, actionId: string, actionData?: Record<string, unknown>) => {
-    const inst = await resolveInstallation(installationId)
+    const maybeInst = await installations.get(installationId)
+    if (!maybeInst) return { ok: false, message: 'Installation not found.' }
+    const inst = maybeInst
     if (actionId === 'remove') {
       await installations.remove(installationId)
       await autoAssignPrimary(installationId)

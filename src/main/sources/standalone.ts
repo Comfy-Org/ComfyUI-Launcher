@@ -48,8 +48,12 @@ const PLATFORM_PREFIX: Record<string, string> = {
   linux: 'linux-',
 }
 
+function stripPlatform(variantId: string): string {
+  return variantId.replace(/^(win|mac|linux)-/, '')
+}
+
 export function getVariantLabel(variantId: string): string {
-  const stripped = variantId.replace(/^(win|mac|linux)-/, '')
+  const stripped = stripPlatform(variantId)
   if (VARIANT_LABELS[stripped]) return VARIANT_LABELS[stripped]!
   for (const [key, label] of Object.entries(VARIANT_LABELS)) {
     if (stripped === key || stripped.startsWith(key + '-')) {
@@ -191,7 +195,7 @@ function listEnvs(installPath: string): string[] {
 }
 
 function recommendVariant(variantId: string, gpu: string | undefined): boolean {
-  const stripped = variantId.replace(/^(win|mac|linux)-/, '')
+  const stripped = stripPlatform(variantId)
   if (!gpu) return stripped === 'cpu'
   if (gpu === 'nvidia') return stripped === 'nvidia' || stripped.startsWith('nvidia-')
   if (gpu === 'amd') return stripped === 'amd' || stripped.startsWith('amd-')
@@ -269,14 +273,16 @@ export const standalone: SourcePlugin = {
   buildInstallation(selections: Record<string, FieldOption | undefined>): Record<string, unknown> {
     const vd = selections.variant?.data as VariantData | undefined
     const manifest = vd?.manifest
+    const variantId = vd?.variantId || ''
+    const isCpu = stripPlatform(variantId) === 'cpu' || stripPlatform(variantId).startsWith('cpu-')
     return {
       version: manifest?.comfyui_ref || selections.release?.value || 'unknown',
       releaseTag: selections.release?.value || 'unknown',
-      variant: vd?.variantId || '',
+      variant: variantId,
       downloadUrl: vd?.downloadUrl || '',
       downloadFiles: vd?.downloadFiles || [],
       pythonVersion: manifest?.python_version || '',
-      launchArgs: DEFAULT_LAUNCH_ARGS,
+      launchArgs: isCpu ? `${DEFAULT_LAUNCH_ARGS} --cpu` : DEFAULT_LAUNCH_ARGS,
       launchMode: 'window',
       browserPartition: 'unique',
     }

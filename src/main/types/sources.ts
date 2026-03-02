@@ -40,7 +40,7 @@ export interface LaunchCommand {
 
 export interface InstallTools {
   sendProgress: (step: string, data: { percent: number; status: string }) => void
-  download: (url: string, dest: string, onProgress: ((p: DownloadProgress) => void) | null, options?: { signal?: AbortSignal }) => Promise<string>
+  download: (url: string, dest: string, onProgress: ((p: DownloadProgress) => void) | null, options?: { signal?: AbortSignal; expectedSize?: number }) => Promise<string>
   cache: Cache
   extract: (archivePath: string, dest: string, onProgress?: ((p: ExtractProgress) => void) | null, options?: { signal?: AbortSignal }) => Promise<void>
   signal?: AbortSignal

@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import { configDir, cacheDir, homeDir } from './lib/paths'
 import { MODEL_FOLDER_TYPES } from './lib/models'
+import { readFileSafe, writeFileSafe } from './lib/safe-file'
 
 export interface Settings {
   cacheDir: string
@@ -29,12 +30,15 @@ export const defaults: Settings = {
 const systemDefault = defaults.modelsDirs[0]!
 
 function load(): Settings {
-  let result: Settings
-  try {
-    result = { ...defaults, ...JSON.parse(fs.readFileSync(dataPath, "utf-8")) }
-  } catch {
-    result = { ...defaults }
+  let parsed: Record<string, unknown> | null = null
+  const raw = readFileSafe(dataPath)
+  if (raw) {
+    try {
+      const obj: unknown = JSON.parse(raw)
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) parsed = obj as Record<string, unknown>
+    } catch {}
   }
+  const result: Settings = { ...defaults, ...(parsed || {}) }
   // Ensure system default directory is always present in modelsDirs
   if (!Array.isArray(result.modelsDirs)) {
     result.modelsDirs = [systemDefault]
@@ -59,8 +63,7 @@ function load(): Settings {
 }
 
 function save(settings: Settings): void {
-  fs.mkdirSync(path.dirname(dataPath), { recursive: true })
-  fs.writeFileSync(dataPath, JSON.stringify(settings, null, 2))
+  writeFileSafe(dataPath, JSON.stringify(settings, null, 2), true)
 }
 
 export function get(key: string): unknown {

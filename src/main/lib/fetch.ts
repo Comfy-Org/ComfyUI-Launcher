@@ -2,6 +2,7 @@ import { net } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { cacheDir } from './paths'
+import { writeFileSafe } from './safe-file'
 
 interface CacheEntry {
   etag: string
@@ -42,14 +43,11 @@ function _ensureLoaded(): void {
 
 function _persist(): void {
   try {
-    fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true })
     const obj: Record<string, CacheEntry> = {}
     for (const [url, entry] of _cache) {
       obj[url] = entry
     }
-    const tmp = CACHE_FILE + ".tmp"
-    fs.writeFileSync(tmp, JSON.stringify(obj))
-    fs.renameSync(tmp, CACHE_FILE)
+    writeFileSafe(CACHE_FILE, JSON.stringify(obj))
   } catch {
     // ignore — best-effort persistence
   }
