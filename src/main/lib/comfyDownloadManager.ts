@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import * as settings from '../settings'
@@ -25,6 +25,7 @@ interface PendingDownload {
   savePath: string
   tempPath: string
   window: BrowserWindow
+  subscriberWindows: Set<BrowserWindow>
   item?: Electron.DownloadItem
   lastProgress: DownloadProgress
   lastSpeedBytes: number
@@ -62,12 +63,19 @@ function hasValidExtension(filename: string): boolean {
 }
 
 function broadcastProgress(progress: DownloadProgress): void {
-  // Send to the originating ComfyUI window
+  // Send to the originating ComfyUI window and any subscribers
   const pending = pendingDownloads.get(progress.url)
   if (pending) {
     pending.lastProgress = progress
     if (!pending.window.isDestroyed()) {
       pending.window.webContents.send('launcher-download-progress', progress)
+    }
+    for (const sub of pending.subscriberWindows) {
+      if (!sub.isDestroyed()) {
+        sub.webContents.send('launcher-download-progress', progress)
+      } else {
+        pending.subscriberWindows.delete(sub)
+      }
     }
   }
   // Also send to the Launcher window
@@ -157,7 +165,16 @@ export async function startModelDownload(
     return true
   }
 
-  if (pendingDownloads.has(url)) return true
+  const existing = pendingDownloads.get(url)
+  if (existing) {
+    if (win !== existing.window) {
+      existing.subscriberWindows.add(win)
+    }
+    if (!win.isDestroyed()) {
+      win.webContents.send('launcher-download-progress', existing.lastProgress)
+    }
+    return true
+  }
 
   await fs.promises.mkdir(path.dirname(savePath), { recursive: true })
   await fs.promises.mkdir(tempDir, { recursive: true })
@@ -172,6 +189,7 @@ export async function startModelDownload(
     savePath,
     tempPath,
     window: win,
+    subscriberWindows: new Set(),
     lastProgress: initial,
     lastSpeedBytes: 0,
     lastSpeedTime: Date.now(),
@@ -261,7 +279,7 @@ export function attachSessionDownloadHandler(sess: Electron.Session): void {
             status: 'completed',
           })
           pendingDownloads.delete(pending.url)
-          new Notification({ title: 'Download Complete', body: `${pending.directory}/${pending.filename}` }).show()
+          // Progress already broadcast to toast UI and Launcher panel
         } else if (state === 'cancelled') {
           try { fs.unlinkSync(pending.tempPath) } catch {}
           reportProgress({
@@ -283,7 +301,7 @@ export function attachSessionDownloadHandler(sess: Electron.Session): void {
             error: `Download failed: ${state}`,
           })
           pendingDownloads.delete(pending.url)
-          new Notification({ title: 'Download Failed', body: `${pending.filename}: ${state}` }).show()
+          // Progress already broadcast to toast UI and Launcher panel
         }
       })
     } else {
