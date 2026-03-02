@@ -73,11 +73,6 @@ function openPath(targetPath: string): Promise<string> {
 
 const sourceMap: Record<string, SourcePlugin> = Object.fromEntries(sources.map((s) => [s.id, s]))
 
-function resolveSource(sourceId: string): SourcePlugin {
-  const source = sourceMap[sourceId]
-  if (!source) throw new Error(`Unknown source: ${sourceId}`)
-  return source
-}
 
 async function findDuplicatePath(installPath: string): Promise<InstallationRecord | null> {
   const normalized = path.resolve(installPath)
@@ -202,8 +197,8 @@ async function performCopy(
       })
     }, { signal })
 
-    const source = resolveSource(inst.sourceId)
-    if (source.fixupCopy) {
+    const source = sourceMap[inst.sourceId]
+    if (source?.fixupCopy) {
       await source.fixupCopy(inst.installPath, destPath)
     }
 
@@ -463,8 +458,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   )
 
   ipcMain.handle('get-field-options', async (_event, sourceId: string, fieldId: string, selections: Record<string, unknown>) => {
+    const source = sourceMap[sourceId]
+    if (!source) return []
     const gpu = _gpuPromise ? await _gpuPromise : null
-    const options = await resolveSource(sourceId).getFieldOptions(
+    const options = await source.getFieldOptions(
       fieldId,
       selections as Record<string, FieldOption | undefined>,
       { gpu: gpu && gpu.id }
@@ -483,7 +480,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   ipcMain.handle('check-nvidia-driver', () => checkNvidiaDriver())
 
   ipcMain.handle('build-installation', (_event, sourceId: string, selections: Record<string, unknown>) => {
-    const source = resolveSource(sourceId)
+    const source = sourceMap[sourceId]
+    if (!source) return null
     return {
       sourceId: source.id,
       sourceLabel: source.label,
@@ -623,10 +621,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   ipcMain.handle('install-instance', async (_event, installationId: string) => {
     const inst = await installations.get(installationId)
     if (!inst) return { ok: false, message: 'Installation not found.' }
+    const source = sourceMap[inst.sourceId]
+    if (!source) return { ok: false, message: i18n.t('errors.unknownSource') }
     if (_operationAborts.has(installationId)) {
       return { ok: false, message: 'Another operation is already running for this installation.' }
     }
-    const source = resolveSource(inst.sourceId)
     const sender = _event.sender
 
     const sendProgress = (phase: string, detail: Record<string, unknown>): void => {
@@ -713,7 +712,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   ipcMain.handle('get-list-actions', async (_event, installationId: string) => {
     const inst = await installations.get(installationId)
     if (!inst) return []
-    const source = resolveSource(inst.sourceId)
+    const source = sourceMap[inst.sourceId]
+    if (!source) return []
     return source.getListActions ? source.getListActions(inst) : []
   })
 
@@ -721,7 +721,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   ipcMain.handle('update-installation', async (_event, installationId: string, data: Record<string, unknown>) => {
     const inst = await installations.get(installationId)
     if (!inst) return { ok: false, message: 'Installation not found.' }
-    const source = resolveSource(inst.sourceId)
+    const source = sourceMap[inst.sourceId]
+    if (!source) return { ok: false, message: i18n.t('errors.unknownSource') }
     const sections = source.getDetailSections(inst)
     const allowedIds = new Set(['name', 'seen'])
     for (const section of sections) {
@@ -750,7 +751,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   ipcMain.handle('get-detail-sections', async (_event, installationId: string) => {
     const inst = await installations.get(installationId)
     if (!inst) return []
-    return resolveSource(inst.sourceId).getDetailSections(inst)
+    const source = sourceMap[inst.sourceId]
+    if (!source) return []
+    return source.getDetailSections(inst)
   })
 
   // Snapshots
@@ -1129,7 +1132,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           if (phase !== 'steps') sendProgress(phase, detail)
         }
         try {
-          const source = resolveSource(inst.sourceId)
+          const source = sourceMap[inst.sourceId]
+          if (!source) throw new Error(i18n.t('errors.unknownSource'))
           const newInst = await installations.get(entry.id)
           const newUpdate = (data: Record<string, unknown>): Promise<void> =>
             installations.update(entry.id, data).then(() => {})
@@ -1170,7 +1174,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         return { ok: false, message: 'Another operation is already running for this installation.' }
       }
 
-      const source = resolveSource(inst.sourceId)
+      const source = sourceMap[inst.sourceId]
+      if (!source) return { ok: false, message: i18n.t('errors.unknownSource') }
       const installData = source.buildInstallation({
         release: releaseSelection as unknown as FieldOption,
         variant: variantSelection as unknown as FieldOption,
@@ -1307,7 +1312,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       if (_operationAborts.has(installationId)) {
         return { ok: false, message: 'Another operation is already running for this installation.' }
       }
-      const source = resolveSource(inst.sourceId)
+      const source = sourceMap[inst.sourceId]
+      if (!source) return { ok: false, message: i18n.t('errors.unknownSource') }
       if (!source.skipInstall && isEffectivelyEmptyInstallDir(inst.installPath)) {
         return { ok: false, message: i18n.t('errors.installDirEmpty') }
       }
@@ -1589,8 +1595,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     }
     const update = (data: Record<string, unknown>): Promise<void> =>
       installations.update(installationId, data).then(() => {})
+    const source = sourceMap[inst.sourceId]
+    if (!source) {
+      _operationAborts.delete(installationId)
+      return { ok: false, message: i18n.t('errors.unknownSource') }
+    }
     try {
-      return await resolveSource(inst.sourceId).handleAction(actionId, inst, actionData, { update, sendProgress, sendOutput, signal: abort.signal })
+      return await source.handleAction(actionId, inst, actionData, { update, sendProgress, sendOutput, signal: abort.signal })
     } catch (err) {
       if (abort.signal.aborted) return { ok: false, message: 'Cancelled' }
       return { ok: false, message: (err as Error).message }

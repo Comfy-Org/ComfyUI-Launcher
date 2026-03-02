@@ -601,7 +601,8 @@
     "portConflictKillConfirmMessage": "This will forcefully stop the process currently using this port. Any unsaved work in that ComfyUI instance will be lost.",
     "portConflictKilling": "Stopping…",
     "portConflictKillFailed": "Could not free port {port}. The process may require manual termination.",
-    "duplicateName": "An install named \"{name}\" already exists. Please choose a different name."
+    "duplicateName": "An install named \"{name}\" already exists. Please choose a different name.",
+    "unknownSource": "This installation has an unrecognized source type. It may have been created by a different version. Delete it and reinstall."
   },
 
   "contextMenu": {
