@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import DetailSectionComponent from '../components/DetailSection.vue'
+import SnapshotTab from '../components/SnapshotTab.vue'
+import { useInstallationStore } from '../stores/installationStore'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
@@ -38,6 +40,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const modal = useModal()
 const prefs = useLauncherPrefs()
+const installationStore = useInstallationStore()
 
 const isLocal = computed(() => props.installation?.sourceCategory === 'local')
 const isCloud = computed(() => props.installation?.sourceCategory === 'cloud')
@@ -53,6 +56,7 @@ const sections = ref<DetailSection[]>([])
 const tabLabels = computed<Record<string, string>>(() => ({
   status: t('common.tabStatus'),
   update: t('common.tabUpdate'),
+  snapshots: t('common.tabSnapshots'),
   settings: t('common.tabSettings'),
 }))
 
@@ -63,7 +67,7 @@ const availableTabs = computed(() => {
   for (const s of sections.value) {
     if (s.tab && !s.pinBottom) tabIds.add(s.tab)
   }
-  const ORDER = ['status', 'update', 'settings']
+  const ORDER = ['status', 'update', 'snapshots', 'settings']
   return [...ORDER.filter((id) => tabIds.has(id)), ...Array.from(tabIds).filter((id) => !ORDER.includes(id))]
 })
 
@@ -300,7 +304,7 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     emit('show-progress', {
       installationId: instId,
       title,
-      apiCall: () => window.api.runAction(instId, mutableAction.id, mutableAction.data),
+      apiCall: () => window.api.runAction(instId, mutableAction.id, mutableAction.data ? toRaw(mutableAction.data) : undefined),
       cancellable: !!mutableAction.cancellable,
       returnTo: 'detail'
     })
@@ -318,7 +322,7 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     const result = await window.api.runAction(
       props.installation.id,
       mutableAction.id,
-      mutableAction.data
+      mutableAction.data ? toRaw(mutableAction.data) : undefined
     )
     if (result.navigate === 'list') {
       emit('close')
@@ -335,6 +339,11 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
       if (savedLabel !== undefined) btn.textContent = savedLabel
     }
   }
+}
+
+function navigateToInstallation(installationId: string): void {
+  const inst = installationStore.getById(installationId)
+  if (inst) emit('update:installation', inst)
 }
 
 function handleOverlayMouseDown(event: MouseEvent): void {
@@ -403,20 +412,29 @@ function handleOverlayClick(event: MouseEvent): void {
           </button>
         </div>
         <div ref="scrollRef" class="view-scroll">
-          <DetailSectionComponent
-            v-for="section in mainSections"
-            :key="section.title ?? 'untitled'"
+          <SnapshotTab
+            v-if="activeTab === 'snapshots'"
             :installation-id="installation.id"
-            :title="section.title"
-            :description="section.description"
-            :collapsed="section.collapsed"
-            :items="section.items"
-            :fields="section.fields"
-            :actions="section.actions"
             @run-action="runAction"
-            @refresh="refreshSection"
             @refresh-all="refreshAllSections"
+            @navigate-installation="navigateToInstallation"
           />
+          <template v-else>
+            <DetailSectionComponent
+              v-for="section in mainSections"
+              :key="section.title ?? 'untitled'"
+              :installation-id="installation.id"
+              :title="section.title"
+              :description="section.description"
+              :collapsed="section.collapsed"
+              :items="section.items"
+              :fields="section.fields"
+              :actions="section.actions"
+              @run-action="runAction"
+              @refresh="refreshSection"
+              @refresh-all="refreshAllSections"
+            />
+          </template>
         </div>
 
         <!-- Bottom pinned actions -->

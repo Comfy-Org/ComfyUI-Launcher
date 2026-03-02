@@ -13,6 +13,7 @@ import { t } from '../lib/i18n'
 import * as installations from '../installations'
 import { listCustomNodes, findComfyUIDir, backupDir, mergeDirFlat } from '../lib/migrate'
 import * as settings from '../settings'
+import * as snapshots from '../lib/snapshots'
 import type { InstallationRecord } from '../installations'
 import type {
   SourcePlugin,
@@ -51,7 +52,7 @@ function stripPlatform(variantId: string): string {
   return variantId.replace(/^(win|mac|linux)-/, '')
 }
 
-function getVariantLabel(variantId: string): string {
+export function getVariantLabel(variantId: string): string {
   const stripped = stripPlatform(variantId)
   if (VARIANT_LABELS[stripped]) return VARIANT_LABELS[stripped]!
   for (const [key, label] of Object.entries(VARIANT_LABELS)) {
@@ -316,21 +317,49 @@ export const standalone: SourcePlugin = {
   getDetailSections(installation: InstallationRecord): Record<string, unknown>[] {
     const installed = installation.status === 'installed'
 
+    const infoFields: Record<string, unknown>[] = [
+      { label: t('common.installMethod'), value: installation.sourceLabel as string },
+      { label: t('standalone.comfyui'), value: installation.version },
+      { label: t('common.release'), value: (installation.releaseTag as string | undefined) || '—' },
+      { label: t('standalone.variant'), value: (installation.variant as string | undefined) ? getVariantLabel(installation.variant as string) : '—' },
+      { label: t('standalone.python'), value: (installation.pythonVersion as string | undefined) || '—' },
+      { label: t('common.location'), value: installation.installPath || '—' },
+      { label: t('common.installed'), value: new Date(installation.createdAt).toLocaleDateString() },
+    ]
+
+    const copiedFrom = installation.copiedFrom as string | undefined
+    if (copiedFrom) {
+      const copiedFromName = installation.copiedFromName as string | undefined
+      const copiedAt = installation.copiedAt as string | undefined
+      const copyReason = installation.copyReason as string | undefined
+      const reasonLabel = copyReason === 'copy-update' ? t('standalone.lineageCopyUpdate')
+        : copyReason === 'release-update' ? t('standalone.lineageReleaseUpdate')
+        : t('standalone.lineageCopy')
+      const dateStr = copiedAt ? new Date(copiedAt).toLocaleString() : ''
+      const nameStr = copiedFromName || copiedFrom
+      infoFields.push({
+        label: t('standalone.lineage'),
+        value: dateStr
+          ? `${reasonLabel}: ${nameStr}  ·  ${dateStr}`
+          : `${reasonLabel}: ${nameStr}`,
+      })
+    }
+
     const sections: Record<string, unknown>[] = [
       {
         tab: 'status',
         title: t('common.installInfo'),
-        fields: [
-          { label: t('common.installMethod'), value: installation.sourceLabel as string },
-          { label: t('standalone.comfyui'), value: installation.version },
-          { label: t('common.release'), value: (installation.releaseTag as string | undefined) || '—' },
-          { label: t('standalone.variant'), value: (installation.variant as string | undefined) ? getVariantLabel(installation.variant as string) : '—' },
-          { label: t('standalone.python'), value: (installation.pythonVersion as string | undefined) || '—' },
-          { label: t('common.location'), value: installation.installPath || '—' },
-          { label: t('common.installed'), value: new Date(installation.createdAt).toLocaleDateString() },
-        ],
+        fields: infoFields,
       },
     ]
+
+    // Snapshot tab — minimal section so the tab appears; SnapshotTab.vue handles rendering
+    if (installed && installation.installPath) {
+      sections.push({
+        tab: 'snapshots',
+        title: t('standalone.snapshotHistory'),
+      })
+    }
 
     // Updates section
     const hasGit = installed && installation.installPath && fs.existsSync(path.join(installation.installPath, 'ComfyUI', '.git'))
@@ -540,6 +569,15 @@ export const standalone: SourcePlugin = {
     await update({ envMethods })
     sendProgress('cleanup', { percent: -1, status: t('standalone.cleanupEnvStatus') })
     await stripMasterPackages(installation.installPath)
+
+    // Capture initial snapshot so the detail view shows "Current" immediately
+    try {
+      const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'boot')
+      const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
+      await update({ lastSnapshot: filename, snapshotCount })
+    } catch (err) {
+      console.warn('Initial snapshot failed:', err)
+    }
   },
 
   probeInstallation(dirPath: string): Record<string, unknown> | null {
@@ -577,6 +615,171 @@ export const standalone: SourcePlugin = {
     actionData: Record<string, unknown> | undefined,
     { update, sendProgress, sendOutput, signal }: ActionTools
   ): Promise<ActionResult> {
+    if (actionId === 'snapshot-save') {
+      const label = (actionData?.label as string | undefined) || undefined
+      const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'manual', label)
+      const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
+      await update({ lastSnapshot: filename, snapshotCount })
+      return { ok: true, navigate: 'detail' }
+    }
+
+    if (actionId === 'snapshot-restore') {
+      const file = actionData?.file as string | undefined
+      if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
+
+      sendProgress('steps', { steps: [
+        { phase: 'restore-nodes', label: t('standalone.snapshotRestoreNodesPhase') },
+        { phase: 'restore-pip', label: t('standalone.snapshotRestorePipPhase') },
+      ] })
+      sendProgress('restore-nodes', { percent: 0, status: 'Loading snapshot…' })
+      sendOutput('Loading snapshot…\n')
+
+      const targetSnapshot = await snapshots.loadSnapshot(installation.installPath, file)
+
+      // Phase 3: Restore custom nodes first (node installs may add pip dependencies)
+      sendOutput('\n── Restore Nodes ──\n')
+      const nodeResult = await snapshots.restoreCustomNodes(
+        installation.installPath, installation, targetSnapshot, sendProgress, sendOutput, signal
+      )
+
+      if (signal?.aborted) return { ok: false, message: 'Cancelled' }
+
+      // Phase 2: Restore pip packages (syncs to exact target state)
+      sendOutput('\n── Restore Packages ──\n')
+      const pipResult = await snapshots.restorePipPackages(
+        installation.installPath, installation, targetSnapshot,
+        (phase, data) => sendProgress(phase === 'restore' ? 'restore-pip' : phase, data),
+        sendOutput, signal
+      )
+
+      // Build combined summary
+      const summary: string[] = []
+      const nodeActions = nodeResult.installed.length + nodeResult.switched.length +
+        nodeResult.enabled.length + nodeResult.disabled.length + nodeResult.removed.length
+      if (nodeActions > 0) {
+        const parts: string[] = []
+        if (nodeResult.installed.length > 0) parts.push(`${nodeResult.installed.length} installed`)
+        if (nodeResult.switched.length > 0) parts.push(`${nodeResult.switched.length} switched`)
+        if (nodeResult.enabled.length > 0) parts.push(`${nodeResult.enabled.length} enabled`)
+        if (nodeResult.removed.length > 0) parts.push(`${nodeResult.removed.length} removed`)
+        if (nodeResult.disabled.length > 0) parts.push(`${nodeResult.disabled.length} disabled`)
+        summary.push(`Nodes: ${parts.join(', ')}`)
+      }
+      if (nodeResult.failed.length > 0) summary.push(`${nodeResult.failed.length} node(s) failed`)
+      if (nodeResult.unreportable.length > 0) summary.push(`${nodeResult.unreportable.length} standalone .py file(s) not restorable`)
+
+      if (pipResult.installed.length > 0 || pipResult.changed.length > 0 || pipResult.removed.length > 0) {
+        const parts: string[] = []
+        if (pipResult.installed.length > 0) parts.push(`${pipResult.installed.length} installed`)
+        if (pipResult.changed.length > 0) parts.push(`${pipResult.changed.length} changed`)
+        if (pipResult.removed.length > 0) parts.push(`${pipResult.removed.length} removed`)
+        summary.push(`Packages: ${parts.join(', ')}`)
+      }
+      if (pipResult.protectedSkipped.length > 0) summary.push(`${pipResult.protectedSkipped.length} protected (skipped)`)
+      if (pipResult.failed.length > 0) summary.push(`${pipResult.failed.length} package(s) failed`)
+
+      const totalFailures = nodeResult.failed.length + pipResult.failed.length
+
+      if (summary.length === 0) {
+        sendOutput(`\n✓ ${t('standalone.snapshotRestoreNothingToDo')}\n`)
+        sendProgress('done', { percent: 100, status: t('standalone.snapshotRestoreNothingToDo') })
+        return { ok: true, navigate: 'detail' }
+      }
+
+      sendOutput(`\n${totalFailures > 0 ? '⚠' : '✓'} ${t('standalone.snapshotRestoreComplete')}: ${summary.join('; ')}\n`)
+
+      if (pipResult.failed.length > 0) {
+        return { ok: false, message: t('standalone.snapshotRestoreReverted') }
+      }
+
+      // Capture a new snapshot reflecting the restored state
+      try {
+        const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'post-restore')
+        const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
+        await update({ lastSnapshot: filename, snapshotCount })
+      } catch {}
+
+      sendProgress('done', { percent: 100, status: t('standalone.snapshotRestoreComplete') })
+      return { ok: totalFailures === 0, navigate: 'detail',
+        ...(totalFailures > 0 ? { message: `${totalFailures} operation(s) failed` } : {}) }
+    }
+
+    // Handler kept for potential future use (e.g., context menu). Button removed from UI since
+    // snapshots are tiny (~5 KB) and auto-pruned, so manual deletion adds more risk than value.
+    if (actionId === 'snapshot-delete') {
+      const file = actionData?.file as string | undefined
+      if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
+      await snapshots.deleteSnapshot(installation.installPath, file)
+      const remaining = await snapshots.listSnapshots(installation.installPath)
+      const snapshotCount = remaining.length
+      const lastSnapshot = remaining.length > 0 ? remaining[0]!.filename : null
+      await update({ snapshotCount, ...(file === installation.lastSnapshot ? { lastSnapshot } : {}) })
+      return { ok: true, navigate: 'detail' }
+    }
+
+    if (actionId === 'snapshot-view') {
+      const file = actionData?.file as string | undefined
+      if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
+      const target = await snapshots.loadSnapshot(installation.installPath, file)
+      const diff = await snapshots.diffAgainstCurrent(installation.installPath, installation, target)
+
+      const lines: string[] = []
+
+      // ComfyUI version — use displayVersion when available (has "v0.3.10 + N commits" format)
+      if (diff.comfyuiChanged && diff.comfyui) {
+        const formatVersion = (v: { ref: string; commit: string | null; displayVersion?: string }): string => {
+          if (v.displayVersion) return v.displayVersion
+          return v.commit ? `${v.ref} (${v.commit.slice(0, 7)})` : v.ref
+        }
+        lines.push(`${t('standalone.snapshotDiffComfyUI')}`)
+        lines.push(`  ${formatVersion(diff.comfyui.from)} → ${formatVersion(diff.comfyui.to)}`)
+        lines.push('')
+      }
+
+      // Custom nodes
+      if (diff.nodesAdded.length > 0 || diff.nodesRemoved.length > 0 || diff.nodesChanged.length > 0) {
+        lines.push(`${t('standalone.snapshotDiffNodes')}`)
+        for (const n of diff.nodesAdded) {
+          const ver = n.version || (n.commit ? n.commit.slice(0, 7) : '')
+          lines.push(`  + ${n.id}${ver ? ` ${ver}` : ''}`)
+        }
+        for (const n of diff.nodesRemoved) {
+          const ver = n.version || (n.commit ? n.commit.slice(0, 7) : '')
+          lines.push(`  − ${n.id}${ver ? ` ${ver}` : ''}`)
+        }
+        for (const n of diff.nodesChanged) {
+          const fromVer = n.from.version || (n.from.commit ? n.from.commit.slice(0, 7) : '?')
+          const toVer = n.to.version || (n.to.commit ? n.to.commit.slice(0, 7) : '?')
+          const enabledChanged = n.from.enabled !== n.to.enabled
+          const versionChanged = fromVer !== toVer
+          if (enabledChanged && versionChanged) {
+            lines.push(`  ~ ${n.id}: ${fromVer} → ${toVer}, ${n.from.enabled ? 'enabled' : 'disabled'} → ${n.to.enabled ? 'enabled' : 'disabled'}`)
+          } else if (enabledChanged) {
+            lines.push(`  ~ ${n.id}: ${n.from.enabled ? 'enabled' : 'disabled'} → ${n.to.enabled ? 'enabled' : 'disabled'}`)
+          } else {
+            lines.push(`  ~ ${n.id}: ${fromVer} → ${toVer}`)
+          }
+        }
+        lines.push('')
+      }
+
+      // Pip packages
+      const pipTotal = diff.pipsAdded.length + diff.pipsRemoved.length + diff.pipsChanged.length
+      if (pipTotal > 0) {
+        lines.push(`${t('standalone.snapshotDiffPackages')} (${pipTotal})`)
+        for (const p of diff.pipsAdded) lines.push(`  + ${p.name} ${p.version}`)
+        for (const p of diff.pipsRemoved) lines.push(`  − ${p.name} ${p.version}`)
+        for (const p of diff.pipsChanged) lines.push(`  ~ ${p.name}: ${p.from} → ${p.to}`)
+        lines.push('')
+      }
+
+      if (lines.length === 0) {
+        lines.push(t('standalone.snapshotDiffNoChanges'))
+      }
+
+      return { ok: true, message: lines.join('\n') }
+    }
+
     if (actionId === 'check-update') {
       const channel = (installation.updateChannel as string | undefined) || 'stable'
       return releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
@@ -609,9 +812,19 @@ export const standalone: SourcePlugin = {
         { phase: 'deps', label: t('standalone.updateDeps') },
       ] })
 
-      sendProgress('prepare', { percent: -1, status: t('standalone.updatePrepare') })
+      sendProgress('prepare', { percent: -1, status: t('standalone.updatePrepareSnapshot') })
 
-      sendProgress('run', { percent: -1, status: t('standalone.updateRun') })
+      // Auto-snapshot before update
+      let preUpdateFilename: string | undefined
+      try {
+        preUpdateFilename = await snapshots.saveSnapshot(installPath, installation, 'pre-update')
+        const snapshotCount = await snapshots.getSnapshotCount(installPath)
+        await update({ lastSnapshot: preUpdateFilename, snapshotCount })
+      } catch (err) {
+        console.warn('Pre-update snapshot failed:', err)
+      }
+
+      sendProgress('run', { percent: -1, status: t('standalone.updateFetching') })
 
       const updateScript = app.isPackaged
         ? path.join(process.resourcesPath, 'lib', 'update_comfyui.py')
@@ -753,6 +966,25 @@ export const standalone: SourcePlugin = {
           [channel]: { installedTag },
         },
       })
+
+      // Capture post-update snapshot so the history reflects the new state immediately
+      try {
+        const updatedInstallation = { ...installation, version: displayVersion }
+        const filename = await snapshots.saveSnapshot(installPath, updatedInstallation, 'post-update')
+        const snapshotCount = await snapshots.getSnapshotCount(installPath)
+        await update({ lastSnapshot: filename, snapshotCount })
+
+        // Remove pre-update snapshot if it was identical to the one before it
+        if (preUpdateFilename) {
+          const pruned = await snapshots.deduplicatePreUpdateSnapshot(installPath, preUpdateFilename)
+          if (pruned) {
+            const updatedCount = await snapshots.getSnapshotCount(installPath)
+            await update({ snapshotCount: updatedCount })
+          }
+        }
+      } catch (err) {
+        console.warn('Post-update snapshot failed:', err)
+      }
 
       sendProgress('done', { percent: 100, status: 'Complete' })
       return { ok: true, navigate: 'detail' }

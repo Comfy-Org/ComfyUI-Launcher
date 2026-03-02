@@ -28,6 +28,8 @@ import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
+import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot } from './snapshots'
+import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import type { Theme, ResolvedTheme } from '../../types/ipc'
 import type { LaunchCmd } from './process'
@@ -150,11 +152,28 @@ interface RegisterCallbacks {
   onLocaleChanged?: LocaleCallback
 }
 
+type CopyReason = 'copy' | 'copy-update'
+
+async function copyBrowserPartition(sourceId: string, destId: string, sourceBrowserPartition?: string): Promise<void> {
+  if (sourceBrowserPartition !== 'unique') return
+  const partitionsDir = path.join(app.getPath('userData'), 'Partitions')
+  const srcPartition = path.join(partitionsDir, sourceId)
+  const destPartition = path.join(partitionsDir, destId)
+  try {
+    if (fs.existsSync(srcPartition)) {
+      await fs.promises.cp(srcPartition, destPartition, { recursive: true })
+    }
+  } catch (err) {
+    console.warn('Failed to copy browser partition:', (err as Error).message)
+  }
+}
+
 async function performCopy(
   inst: InstallationRecord,
   name: string,
   sendProgress: (phase: string, detail: Record<string, unknown>) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  copyReason: CopyReason = 'copy'
 ): Promise<{ entry: InstallationRecord; destPath: string }> {
   const parentDir = path.dirname(inst.installPath)
   const dirName = name.replace(/[<>:"/\\|?*]+/g, '_').trim() || 'ComfyUI'
@@ -187,7 +206,11 @@ async function performCopy(
       await source.fixupCopy(inst.installPath, destPath)
     }
 
-    const { id: _id, name: _name, installPath: _path, createdAt: _created, seen: _seen, status: _status, ...inherited } = inst
+    const {
+      id: _id, name: _name, installPath: _path, createdAt: _created, seen: _seen, status: _status,
+      copiedFrom: _copiedFrom, copiedAt: _copiedAt, copiedFromName: _copiedFromName, copyReason: _copyReason,
+      ...inherited
+    } = inst
     const finalName = await uniqueName(name)
     const entry = await installations.add({
       ...inherited,
@@ -196,9 +219,15 @@ async function performCopy(
       status: 'installed',
       seen: false,
       browserPartition: 'unique',
+      copiedFrom: inst.id,
+      copiedFromName: inst.name,
+      copiedAt: new Date().toISOString(),
+      copyReason,
     })
 
     try { fs.writeFileSync(path.join(destPath, MARKER_FILE), entry.id) } catch {}
+
+    await copyBrowserPartition(inst.id, entry.id, inst.browserPartition as string | undefined)
 
     return { entry, destPath }
   } catch (err) {
@@ -723,6 +752,61 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     return resolveSource(inst.sourceId).getDetailSections(inst)
   })
 
+  // Snapshots
+  ipcMain.handle('get-snapshots', async (_event, installationId: string) => {
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) return { snapshots: [], copyEvents: [], totalCount: 0, context: { updateChannel: '', pythonVersion: '', variant: '', variantLabel: '' } }
+    const data = await getSnapshotListData(inst.installPath)
+
+    // Find installations that were copied from this one
+    const allInstalls = await installations.list()
+    const copyEvents = allInstalls
+      .filter((i) => (i.copiedFrom as string | undefined) === installationId && (i.copiedAt as string | undefined))
+      .map((i) => ({
+        installationId: i.id,
+        installationName: i.name,
+        copiedAt: i.copiedAt as string,
+        copyReason: (i.copyReason as 'copy' | 'copy-update' | 'release-update') || 'copy',
+        exists: true,
+      }))
+
+    return {
+      ...data,
+      copyEvents,
+      context: {
+        updateChannel: (inst.updateChannel as string | undefined) || 'stable',
+        pythonVersion: (inst.pythonVersion as string | undefined) || '',
+        variant: (inst.variant as string | undefined) || '',
+        variantLabel: (inst.variant as string | undefined) ? getVariantLabel(inst.variant as string) : '',
+      },
+    }
+  })
+
+  ipcMain.handle('get-snapshot-detail', async (_event, installationId: string, filename: string) => {
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) throw new Error('Installation not found or has no install path')
+    const detail = await getSnapshotDetailData(inst.installPath, filename)
+    // Fill in context from installation record if snapshot doesn't have it
+    if (!detail.pythonVersion) detail.pythonVersion = (inst.pythonVersion as string | undefined) || undefined
+    if (!detail.updateChannel) detail.updateChannel = (inst.updateChannel as string | undefined) || undefined
+    return detail
+  })
+
+  ipcMain.handle('get-snapshot-diff', async (_event, installationId: string, filename: string, mode: 'previous' | 'current') => {
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) throw new Error('Installation not found or has no install path')
+    if (mode === 'previous') {
+      return getSnapshotDiffVsPrevious(inst.installPath, filename)
+    }
+    // mode === 'current'
+    const target = await loadSnapshot(inst.installPath, filename)
+    const diff = await diffAgainstCurrent(inst.installPath, inst, target)
+    const empty = !diff.comfyuiChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
+                  diff.nodesChanged.length === 0 && diff.pipsAdded.length === 0 && diff.pipsRemoved.length === 0 &&
+                  diff.pipsChanged.length === 0
+    return { mode: 'current' as const, baseLabel: 'Current state', diff, empty }
+  })
+
   // Settings
   ipcMain.handle('get-settings-sections', () => {
     const s = settings.getAll()
@@ -1038,7 +1122,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           { phase: 'deps', label: i18n.t('standalone.updateDeps') },
         ] })
 
-        const { entry } = await performCopy(inst, name, sendProgress, abort.signal)
+        const { entry } = await performCopy(inst, name, sendProgress, abort.signal, 'copy-update')
 
         const updateSendProgress = (phase: string, detail: Record<string, unknown>): void => {
           if (phase !== 'steps') sendProgress(phase, detail)
@@ -1145,8 +1229,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           installPath: destPath,
           status: 'installed',
           seen: false,
+          browserPartition: 'unique',
+          copiedFrom: inst.id,
+          copiedFromName: inst.name,
+          copiedAt: new Date().toISOString(),
+          copyReason: 'release-update' as const,
         })
         try { fs.writeFileSync(path.join(destPath, MARKER_FILE), entry.id) } catch {}
+        await copyBrowserPartition(inst.id, entry.id, inst.browserPartition as string | undefined)
 
         const newUpdate = (data: Record<string, unknown>): Promise<void> =>
           installations.update(entry!.id, data).then(() => {})
@@ -1345,7 +1435,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
       const SENSITIVE_ARG_RE = /^--(api[-_]?key|token|secret|password|auth)$/i
       const PORT_RETRY_MAX = 3
+      const REBOOT_RETRY_MAX = 5
       let portRetries = 0
+      let rebootRetries = 0
 
       const tryLaunch = async (): Promise<{ ok: true; proc: ChildProcess; getStderr: () => string } | { ok: false; message: string }> => {
         const cmdLine = [launchCmd.cmd!, ...launchCmd.args!].map((a, ci, ca) => {
@@ -1390,6 +1482,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           return { ok: true, proc: spawned.proc, getStderr: spawned.getStderr }
         } catch (err) {
           killProcessTree(spawned.proc)
+          // Manager's prestartup_script may finish a queued install and request
+          // a reboot before ComfyUI's port opens. Detect the marker and respawn.
+          if (checkRebootMarker(sessionPath) && rebootRetries < REBOOT_RETRY_MAX) {
+            rebootRetries++
+            sendOutput('\n--- Manager requested restart during startup, respawning… ---\n\n')
+            return tryLaunch()
+          }
           const stderr = spawned.getStderr().toLowerCase()
           const isPortConflict = stderr.includes('address already in use') || (stderr.includes('port') && stderr.includes('in use'))
           if (isPortConflict && portRetries < PORT_RETRY_MAX) {
@@ -1417,6 +1516,18 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       _addSession(installationId, { proc, port: launchCmd.port!, mode, installationName: inst.name })
       writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
 
+      // Capture snapshot in background after successful launch
+      if (inst.sourceId === 'standalone') {
+        captureSnapshotIfChanged(inst.installPath, inst, 'boot')
+          .then(async ({ saved, filename }) => {
+            if (saved) {
+              const snapshotCount = await getSnapshotCount(inst.installPath)
+              installations.update(installationId, { lastSnapshot: filename, snapshotCount })
+            }
+          })
+          .catch((err) => console.warn('Snapshot capture failed:', err))
+      }
+
       function attachExitHandler(p: ChildProcess): void {
         p.on('exit', (code) => {
           if (checkRebootMarker(sessionPath)) {
@@ -1428,6 +1539,20 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
             attachExitHandler(proc)
             if (_onComfyRestarted) _onComfyRestarted({ installationId, process: proc })
+            // Capture snapshot after Manager-triggered restart
+            if (inst.sourceId === 'standalone') {
+              installations.get(installationId).then((currentInst) => {
+                if (!currentInst) return
+                captureSnapshotIfChanged(currentInst.installPath, currentInst, 'restart')
+                  .then(async ({ saved, filename }) => {
+                    if (saved) {
+                      const snapshotCount = await getSnapshotCount(currentInst.installPath)
+                      installations.update(installationId, { lastSnapshot: filename, snapshotCount })
+                    }
+                  })
+                  .catch((err) => console.warn('Snapshot capture failed:', err))
+              })
+            }
             return
           }
           const crashed = _runningSessions.has(installationId)
@@ -1445,24 +1570,29 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
       return { ok: true, mode, port: launchCmd.port }
     }
+    // Actions that modify the pip environment require ComfyUI to be stopped
+    if (actionId === 'snapshot-restore' && _runningSessions.has(installationId)) {
+      return { ok: false, message: i18n.t('standalone.snapshotRestoreStopRequired') }
+    }
     // Delegate to source plugin's handleAction
+    const abort = new AbortController()
+    _operationAborts.set(installationId, abort)
     const sender = _event.sender
     const sendProgress = (phase: string, detail: Record<string, unknown>): void => {
-      if (!sender.isDestroyed()) {
-        sender.send('install-progress', { installationId, phase, ...detail })
-      }
+      try { if (!sender.isDestroyed()) sender.send('install-progress', { installationId, phase, ...detail }) } catch {}
     }
     const sendOutput = (text: string): void => {
-      if (!sender.isDestroyed()) {
-        sender.send('comfy-output', { installationId, text })
-      }
+      try { if (!sender.isDestroyed()) sender.send('comfy-output', { installationId, text }) } catch {}
     }
     const update = (data: Record<string, unknown>): Promise<void> =>
       installations.update(installationId, data).then(() => {})
     try {
-      return await resolveSource(inst.sourceId).handleAction(actionId, inst, actionData, { update, sendProgress, sendOutput })
+      return await resolveSource(inst.sourceId).handleAction(actionId, inst, actionData, { update, sendProgress, sendOutput, signal: abort.signal })
     } catch (err) {
+      if (abort.signal.aborted) return { ok: false, message: 'Cancelled' }
       return { ok: false, message: (err as Error).message }
+    } finally {
+      _operationAborts.delete(installationId)
     }
   })
 }
