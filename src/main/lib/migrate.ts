@@ -32,6 +32,16 @@ export function listCustomNodes(customNodesDir: string): CustomNode[] {
 export function findComfyUIDir(installPath: string): string | null {
   const direct = path.join(installPath, 'ComfyUI')
   if (fs.existsSync(direct)) return direct
+
+  // Desktop basePath: models/, user/, and custom_nodes/ live directly in installPath
+  if (
+    fs.existsSync(path.join(installPath, 'models')) &&
+    fs.existsSync(path.join(installPath, 'user')) &&
+    fs.existsSync(path.join(installPath, 'custom_nodes'))
+  ) {
+    return installPath
+  }
+
   try {
     const entries = fs.readdirSync(installPath, { withFileTypes: true })
     for (const entry of entries) {

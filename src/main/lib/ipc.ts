@@ -19,6 +19,7 @@ import {
   findAvailablePort, writePortLock, readPortLock, removePortLock,
 } from './process'
 import { detectGPU, validateHardware, checkNvidiaDriver } from './gpu'
+import { detectDesktopInstall } from './desktopDetect'
 import { getDiskSpace, validateInstallPath } from './disk'
 import type { GpuInfo } from './gpu'
 import { formatTime } from './util'
@@ -599,6 +600,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
     }
     return results
+  })
+
+  ipcMain.handle('detect-desktop-install', () => {
+    return detectDesktopInstall()
   })
 
   ipcMain.handle('track-installation', async (_event, data: Record<string, unknown>) => {

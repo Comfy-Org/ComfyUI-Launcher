@@ -376,6 +376,17 @@
     "desc": "Connect to Comfy Cloud for remote GPU-powered workflows."
   },
 
+  "desktop": {
+    "label": "Desktop",
+    "desc": "Detected ComfyUI Desktop installation.",
+    "installInfo": "Desktop Install",
+    "basePath": "Data Path",
+    "executable": "Executable",
+    "tracked": "Tracked Since",
+    "openApp": "Open Desktop App",
+    "notFound": "ComfyUI Desktop executable not found."
+  },
+
   "standalone": {
     "_note": "standalone.label and portable.label are product names — keep in English across all translations.",
     "label": "Standalone",
