@@ -74,11 +74,22 @@ export function getModelDownloadContentScript(): string {
     }
   }
 
+  var dialogWasOpen = false;
+
   function scrapeDialog() {
-    if (document.querySelector('.comfy-missing-models')) {
-      scrapeLegacyDialog();
+    var legacyOpen = !!document.querySelector('.comfy-missing-models');
+    var newOpen = !!document.querySelector('[aria-labelledby="global-missing-models-warning"]');
+    var isOpen = legacyOpen || newOpen;
+
+    if (isOpen) {
+      dialogWasOpen = true;
+      if (legacyOpen) scrapeLegacyDialog();
+      scrapeNewDialog();
+    } else if (dialogWasOpen) {
+      // Dialog just closed — clear cache to remove click() wrapping overhead
+      dialogWasOpen = false;
+      modelCache = {};
     }
-    scrapeNewDialog();
   }
 
   // ---- MutationObserver: populate cache when the dialog appears ----
@@ -98,7 +109,7 @@ export function getModelDownloadContentScript(): string {
   var origCreate = document.createElement.bind(document);
   document.createElement = function(tag, options) {
     var el = origCreate(tag, options);
-    if (typeof tag === 'string' && tag.toLowerCase() === 'a') {
+    if (typeof tag === 'string' && tag.toLowerCase() === 'a' && Object.keys(modelCache).length > 0) {
       var origClick = el.click;
       el.click = function() {
         if (this.download && this.href && window.__comfyLauncher) {
@@ -262,7 +273,7 @@ export function getModelDownloadContentScript(): string {
     if (dlTab && document.body.contains(dlTab)) return dlTab;
     dlTab = origCreate('div');
     dlTab.id = '__comfy-dl-tab';
-    dlTab.style.cssText = 'position:fixed;bottom:0;left:' + DOCK_LEFT + 'px;z-index:99999;background:' + theme.panelBg + ';border:1px solid ' + theme.borderColor + ';border-bottom:none;border-radius:6px 6px 0 0;padding:4px 12px;cursor:pointer;user-select:none;transition:transform 0.15s ease;transform:translateY(0);pointer-events:auto;';
+    dlTab.style.cssText = 'position:fixed;bottom:-4px;left:' + DOCK_LEFT + 'px;z-index:99999;background:' + theme.panelBg + ';border:1px solid ' + theme.borderColor + ';border-bottom:none;border-radius:6px 6px 0 0;padding:4px 12px 8px 12px;cursor:pointer;user-select:none;transition:transform 0.15s ease;transform:translateY(0);pointer-events:auto;';
     dlTab.onmouseenter = function() { dlTab.style.transform = 'translateY(-4px)'; };
     dlTab.onmouseleave = function() { dlTab.style.transform = 'translateY(0)'; };
     dlTab.onclick = function() { showPanel(); };

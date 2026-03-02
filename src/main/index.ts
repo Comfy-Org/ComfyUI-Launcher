@@ -12,7 +12,8 @@ import { waitForPort } from './lib/process'
 import type { InstallationRecord } from './installations'
 import {
   attachSessionDownloadHandler,
-  cleanupWindowDownloads,
+  cleanupTempDownloads,
+  detachWindowDownloads,
   registerDownloadIpc,
   setLauncherWindow,
 } from './lib/comfyDownloadManager'
@@ -25,7 +26,6 @@ const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x32.png
 
 const POPUP_ALLOWED_PREFIXES = [
   'https://dreamboothy.firebaseapp.com/',
-  'https://dreamboothy-dev.firebaseapp.com/',
   'https://checkout.comfy.org/',
 ]
 
@@ -56,11 +56,11 @@ function getWindowStateCache(): Record<string, WindowBounds> {
   return windowStateCache!
 }
 
-function flushWindowState(): void {
+async function flushWindowState(): Promise<void> {
   if (!windowStateCache) return
   try {
-    fs.mkdirSync(path.dirname(windowStatePath), { recursive: true })
-    fs.writeFileSync(windowStatePath, JSON.stringify(windowStateCache, null, 2))
+    await fs.promises.mkdir(path.dirname(windowStatePath), { recursive: true })
+    await fs.promises.writeFile(windowStatePath, JSON.stringify(windowStateCache, null, 2))
   } catch {}
 }
 
@@ -412,7 +412,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
 
   comfyWindow.on('close', (e) => {
     e.preventDefault()
-    cleanupWindowDownloads(comfyWindow)
+    detachWindowDownloads(comfyWindow)
     ipc.stopRunning(installationId)
     comfyWindow.destroy()
   })
@@ -448,24 +448,40 @@ ipcMain.handle('focus-comfy-window', (_event, installationId: string) => {
   return false
 })
 
-app.whenReady().then(() => {
-  migrateXdgPaths()
-
-  const locale = (settings.get('language') as string | undefined) || app.getLocale().split('-')[0]
-  i18n.init(locale)
-  registerDownloadIpc()
-  ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
-  updater.register()
-  createTray()
-  createLauncherWindow()
-})
-
-app.on('before-quit', () => {
-  isQuitting = true
-})
-
-app.on('window-all-closed', () => {
-  if (!tray && !ipc.hasRunningSessions()) {
-    app.quit()
+if (app.isPackaged && !app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  if (app.isPackaged) {
+    app.on('second-instance', () => {
+      if (launcherWindow && !launcherWindow.isDestroyed()) {
+        launcherWindow.show()
+        if (launcherWindow.isMinimized()) launcherWindow.restore()
+        launcherWindow.focus()
+      }
+    })
   }
-})
+
+  app.whenReady().then(() => {
+    migrateXdgPaths()
+
+    const locale = (settings.get('language') as string | undefined) || app.getLocale().split('-')[0]
+    i18n.init(locale)
+    registerDownloadIpc()
+    cleanupTempDownloads()
+    ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
+    updater.register()
+    createTray()
+    createLauncherWindow()
+  })
+
+  app.on('before-quit', () => {
+    isQuitting = true
+    cleanupTempDownloads()
+  })
+
+  app.on('window-all-closed', () => {
+    if (!tray && !ipc.hasRunningSessions()) {
+      app.quit()
+    }
+  })
+}

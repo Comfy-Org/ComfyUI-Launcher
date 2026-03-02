@@ -44,6 +44,12 @@ function getModelsBaseDir(): string {
   return modelsDirs?.[0] || settings.defaults.modelsDirs[0]!
 }
 
+const TEMP_DIR_NAME = '.launcher-downloads'
+
+function getTempDir(): string {
+  return path.join(getModelsBaseDir(), TEMP_DIR_NAME)
+}
+
 function isPathContained(filePath: string, baseDir: string): boolean {
   const resolved = path.resolve(filePath)
   const resolvedBase = path.resolve(baseDir)
@@ -89,18 +95,13 @@ function reportProgress(progress: DownloadProgress): void {
   if (pending) setTaskbarProgress(pending.window, progress)
 }
 
-function getUniqueFilePath(filePath: string): string {
-  if (!fs.existsSync(filePath)) return filePath
-  const dir = path.dirname(filePath)
-  const ext = path.extname(filePath)
-  const base = path.basename(filePath, ext)
-  let i = 1
-  let candidate = filePath
-  while (fs.existsSync(candidate)) {
-    candidate = path.join(dir, `${base} (${i})${ext}`)
-    i++
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(filePath)
+    return true
+  } catch {
+    return false
   }
-  return candidate
 }
 
 function findPendingForItem(item: Electron.DownloadItem): PendingDownload | undefined {
@@ -112,17 +113,18 @@ function findPendingForItem(item: Electron.DownloadItem): PendingDownload | unde
   return undefined
 }
 
-export function startModelDownload(
+export async function startModelDownload(
   win: BrowserWindow,
   url: string,
   rawFilename: string,
   directory: string,
-): boolean {
+): Promise<boolean> {
   const qIdx = rawFilename.indexOf('?')
   const filename = qIdx >= 0 ? rawFilename.substring(0, qIdx) : rawFilename
   const baseDir = getModelsBaseDir()
   const savePath = path.join(baseDir, directory, filename)
-  const tempPath = path.join(baseDir, directory, `Unconfirmed ${filename}.tmp`)
+  const tempDir = getTempDir()
+  const tempPath = path.join(tempDir, `${Date.now()}-${filename}.tmp`)
 
   const makeProgress = (
     overrides: Partial<DownloadProgress>,
@@ -148,7 +150,7 @@ export function startModelDownload(
     return false
   }
 
-  if (fs.existsSync(savePath)) {
+  if (await fileExists(savePath)) {
     // File already exists — report completed without starting a download
     const progress = makeProgress({ progress: 1, status: 'completed' })
     broadcastProgress(progress)
@@ -157,7 +159,10 @@ export function startModelDownload(
 
   if (pendingDownloads.has(url)) return true
 
-  fs.mkdirSync(path.dirname(savePath), { recursive: true })
+  await fs.promises.mkdir(path.dirname(savePath), { recursive: true })
+  await fs.promises.mkdir(tempDir, { recursive: true })
+
+  if (win.isDestroyed()) return false
 
   const initial = makeProgress({ status: 'pending' })
   pendingDownloads.set(url, {
@@ -235,16 +240,18 @@ export function attachSessionDownloadHandler(sess: Electron.Session): void {
             fs.renameSync(pending.tempPath, pending.savePath)
           } catch {
             try { fs.unlinkSync(pending.tempPath) } catch {}
-            reportProgress({
-              url: pending.url,
-              filename: pending.filename,
-              directory: pending.directory,
-              progress: 0,
-              status: 'error',
-              error: 'Failed to move downloaded file to final location',
-            })
-            pendingDownloads.delete(pending.url)
-            return
+            if (!fs.existsSync(pending.savePath)) {
+              reportProgress({
+                url: pending.url,
+                filename: pending.filename,
+                directory: pending.directory,
+                progress: 0,
+                status: 'error',
+                error: 'Failed to move downloaded file to final location',
+              })
+              pendingDownloads.delete(pending.url)
+              return
+            }
           }
           reportProgress({
             url: pending.url,
@@ -295,7 +302,16 @@ export function attachSessionDownloadHandler(sess: Electron.Session): void {
           item.cancel()
         }
       } else {
-        item.setSavePath(getUniqueFilePath(path.join(downloadsDir, suggestedName)))
+        // setSavePath must be synchronous within will-download
+        let candidate = path.join(downloadsDir, suggestedName)
+        let i = 1
+        while (fs.existsSync(candidate)) {
+          const ext = path.extname(suggestedName)
+          const base = path.basename(suggestedName, ext)
+          candidate = path.join(downloadsDir, `${base} (${i})${ext}`)
+          i++
+        }
+        item.setSavePath(candidate)
       }
     }
   })
@@ -358,15 +374,25 @@ export function getActiveDownloads(): DownloadProgress[] {
   return result
 }
 
-// ---- Cleanup ----
+// ---- Window closed: detach downloads so they continue in the background ----
 
-export function cleanupWindowDownloads(win: BrowserWindow): void {
-  for (const [url, pending] of pendingDownloads) {
+export function detachWindowDownloads(win: BrowserWindow): void {
+  for (const pending of pendingDownloads.values()) {
     if (pending.window === win) {
-      if (pending.item) pending.item.cancel()
-      pendingDownloads.delete(url)
+      // Clear the taskbar progress on the closing window
+      if (!win.isDestroyed()) win.setProgressBar(-1)
+      // Downloads continue — the Launcher window still receives progress via broadcastProgress
     }
   }
+}
+
+// ---- Temp file cleanup ----
+
+/** Remove the temp download directory and all its contents. */
+export async function cleanupTempDownloads(): Promise<void> {
+  try {
+    await fs.promises.rm(getTempDir(), { recursive: true, force: true })
+  } catch {}
 }
 
 // ---- IPC registration ----
