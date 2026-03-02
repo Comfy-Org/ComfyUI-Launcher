@@ -119,6 +119,132 @@ export function getModelDownloadContentScript(): string {
     return el;
   };
 
+  // ---- Theme integration ----
+  // Read ComfyUI's CSS variables and derive toast colors
+  var theme = {
+    panelBg: 'rgba(16,16,18,0.95)',
+    cardBg: 'rgba(24,24,27,0.96)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    textPrimary: '#e4e4e7',
+    textSecondary: '#a1a1aa',
+    textMuted: '#71717a',
+    trackBg: 'rgba(255,255,255,0.08)',
+    btnBorder: 'rgba(255,255,255,0.1)',
+    btnBorderHover: 'rgba(255,255,255,0.25)',
+    scrollThumb: 'rgba(255,255,255,0.15)',
+    scrollThumbHover: 'rgba(255,255,255,0.25)',
+    isLight: false
+  };
+
+  function readTheme() {
+    var cs = getComputedStyle(document.documentElement);
+    var menuBg = cs.getPropertyValue('--comfy-menu-bg').trim();
+    var fgColor = cs.getPropertyValue('--fg-color').trim();
+    var borderCol = cs.getPropertyValue('--border-color').trim();
+    var descText = cs.getPropertyValue('--descrip-text').trim();
+    var inputText = cs.getPropertyValue('--input-text').trim();
+    var bodyDark = document.body.classList.contains('dark-theme');
+
+    if (!menuBg) return;
+
+    // Detect light vs dark theme
+    var light = false;
+    if (!bodyDark && fgColor) {
+      // Parse fg-color to check luminance; dark fg = light theme
+      var tmp = origCreate('div');
+      tmp.style.color = fgColor;
+      document.body.appendChild(tmp);
+      var parsed = getComputedStyle(tmp).color;
+      document.body.removeChild(tmp);
+      var m = parsed.match(/\\d+/g);
+      if (m && m.length >= 3) {
+        var lum = (parseInt(m[0]) * 299 + parseInt(m[1]) * 587 + parseInt(m[2]) * 114) / 1000;
+        light = lum < 140;
+      }
+    }
+    theme.isLight = light;
+
+    theme.panelBg = menuBg;
+    theme.textPrimary = fgColor || theme.textPrimary;
+    theme.textSecondary = descText || theme.textSecondary;
+    theme.textMuted = descText || theme.textMuted;
+    theme.borderColor = borderCol ? borderCol : (light ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.08)');
+
+    // Derive card background slightly lighter/darker than panel
+    var cardTmp = origCreate('div');
+    cardTmp.style.color = menuBg;
+    document.body.appendChild(cardTmp);
+    var parsedBg = getComputedStyle(cardTmp).color;
+    document.body.removeChild(cardTmp);
+    var bgm = parsedBg.match(/\\d+/g);
+    if (bgm && bgm.length >= 3) {
+      var r = parseInt(bgm[0]), g = parseInt(bgm[1]), b = parseInt(bgm[2]);
+      if (light) {
+        theme.cardBg = 'rgb(' + Math.max(0, r - 8) + ',' + Math.max(0, g - 8) + ',' + Math.max(0, b - 8) + ')';
+      } else {
+        theme.cardBg = 'rgb(' + Math.min(255, r + 10) + ',' + Math.min(255, g + 10) + ',' + Math.min(255, b + 10) + ')';
+      }
+    }
+
+    theme.trackBg = light ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+    theme.btnBorder = light ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.1)';
+    theme.btnBorderHover = light ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.25)';
+    theme.scrollThumb = light ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)';
+    theme.scrollThumbHover = light ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)';
+  }
+
+  function applyTheme() {
+    readTheme();
+    // Update scrollbar styles
+    if (dlStyle) {
+      dlStyle.textContent = '#__comfy-dl-cardlist{scrollbar-width:thin;scrollbar-color:' + theme.scrollThumb + ' transparent;}#__comfy-dl-cardlist::-webkit-scrollbar{width:6px;}#__comfy-dl-cardlist::-webkit-scrollbar-track{background:transparent;}#__comfy-dl-cardlist::-webkit-scrollbar-thumb{background:' + theme.scrollThumb + ';border-radius:3px;}#__comfy-dl-cardlist::-webkit-scrollbar-thumb:hover{background:' + theme.scrollThumbHover + ';}';
+    }
+    // Update existing elements
+    if (dlTab) {
+      dlTab.style.background = theme.panelBg;
+      dlTab.style.borderColor = theme.borderColor;
+      var tabLabel = dlTab.querySelector('#__comfy-dl-tab-label');
+      if (tabLabel) tabLabel.style.color = theme.textSecondary;
+      var tabBarBg = dlTab.querySelector('#__comfy-dl-tab-bar');
+      if (tabBarBg && tabBarBg.parentNode) tabBarBg.parentNode.style.background = theme.trackBg;
+    }
+    if (dlContainer) {
+      var hdr = dlContainer.querySelector('div');
+      if (hdr) {
+        hdr.style.background = theme.panelBg;
+        hdr.style.borderColor = theme.borderColor;
+      }
+      var cardListEl = dlContainer.querySelector('#__comfy-dl-cardlist');
+      if (cardListEl) cardListEl.style.background = theme.cardBg;
+      var cards = dlContainer.querySelectorAll('#__comfy-dl-cardlist > div');
+      for (var i = 0; i < cards.length; i++) {
+        cards[i].style.background = theme.cardBg;
+        cards[i].style.borderColor = theme.borderColor;
+        cards[i].style.color = theme.textPrimary;
+      }
+    }
+    // Update brand label and close button
+    if (dlContainer) {
+      var spans = dlContainer.querySelectorAll('span');
+      for (var s = 0; s < spans.length; s++) {
+        var sp = spans[s];
+        if (sp.textContent === 'ComfyUI Launcher') sp.style.color = theme.textSecondary;
+      }
+      var closeButtons = dlContainer.querySelectorAll('button[title="Close"]');
+      for (var c = 0; c < closeButtons.length; c++) {
+        closeButtons[c].style.color = theme.textMuted;
+      }
+    }
+  }
+
+  // Watch for theme changes on document.documentElement
+  var themeObserver = new MutationObserver(function() { applyTheme(); });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+  themeObserver.observe(document.body || document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+  // Initial theme read (deferred to let ComfyUI finish loading)
+  setTimeout(function() { applyTheme(); }, 1000);
+
   // ---- Download progress toast UI ----
   var dlCards = {};
   var dlContainer = null;
@@ -136,7 +262,7 @@ export function getModelDownloadContentScript(): string {
     if (dlTab && document.body.contains(dlTab)) return dlTab;
     dlTab = origCreate('div');
     dlTab.id = '__comfy-dl-tab';
-    dlTab.style.cssText = 'position:fixed;bottom:0;left:' + DOCK_LEFT + 'px;z-index:99999;background:rgba(16,16,18,0.95);border:1px solid rgba(255,255,255,0.08);border-bottom:none;border-radius:6px 6px 0 0;padding:4px 12px;cursor:pointer;user-select:none;transition:transform 0.15s ease;transform:translateY(0);pointer-events:auto;';
+    dlTab.style.cssText = 'position:fixed;bottom:0;left:' + DOCK_LEFT + 'px;z-index:99999;background:' + theme.panelBg + ';border:1px solid ' + theme.borderColor + ';border-bottom:none;border-radius:6px 6px 0 0;padding:4px 12px;cursor:pointer;user-select:none;transition:transform 0.15s ease;transform:translateY(0);pointer-events:auto;';
     dlTab.onmouseenter = function() { dlTab.style.transform = 'translateY(-4px)'; };
     dlTab.onmouseleave = function() { dlTab.style.transform = 'translateY(0)'; };
     dlTab.onclick = function() { showPanel(); };
@@ -151,13 +277,13 @@ export function getModelDownloadContentScript(): string {
     var tabLabel = origCreate('span');
     tabLabel.id = '__comfy-dl-tab-label';
     tabLabel.textContent = 'Downloads';
-    tabLabel.style.cssText = "color:#a1a1aa;font-size:11px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;";
+    tabLabel.style.cssText = "color:" + theme.textSecondary + ";font-size:11px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;";
 
     tabTop.appendChild(tabIcon);
     tabTop.appendChild(tabLabel);
 
     var tabBarBg = origCreate('div');
-    tabBarBg.style.cssText = 'height:2px;background:rgba(255,255,255,0.08);border-radius:1px;overflow:hidden;margin-top:3px;';
+    tabBarBg.style.cssText = 'height:2px;background:' + theme.trackBg + ';border-radius:1px;overflow:hidden;margin-top:3px;';
     var tabBarFill = origCreate('div');
     tabBarFill.id = '__comfy-dl-tab-bar';
     tabBarFill.style.cssText = 'height:100%;width:0%;border-radius:1px;background:#3b82f6;transition:width 0.3s ease;';
@@ -178,17 +304,12 @@ export function getModelDownloadContentScript(): string {
     var keys = Object.keys(dlCards);
     var activeCount = 0;
     var totalProgress = 0;
-    var allDone = true;
     for (var i = 0; i < keys.length; i++) {
       var entry = dlCards[keys[i]];
-      var w = parseFloat(entry.barFill.style.width) || 0;
-      var iconColor = entry.icon.style.color;
-      // Count active (downloading/pending/paused) entries
-      if (iconColor === 'rgb(59, 130, 246)' || iconColor === '#3b82f6' ||
-          iconColor === 'rgb(245, 158, 11)' || iconColor === '#f59e0b') {
+      var s = entry.status;
+      if (s === 'downloading' || s === 'pending' || s === 'paused') {
         activeCount++;
-        totalProgress += w;
-        allDone = false;
+        totalProgress += parseFloat(entry.barFill.style.width) || 0;
       }
     }
 
@@ -305,18 +426,18 @@ export function getModelDownloadContentScript(): string {
 
     // Header bar
     var header = origCreate('div');
-    header.style.cssText = 'display:flex;align-items:center;padding:6px 10px;background:rgba(16,16,18,0.97);border:1px solid rgba(255,255,255,0.08);border-bottom:none;border-radius:8px 8px 0 0;cursor:grab;user-select:none;';
+    header.style.cssText = 'display:flex;align-items:center;padding:6px 10px;background:' + theme.panelBg + ';border:1px solid ' + theme.borderColor + ';border-bottom:none;border-radius:8px 8px 0 0;cursor:grab;user-select:none;';
 
     var brandLabel = origCreate('span');
     brandLabel.textContent = 'ComfyUI Launcher';
-    brandLabel.style.cssText = 'flex:1;color:#a1a1aa;font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;';
+    brandLabel.style.cssText = 'flex:1;color:' + theme.textSecondary + ';font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;';
 
     var closeBtn = origCreate('button');
     closeBtn.textContent = '\\u00d7';
     closeBtn.title = 'Close';
-    closeBtn.style.cssText = 'background:none;border:none;color:#71717a;cursor:pointer;font-size:14px;padding:0 4px;line-height:1;';
-    closeBtn.onmouseenter = function() { this.style.color = '#e4e4e7'; };
-    closeBtn.onmouseleave = function() { this.style.color = '#71717a'; };
+    closeBtn.style.cssText = 'background:none;border:none;color:' + theme.textMuted + ';cursor:pointer;font-size:14px;padding:0 4px;line-height:1;';
+    closeBtn.onmouseenter = function() { this.style.color = theme.textPrimary; };
+    closeBtn.onmouseleave = function() { this.style.color = theme.textMuted; };
     closeBtn.onclick = function(e) {
       e.stopPropagation();
       isDocked = true;
@@ -379,7 +500,7 @@ export function getModelDownloadContentScript(): string {
     // Card list container
     var cardList = origCreate('div');
     cardList.id = '__comfy-dl-cardlist';
-    cardList.style.cssText = 'display:flex;flex-direction:column;gap:1px;background:rgba(24,24,27,0.96);border-radius:0 0 8px 8px;overflow-x:hidden;overflow-y:auto;max-height:320px;';
+    cardList.style.cssText = 'display:flex;flex-direction:column;gap:1px;background:' + theme.cardBg + ';border-radius:0 0 8px 8px;overflow-x:hidden;overflow-y:auto;max-height:320px;';
 
     dlContainer.appendChild(header);
     dlContainer.appendChild(cardList);
@@ -437,9 +558,9 @@ export function getModelDownloadContentScript(): string {
     var btn = origCreate('button');
     btn.textContent = label;
     btn.title = title;
-    btn.style.cssText = 'background:none;border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:#a1a1aa;cursor:pointer;font-size:11px;padding:2px 8px;line-height:1.4;';
-    btn.onmouseenter = function() { this.style.borderColor = 'rgba(255,255,255,0.25)'; this.style.color = '#e4e4e7'; };
-    btn.onmouseleave = function() { this.style.borderColor = 'rgba(255,255,255,0.1)'; this.style.color = '#a1a1aa'; };
+    btn.style.cssText = 'background:none;border:1px solid ' + theme.btnBorder + ';border-radius:4px;color:' + theme.textSecondary + ';cursor:pointer;font-size:11px;padding:2px 8px;line-height:1.4;';
+    btn.onmouseenter = function() { this.style.borderColor = theme.btnBorderHover; this.style.color = theme.textPrimary; };
+    btn.onmouseleave = function() { this.style.borderColor = theme.btnBorder; this.style.color = theme.textSecondary; };
     btn.onclick = function(e) { e.stopPropagation(); onClick(); };
     return btn;
   }
@@ -447,7 +568,7 @@ export function getModelDownloadContentScript(): string {
   function createDlCard(data) {
     var list = getCardList();
     var card = origCreate('div');
-    card.style.cssText = 'background:rgba(24,24,27,0.96);border:1px solid rgba(255,255,255,0.08);border-radius:0;padding:10px 12px;color:#e4e4e7;pointer-events:auto;transition:opacity 0.3s,transform 0.3s;opacity:0;transform:translateY(8px);';
+    card.style.cssText = 'background:' + theme.cardBg + ';border:1px solid ' + theme.borderColor + ';border-radius:0;padding:10px 12px;color:' + theme.textPrimary + ';pointer-events:auto;transition:opacity 0.3s,transform 0.3s;opacity:0;transform:translateY(8px);';
 
     var header = origCreate('div');
     header.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
@@ -464,18 +585,18 @@ export function getModelDownloadContentScript(): string {
     header.appendChild(fname);
 
     var dirLine = origCreate('div');
-    dirLine.style.cssText = 'color:#71717a;font-size:11px;margin-bottom:6px;';
+    dirLine.style.cssText = 'color:' + theme.textMuted + ';font-size:11px;margin-bottom:6px;';
     dirLine.textContent = data.directory || '';
 
     var barBg = origCreate('div');
-    barBg.style.cssText = 'height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;margin-bottom:6px;';
+    barBg.style.cssText = 'height:3px;background:' + theme.trackBg + ';border-radius:2px;overflow:hidden;margin-bottom:6px;';
 
     var barFill = origCreate('div');
     barFill.style.cssText = 'height:100%;width:0%;border-radius:2px;transition:width 0.3s ease;';
     barBg.appendChild(barFill);
 
     var statusLine = origCreate('div');
-    statusLine.style.cssText = 'color:#a1a1aa;font-size:11px;';
+    statusLine.style.cssText = 'color:' + theme.textSecondary + ';font-size:11px;';
 
     // Control buttons row — hidden by default, shown only for active states
     var controls = origCreate('div');
@@ -511,7 +632,7 @@ export function getModelDownloadContentScript(): string {
       el: card, icon: icon, fname: fname, dirLine: dirLine,
       barFill: barFill, statusLine: statusLine, controls: controls,
       pauseBtn: pauseBtn, resumeBtn: resumeBtn, cancelBtn: cancelBtn,
-      timer: null, url: data.url
+      timer: null, url: data.url, status: data.status || 'pending'
     };
     dlCards[data.url] = entry;
     return entry;
@@ -533,6 +654,7 @@ export function getModelDownloadContentScript(): string {
     entry.statusLine.textContent = fmtStatus(data);
     if (data.directory) entry.dirLine.textContent = data.directory;
     entry.url = data.url;
+    entry.status = data.status;
 
     updateControls(entry, data.status);
 
@@ -540,7 +662,7 @@ export function getModelDownloadContentScript(): string {
       entry.icon.textContent = '\\u2193';
       entry.icon.style.color = '#3b82f6';
       entry.barFill.style.background = '#3b82f6';
-      entry.statusLine.style.color = '#a1a1aa';
+      entry.statusLine.style.color = theme.textSecondary;
     } else if (data.status === 'paused') {
       entry.icon.textContent = '\\u23f8';
       entry.icon.style.color = '#f59e0b';
@@ -560,8 +682,8 @@ export function getModelDownloadContentScript(): string {
       entry.statusLine.style.color = '#ef4444';
     } else if (data.status === 'cancelled') {
       entry.icon.textContent = '\\u2014';
-      entry.icon.style.color = '#71717a';
-      entry.statusLine.style.color = '#71717a';
+      entry.icon.style.color = theme.textMuted;
+      entry.statusLine.style.color = theme.textMuted;
       if (!entry.timer) entry.timer = setTimeout(function() { removeDlCard(data.url); }, 3000);
     }
 
