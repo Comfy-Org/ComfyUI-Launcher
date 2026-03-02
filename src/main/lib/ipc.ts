@@ -1354,7 +1354,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           })
         } catch (_err) {
           _operationAborts.delete(installationId)
-          if (abort.signal.aborted) return { ok: false, message: i18n.t('errors.launchCancelled') }
+          if (abort.signal.aborted) return { ok: false, cancelled: true }
           return { ok: false, message: i18n.t('errors.cannotConnect', { url: launchCmd.url || '' }) }
         }
 
@@ -1439,7 +1439,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       let portRetries = 0
       let rebootRetries = 0
 
-      const tryLaunch = async (): Promise<{ ok: true; proc: ChildProcess; getStderr: () => string } | { ok: false; message: string }> => {
+      const tryLaunch = async (): Promise<{ ok: true; proc: ChildProcess; getStderr: () => string } | { ok: false; message: string; cancelled?: boolean }> => {
         const cmdLine = [launchCmd.cmd!, ...launchCmd.args!].map((a, ci, ca) => {
           if (ci > 0 && SENSITIVE_ARG_RE.test(ca[ci - 1]!)) return '"***"'
           return /\s/.test(a) ? `"${a}"` : a
@@ -1500,6 +1500,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               return tryLaunch()
             } catch {}
           }
+          if (abort.signal.aborted) return { ok: false, message: (err as Error).message, cancelled: true }
           return { ok: false, message: (err as Error).message }
         }
       }
@@ -1507,6 +1508,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const launchResult = await tryLaunch()
       if (!launchResult.ok) {
         _operationAborts.delete(installationId)
+        if (launchResult.cancelled) return { ok: false, cancelled: true }
         return { ok: false, message: launchResult.message }
       }
       let { proc } = launchResult

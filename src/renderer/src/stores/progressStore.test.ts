@@ -207,6 +207,39 @@ describe('useProgressStore', () => {
       expect(sessionStore.errorInstances.has('inst-1')).toBe(true)
     })
 
+    it('does not set error on cancelled result', async () => {
+      const apiCall = vi.fn().mockResolvedValue({ ok: false, cancelled: true } as ActionResult)
+      store.startOperation({
+        installationId: 'inst-1',
+        title: 'Launch',
+        apiCall,
+      })
+
+      await vi.waitFor(() => {
+        expect(store.operations.get('inst-1')?.finished).toBe(true)
+      })
+
+      const op = store.operations.get('inst-1')!
+      expect(op.error).toBeNull()
+      expect(op.result?.cancelled).toBe(true)
+      expect(sessionStore.errorInstances.has('inst-1')).toBe(false)
+    })
+
+    it('clears active session on cancellation', async () => {
+      const apiCall = vi.fn().mockResolvedValue({ ok: false, cancelled: true } as ActionResult)
+      store.startOperation({
+        installationId: 'inst-1',
+        title: 'Launch',
+        apiCall,
+      })
+
+      await vi.waitFor(() => {
+        expect(store.operations.get('inst-1')?.finished).toBe(true)
+      })
+
+      expect(sessionStore.activeSessions.has('inst-1')).toBe(false)
+    })
+
     it('cleans up previous operation for same installationId', () => {
       const unsub1 = vi.fn()
       vi.mocked(window.api.onInstallProgress).mockReturnValueOnce(unsub1)
