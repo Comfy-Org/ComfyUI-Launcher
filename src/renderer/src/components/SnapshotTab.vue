@@ -40,6 +40,9 @@ const pipSearch = ref('')
 const pipExpanded = ref(false)
 const nodeSearch = ref('')
 const nodesExpanded = ref(true)
+const restorePreviewFilename = ref<string | null>(null)
+const restorePreviewDiff = ref<SnapshotDiffData | null>(null)
+const restorePreviewLoading = ref(false)
 
 const snapshots = computed(() => listData.value?.snapshots ?? [])
 const copyEvents = computed(() => listData.value?.copyEvents ?? [])
@@ -84,6 +87,8 @@ watch(() => props.installationId, () => {
   detail.value = null
   diffData.value = null
   diffMode.value = null
+  restorePreviewFilename.value = null
+  restorePreviewDiff.value = null
   load()
 }, { immediate: true })
 
@@ -161,6 +166,8 @@ async function selectSnapshot(filename: string): Promise<void> {
     detail.value = null
     diffData.value = null
     diffMode.value = null
+    restorePreviewFilename.value = null
+    restorePreviewDiff.value = null
     return
   }
   selectedFilename.value = filename
@@ -217,7 +224,31 @@ async function saveSnapshot(): Promise<void> {
   emit('refresh-all')
 }
 
-function handleRestore(filename: string): void {
+async function handleRestore(filename: string): Promise<void> {
+  // Select the snapshot to show context
+  if (selectedFilename.value !== filename) {
+    await selectSnapshot(filename)
+  }
+  // Load restore preview diff (current state → target snapshot)
+  restorePreviewFilename.value = filename
+  restorePreviewLoading.value = true
+  try {
+    restorePreviewDiff.value = await window.api.getSnapshotDiff(props.installationId, filename, 'current')
+  } finally {
+    restorePreviewLoading.value = false
+  }
+}
+
+function cancelRestore(): void {
+  restorePreviewFilename.value = null
+  restorePreviewDiff.value = null
+}
+
+function confirmRestore(): void {
+  if (!restorePreviewFilename.value) return
+  const filename = restorePreviewFilename.value
+  cancelRestore()
+
   const action: ActionDef = {
     id: 'snapshot-restore',
     label: t('standalone.snapshotRestore'),
@@ -225,10 +256,6 @@ function handleRestore(filename: string): void {
     showProgress: true,
     progressTitle: t('standalone.snapshotRestoringTitle'),
     cancellable: true,
-    confirm: {
-      title: t('standalone.snapshotRestoreTitle'),
-      message: t('standalone.snapshotRestoreMessage'),
-    },
   }
   emit('run-action', action, null)
 }
@@ -420,7 +447,87 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
           <div v-if="selectedFilename === item.snapshot.filename" class="snapshot-inspector" @click.stop>
           <div v-if="detailLoading" class="snapshot-loading">{{ t('common.loading') }}</div>
           <template v-else-if="detail">
-            <!-- Diff toggle buttons -->
+            <!-- Restore Preview (shown when user clicks Restore) -->
+            <div v-if="restorePreviewFilename === item.snapshot.filename" class="restore-preview">
+              <div class="restore-preview-header">
+                <span class="restore-preview-title">{{ t('snapshots.restorePreviewTitle') }}</span>
+              </div>
+              <div v-if="restorePreviewLoading" class="snapshot-loading">{{ t('common.loading') }}</div>
+              <template v-else-if="restorePreviewDiff">
+                <div v-if="restorePreviewDiff.empty" class="diff-empty">
+                  {{ t('snapshots.restoreNoChanges') }}
+                </div>
+                <template v-else>
+                  <!-- Summary badges -->
+                  <div class="restore-preview-summary">
+                    <span v-if="restorePreviewDiff.diff.comfyuiChanged" class="restore-badge restore-badge-changed">{{ t('snapshots.comfyuiUpdated') }}</span>
+                    <span v-if="restorePreviewDiff.diff.nodesAdded.length > 0" class="restore-badge restore-badge-added">+{{ restorePreviewDiff.diff.nodesAdded.length }} {{ t('snapshots.nodesLabel') }}</span>
+                    <span v-if="restorePreviewDiff.diff.nodesRemoved.length > 0" class="restore-badge restore-badge-removed">−{{ restorePreviewDiff.diff.nodesRemoved.length }} {{ t('snapshots.nodesLabel') }}</span>
+                    <span v-if="restorePreviewDiff.diff.nodesChanged.length > 0" class="restore-badge restore-badge-changed">~{{ restorePreviewDiff.diff.nodesChanged.length }} {{ t('snapshots.nodesLabel') }}</span>
+                    <span v-if="restorePreviewDiff.diff.pipsAdded.length > 0" class="restore-badge restore-badge-added">+{{ restorePreviewDiff.diff.pipsAdded.length }} {{ t('snapshots.pkgsLabel') }}</span>
+                    <span v-if="restorePreviewDiff.diff.pipsRemoved.length > 0" class="restore-badge restore-badge-removed">−{{ restorePreviewDiff.diff.pipsRemoved.length }} {{ t('snapshots.pkgsLabel') }}</span>
+                    <span v-if="restorePreviewDiff.diff.pipsChanged.length > 0" class="restore-badge restore-badge-changed">~{{ restorePreviewDiff.diff.pipsChanged.length }} {{ t('snapshots.pkgsLabel') }}</span>
+                  </div>
+
+                  <!-- Detailed diff (same rendering as existing diff view) -->
+                  <div class="diff-view">
+                    <div v-if="restorePreviewDiff.diff.comfyuiChanged && restorePreviewDiff.diff.comfyui" class="diff-section">
+                      <div class="diff-section-title">{{ t('snapshots.comfyuiVersion') }}</div>
+                      <div class="diff-line diff-changed">
+                        {{ formatVersion(restorePreviewDiff.diff.comfyui.from) }} → {{ formatVersion(restorePreviewDiff.diff.comfyui.to) }}
+                      </div>
+                    </div>
+
+                    <div v-if="restorePreviewDiff.diff.nodesAdded.length > 0 || restorePreviewDiff.diff.nodesRemoved.length > 0 || restorePreviewDiff.diff.nodesChanged.length > 0" class="diff-section">
+                      <div class="diff-section-title">{{ t('snapshots.customNodes') }}</div>
+                      <div v-for="n in restorePreviewDiff.diff.nodesAdded" :key="'radd-' + n.id" class="diff-line diff-added">
+                        + {{ n.id }} {{ formatNodeVersion(n) }}
+                      </div>
+                      <div v-for="n in restorePreviewDiff.diff.nodesRemoved" :key="'rrem-' + n.id" class="diff-line diff-removed">
+                        − {{ n.id }} {{ formatNodeVersion(n) }}
+                      </div>
+                      <div v-for="n in restorePreviewDiff.diff.nodesChanged" :key="'rchg-' + n.id" class="diff-line diff-changed">
+                        ~ {{ n.id }}: {{ n.from.version || (n.from.commit ? n.from.commit.slice(0, 7) : '?') }} → {{ n.to.version || (n.to.commit ? n.to.commit.slice(0, 7) : '?') }}
+                        <template v-if="n.from.enabled !== n.to.enabled">, {{ n.from.enabled ? 'enabled' : 'disabled' }} → {{ n.to.enabled ? 'enabled' : 'disabled' }}</template>
+                      </div>
+                    </div>
+
+                    <div v-if="restorePreviewDiff.diff.pipsAdded.length > 0 || restorePreviewDiff.diff.pipsRemoved.length > 0 || restorePreviewDiff.diff.pipsChanged.length > 0" class="diff-section">
+                      <div class="diff-section-title">
+                        {{ t('snapshots.pipPackages') }}
+                        ({{ restorePreviewDiff.diff.pipsAdded.length + restorePreviewDiff.diff.pipsRemoved.length + restorePreviewDiff.diff.pipsChanged.length }})
+                      </div>
+                      <div v-for="p in restorePreviewDiff.diff.pipsAdded" :key="'rpadd-' + p.name" class="diff-line diff-added">
+                        + {{ p.name }} {{ p.version }}
+                      </div>
+                      <div v-for="p in restorePreviewDiff.diff.pipsRemoved" :key="'rprem-' + p.name" class="diff-line diff-removed">
+                        − {{ p.name }} {{ p.version }}
+                      </div>
+                      <div v-for="p in restorePreviewDiff.diff.pipsChanged" :key="'rpchg-' + p.name" class="diff-line diff-changed">
+                        ~ {{ p.name }}: {{ p.from }} → {{ p.to }}
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Action buttons -->
+                <div class="restore-preview-actions">
+                  <button class="restore-preview-cancel" @click="cancelRestore">
+                    {{ t('snapshots.restoreCancel') }}
+                  </button>
+                  <button
+                    v-if="!restorePreviewDiff.empty"
+                    class="restore-preview-confirm"
+                    @click="confirmRestore"
+                  >
+                    {{ t('snapshots.restoreConfirm') }}
+                  </button>
+                </div>
+              </template>
+            </div>
+
+            <!-- Diff toggle buttons (hidden during restore preview) -->
+            <template v-else>
             <div class="diff-toggle">
               <button
                 :class="{ active: diffMode === 'previous' }"
@@ -486,6 +593,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
               </template>
             </div>
             <div v-else-if="diffMode && diffLoading" class="snapshot-loading">{{ t('common.loading') }}</div>
+            </template>
 
             <!-- Environment info -->
             <div class="inspector-section">
@@ -996,6 +1104,91 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   color: var(--text-muted);
   text-align: center;
   padding: 8px 0;
+}
+
+/* Restore preview */
+.restore-preview {
+  margin-bottom: 12px;
+  background: color-mix(in srgb, var(--warning, #fd9903) 6%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--warning, #fd9903) 30%, var(--border));
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.restore-preview-header {
+  margin-bottom: 8px;
+}
+
+.restore-preview-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warning, #fd9903);
+}
+
+.restore-preview-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.restore-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.restore-badge-added {
+  color: var(--success, #00cd72);
+  background: color-mix(in srgb, var(--success, #00cd72) 12%, transparent);
+}
+
+.restore-badge-removed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.restore-badge-changed {
+  color: var(--warning, #fd9903);
+  background: color-mix(in srgb, var(--warning, #fd9903) 12%, transparent);
+}
+
+.restore-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.restore-preview-cancel {
+  padding: 5px 14px;
+  font-size: 12px;
+  border-radius: 5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.restore-preview-cancel:hover {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+.restore-preview-confirm {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--warning, #fd9903) 15%, var(--surface));
+  border: 1px solid var(--warning, #fd9903);
+  color: var(--warning, #fd9903);
+  cursor: pointer;
+}
+
+.restore-preview-confirm:hover {
+  background: color-mix(in srgb, var(--warning, #fd9903) 25%, var(--surface));
 }
 
 /* Inspector sections */
