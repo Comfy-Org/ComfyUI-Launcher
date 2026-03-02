@@ -91,7 +91,7 @@ watch(
     if (!id) return null
     const op = progressStore.operations.get(id)
     if (!op) return null
-    return op.finished && op.result?.ok && op.result.mode === 'window' ? id : null
+    return op.finished && (op.result?.cancelled || (op.result?.ok && op.result.mode === 'window')) ? id : null
   },
   (autoCloseId) => {
     if (autoCloseId && displayId.value === autoCloseId && props.installationId !== null) {

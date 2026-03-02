@@ -156,12 +156,14 @@ export const useProgressStore = defineStore('progress', () => {
     p
       .then((result) => {
         rop.finished = true
-        if (result.ok) rop.result = result
+        if (result.ok || result.cancelled) rop.result = result
         cleanupRop()
 
         if (result.ok) {
           sessionStore.clearActiveSession(installationId)
           if (rop.steps) rop.done = true
+        } else if (result.cancelled) {
+          sessionStore.clearActiveSession(installationId)
         } else if (result.portConflict) {
           sessionStore.clearActiveSession(installationId)
         } else {

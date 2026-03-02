@@ -15,11 +15,17 @@ export interface ModalOption {
   checked?: boolean
 }
 
+export interface ModalDetailGroup {
+  label: string
+  items: string[]
+}
+
 export interface ModalState {
   visible: boolean
   type: ModalType
   title: string
   message: string
+  messageDetails: ModalDetailGroup[]
   buttonLabel: string
   confirmLabel: string
   confirmStyle: string
@@ -36,6 +42,7 @@ const state = reactive<ModalState>({
   type: 'alert',
   title: '',
   message: '',
+  messageDetails: [],
   buttonLabel: 'OK',
   confirmLabel: 'Confirm',
   confirmStyle: 'danger',
@@ -52,6 +59,7 @@ function reset(): void {
   state.type = 'alert'
   state.title = ''
   state.message = ''
+  state.messageDetails = []
   state.buttonLabel = 'OK'
   state.confirmLabel = 'Confirm'
   state.confirmStyle = 'danger'
@@ -89,6 +97,7 @@ export function useModal() {
   function confirm(opts: {
     title: string
     message: string
+    messageDetails?: ModalDetailGroup[]
     confirmLabel?: string
     confirmStyle?: string
   }): Promise<boolean> {
@@ -98,6 +107,7 @@ export function useModal() {
       state.type = 'confirm'
       state.title = opts.title
       state.message = opts.message
+      state.messageDetails = opts.messageDetails ?? []
       state.confirmLabel = opts.confirmLabel ?? i18n.global.t('modal.confirm')
       state.confirmStyle = opts.confirmStyle ?? 'danger'
       state.resolve = resolve as (value: unknown) => void

@@ -22,6 +22,7 @@ import { detectGPU, validateHardware, checkNvidiaDriver } from './gpu'
 import { getDiskSpace, validateInstallPath } from './disk'
 import type { GpuInfo } from './gpu'
 import { formatTime } from './util'
+import { getActiveDownloads } from './comfyDownloadManager'
 import * as releaseCache from './release-cache'
 import * as i18n from './i18n'
 import { ensureModelPathsConfig } from './models'
@@ -31,7 +32,7 @@ import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
 import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot } from './snapshots'
 import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
-import type { Theme, ResolvedTheme } from '../../types/ipc'
+import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
 import type { LaunchCmd } from './process'
 
 const MARKER_FILE = '.comfyui-launcher'
@@ -1354,7 +1355,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           })
         } catch (_err) {
           _operationAborts.delete(installationId)
-          if (abort.signal.aborted) return { ok: false, message: i18n.t('errors.launchCancelled') }
+          if (abort.signal.aborted) return { ok: false, cancelled: true }
           return { ok: false, message: i18n.t('errors.cannotConnect', { url: launchCmd.url || '' }) }
         }
 
@@ -1439,7 +1440,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       let portRetries = 0
       let rebootRetries = 0
 
-      const tryLaunch = async (): Promise<{ ok: true; proc: ChildProcess; getStderr: () => string } | { ok: false; message: string }> => {
+      const tryLaunch = async (): Promise<{ ok: true; proc: ChildProcess; getStderr: () => string } | { ok: false; message: string; cancelled?: boolean }> => {
         const cmdLine = [launchCmd.cmd!, ...launchCmd.args!].map((a, ci, ca) => {
           if (ci > 0 && SENSITIVE_ARG_RE.test(ca[ci - 1]!)) return '"***"'
           return /\s/.test(a) ? `"${a}"` : a
@@ -1500,6 +1501,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               return tryLaunch()
             } catch {}
           }
+          if (abort.signal.aborted) return { ok: false, message: (err as Error).message, cancelled: true }
           return { ok: false, message: (err as Error).message }
         }
       }
@@ -1507,6 +1509,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const launchResult = await tryLaunch()
       if (!launchResult.ok) {
         _operationAborts.delete(installationId)
+        if (launchResult.cancelled) return { ok: false, cancelled: true }
         return { ok: false, message: launchResult.message }
       }
       let { proc } = launchResult
@@ -1621,7 +1624,26 @@ export function hasRunningSessions(): boolean {
 }
 
 export function hasActiveOperations(): boolean {
-  return _runningSessions.size > 0 || _operationAborts.size > 0
+  return _runningSessions.size > 0 || _operationAborts.size > 0 || getActiveDownloads().length > 0
+}
+
+export async function getActiveDetails(): Promise<QuitActiveItem[]> {
+  const items: QuitActiveItem[] = []
+  for (const [, session] of _runningSessions) {
+    items.push({ name: session.installationName, type: 'session' })
+  }
+  const operationIds = [..._operationAborts.keys()].filter((id) => !_runningSessions.has(id))
+  if (operationIds.length > 0) {
+    const all = await installations.list()
+    const byId = new Map(all.map((inst) => [inst.id, inst]))
+    for (const id of operationIds) {
+      items.push({ name: byId.get(id)?.name || id, type: 'operation' })
+    }
+  }
+  for (const dl of getActiveDownloads()) {
+    items.push({ name: dl.filename, type: 'download' })
+  }
+  return items
 }
 
 export function cancelAll(): void {

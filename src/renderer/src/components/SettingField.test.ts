@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createI18n } from 'vue-i18n'
 import SettingField from './SettingField.vue'
-import type { SettingsField } from '../types/ipc'
+import type { ElectronApi, SettingsField } from '../types/ipc'
 
 const i18n = createI18n({
   legacy: false,
@@ -21,11 +21,11 @@ function mountField(field: SettingsField) {
 
 describe('SettingField', () => {
   beforeEach(() => {
-    ;(window as any).api = {
+    window.api = {
       setSetting: vi.fn().mockResolvedValue(undefined),
       browseFolder: vi.fn().mockResolvedValue(null),
       openPath: vi.fn().mockResolvedValue(undefined)
-    }
+    } as unknown as ElectronApi
   })
 
   it('renders readonly value as non-editable text', () => {

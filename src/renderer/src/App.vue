@@ -4,10 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { useSessionStore } from './stores/sessionStore'
 import { useInstallationStore } from './stores/installationStore'
 import { useProgressStore } from './stores/progressStore'
+import { useDownloadStore } from './stores/downloadStore'
 import { useModal } from './composables/useModal'
 import { useTheme } from './composables/useTheme'
 import { useLauncherPrefs } from './composables/useLauncherPrefs'
-import type { Installation, ActionResult } from './types/ipc'
+import type { Installation, ActionResult, QuitActiveItem } from './types/ipc'
+import type { ModalDetailGroup } from './composables/useModal'
 
 import ModalDialog from './components/ModalDialog.vue'
 import UpdateBanner from './components/UpdateBanner.vue'
@@ -32,6 +34,7 @@ const { t, setLocaleMessage, locale } = useI18n()
 const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
 const progressStore = useProgressStore()
+const downloadStore = useDownloadStore()
 const modal = useModal()
 const launcherPrefs = useLauncherPrefs()
 useTheme()
@@ -165,11 +168,23 @@ function handleProgressShowDetail(installationId: string): void {
 }
 
 // --- Quit confirmation ---
+function buildQuitDetails(details: QuitActiveItem[]): ModalDetailGroup[] {
+  const groups: { label: string; type: QuitActiveItem['type'] }[] = [
+    { label: t('settings.closeQuitSessions'), type: 'session' },
+    { label: t('settings.closeQuitOperations'), type: 'operation' },
+    { label: t('settings.closeQuitDownloads'), type: 'download' },
+  ]
+  return groups
+    .map(({ label, type }) => ({ label, items: details.filter((d) => d.type === type).map((d) => d.name) }))
+    .filter((g) => g.items.length > 0)
+}
+
 function setupQuitConfirmation(): void {
-  window.api.onConfirmQuit(async () => {
+  window.api.onConfirmQuit(async (details) => {
     const confirmed = await modal.confirm({
       title: t('settings.closeQuitTitle'),
       message: t('settings.closeQuitMessage'),
+      messageDetails: buildQuitDetails(details),
       confirmLabel: t('settings.closeQuitConfirm'),
       confirmStyle: 'danger',
     })
@@ -194,6 +209,7 @@ function setupLocaleListener(): void {
 onMounted(async () => {
   await loadLocale()
   await sessionStore.init()
+  downloadStore.init()
   launcherPrefs.loadPrefs()
   setupQuitConfirmation()
   setupLocaleListener()
@@ -225,6 +241,12 @@ onMounted(async () => {
               v-if="sessionStore.runningTabCount > 0"
               class="sidebar-count"
             >{{ sessionStore.runningTabCount }}</span>
+          </template>
+          <template v-if="item.key === 'models'">
+            <span
+              v-if="downloadStore.activeDownloads.length > 0"
+              class="sidebar-count"
+            >{{ downloadStore.activeDownloads.length }}</span>
           </template>
         </button>
       </div>

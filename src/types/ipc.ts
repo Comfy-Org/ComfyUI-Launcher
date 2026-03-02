@@ -183,6 +183,7 @@ export interface ActionResult {
   message?: string
   mode?: 'console' | 'window'
   portConflict?: PortConflictInfo
+  cancelled?: boolean
 }
 
 export interface PortConflictInfo {
@@ -200,6 +201,11 @@ export interface AddResult {
 
 export interface KillResult {
   ok: boolean
+}
+
+export interface QuitActiveItem {
+  name: string
+  type: 'session' | 'operation' | 'download'
 }
 
 // --- Settings types ---
@@ -312,6 +318,29 @@ export interface UpdateDownloadProgress {
   transferred: string
   total: string
   percent: number
+}
+
+// --- Model download types ---
+export type ModelDownloadStatus =
+  | 'pending'
+  | 'downloading'
+  | 'paused'
+  | 'completed'
+  | 'error'
+  | 'cancelled'
+
+export interface ModelDownloadProgress {
+  url: string
+  filename: string
+  directory?: string
+  savePath?: string
+  progress: number
+  receivedBytes?: number
+  totalBytes?: number
+  speedBytesPerSec?: number
+  etaSeconds?: number
+  status: ModelDownloadStatus
+  error?: string
 }
 
 // --- Track types ---
@@ -503,6 +532,13 @@ export interface ElectronApi {
   installUpdate(): Promise<void>
   getPendingUpdate(): Promise<UpdateInfo | null>
 
+  // Model downloads
+  listModelDownloads(): Promise<ModelDownloadProgress[]>
+  pauseModelDownload(url: string): Promise<boolean>
+  resumeModelDownload(url: string): Promise<boolean>
+  cancelModelDownload(url: string): Promise<boolean>
+  showDownloadInFolder(savePath: string): Promise<void>
+
   // Event listeners (return unsubscribe functions)
   onInstallProgress(callback: (data: ProgressData) => void): Unsubscribe
   onComfyOutput(callback: (data: ComfyOutputData) => void): Unsubscribe
@@ -511,11 +547,12 @@ export interface ElectronApi {
   onInstanceStopped(callback: (data: { installationId: string }) => void): Unsubscribe
   onThemeChanged(callback: (theme: ResolvedTheme) => void): Unsubscribe
   onLocaleChanged(callback: (messages: Record<string, unknown>) => void): Unsubscribe
-  onConfirmQuit(callback: () => void): Unsubscribe
+  onConfirmQuit(callback: (details: QuitActiveItem[]) => void): Unsubscribe
   onInstallationsChanged(callback: () => void): Unsubscribe
   onUpdateAvailable(callback: (info: UpdateInfo) => void): Unsubscribe
   onUpdateDownloadProgress(callback: (progress: UpdateDownloadProgress) => void): Unsubscribe
   onUpdateDownloaded(callback: (info: UpdateInfo) => void): Unsubscribe
   onUpdateError(callback: (err: { message: string }) => void): Unsubscribe
   onZoomChanged(callback: (level: number) => void): Unsubscribe
+  onModelDownloadProgress(callback: (progress: ModelDownloadProgress) => void): Unsubscribe
 }
