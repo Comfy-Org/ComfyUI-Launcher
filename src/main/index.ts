@@ -21,8 +21,6 @@ import { getModelDownloadContentScript } from './lib/comfyContentScript'
 
 todesktop.init({ autoUpdater: false })
 
-todesktop.init({ autoUpdater: false })
-
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x256.png')
 const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x32.png')
 
