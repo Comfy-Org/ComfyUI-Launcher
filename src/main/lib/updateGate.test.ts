@@ -113,10 +113,19 @@ describe('evaluateUpdaterCanaryGate', () => {
   it('defaults fallback policy to allow when unset', () => {
     const config = resolveUpdaterCanaryConfig({
       COMFY_POSTHOG_PROJECT_TOKEN: 'phc_test',
-      COMFY_UPDATER_CANARY_FLAG_KEY: 'launcher_auto_update_enabled',
       COMFY_POSTHOG_DISTINCT_ID: 'test-distinct-id',
     })
 
+    expect(config.flagKey).toBe('launcher_auto_update_enabled')
     expect(config.fallbackPolicy).toBe('allow')
+  })
+
+  it('does not allow overriding the canary flag key from env', () => {
+    const config = resolveUpdaterCanaryConfig({
+      COMFY_POSTHOG_PROJECT_TOKEN: 'phc_test',
+      COMFY_UPDATER_CANARY_FLAG_KEY: 'different_flag',
+    })
+
+    expect(config.flagKey).toBe('launcher_auto_update_enabled')
   })
 })

@@ -3,6 +3,7 @@ import { PostHog } from 'posthog-node'
 import {
   DEFAULT_POSTHOG_HOST,
   DEFAULT_POSTHOG_PROJECT_TOKEN,
+  DEFAULT_UPDATER_CANARY_FLAG_KEY,
   POSTHOG_DISTINCT_ID_SETTING_KEY,
   normalizePosthogHost,
   parsePosthogTimeoutMs,
@@ -123,16 +124,15 @@ function getOrCreateDistinctId(): string {
 }
 
 export function resolveUpdaterCanaryConfig(env: NodeJS.ProcessEnv = process.env): UpdaterCanaryConfig {
-  const flagKey = (env['COMFY_UPDATER_CANARY_FLAG_KEY'] ?? '').trim()
   const projectToken = (env['COMFY_POSTHOG_PROJECT_TOKEN'] ?? DEFAULT_POSTHOG_PROJECT_TOKEN).trim()
   const host = normalizePosthogHost((env['COMFY_POSTHOG_HOST'] ?? DEFAULT_POSTHOG_HOST).trim() || DEFAULT_POSTHOG_HOST)
   const distinctId = (env['COMFY_POSTHOG_DISTINCT_ID'] ?? env['COMFY_UPDATER_DISTINCT_ID'] ?? '').trim() || getOrCreateDistinctId()
 
   return {
-    enabled: flagKey.length > 0 && projectToken.length > 0,
+    enabled: projectToken.length > 0,
     host,
     projectToken,
-    flagKey,
+    flagKey: DEFAULT_UPDATER_CANARY_FLAG_KEY,
     distinctId,
     fallbackPolicy: parseFallbackPolicy(env['COMFY_UPDATER_CANARY_FALLBACK']),
     timeoutMs: parsePosthogTimeoutMs(env['COMFY_UPDATER_CANARY_TIMEOUT_MS']),
@@ -183,7 +183,7 @@ export async function evaluateUpdaterCanaryGate(
     return {
       allowed: true,
       reason: 'not-configured',
-      detail: 'Updater canary gating is disabled (missing COMFY_UPDATER_CANARY_FLAG_KEY or COMFY_POSTHOG_PROJECT_TOKEN).',
+      detail: 'Updater canary gating is disabled (missing COMFY_POSTHOG_PROJECT_TOKEN).',
     }
   }
 
