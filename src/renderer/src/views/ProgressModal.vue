@@ -353,7 +353,8 @@ defineExpose({ startOperation, showOperation })
 
         <!-- Flat progress -->
         <template v-else>
-          <div class="progress-status">{{ currentOp.flatStatus }}</div>
+          <div v-if="currentOp.finished && currentOp.error" class="progress-status progress-error-message">{{ currentOp.error }}</div>
+          <div v-else class="progress-status">{{ currentOp.flatStatus }}</div>
           <div
             v-if="!currentOp.finished"
             class="progress-bar-track"
