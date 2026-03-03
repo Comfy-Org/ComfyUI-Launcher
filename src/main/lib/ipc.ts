@@ -1324,14 +1324,18 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         }, { signal: abort.signal })
       } catch (err) {
         _operationAborts.delete(installationId)
-        if (abort.signal.aborted) {
-          try {
-            fs.mkdirSync(inst.installPath, { recursive: true })
-            fs.writeFileSync(markerPath, markerContent)
-          } catch {}
-          await installations.update(installationId, { status: 'partial-delete' })
+        // Always restore marker so future delete attempts don't hit the safety check
+        try {
+          fs.mkdirSync(inst.installPath, { recursive: true })
+          fs.writeFileSync(markerPath, markerContent)
+        } catch {}
+        await installations.update(installationId, { status: 'partial-delete' })
+        const raw = (err as NodeJS.ErrnoException)
+        let message = raw.message
+        if (raw.code === 'EBUSY' || raw.code === 'EPERM') {
+          message = i18n.t('errors.deleteLocked', { path: raw.path ?? '' })
         }
-        return { ok: false, message: (err as Error).message }
+        return { ok: false, message }
       }
       _operationAborts.delete(installationId)
       await installations.remove(installationId)

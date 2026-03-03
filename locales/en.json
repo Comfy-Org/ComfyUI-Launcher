@@ -609,6 +609,7 @@
     "installNotReady": "This install is not ready to launch. It may still be installing or may have failed.",
     "installFailed": "Install Failed",
     "deleteInterrupted": "Delete Interrupted",
+    "deleteLocked": "A file could not be deleted because it is in use by another program. Close any applications that may have files open in this directory and try again.\n{path}",
     "cannotAdd": "Cannot Add",
     "dirNotExist": "Directory does not exist: {path}",
     "cannotOpenDir": "Could not open directory: {error}",

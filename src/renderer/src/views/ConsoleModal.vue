@@ -140,6 +140,7 @@ function handleOverlayClick(event: MouseEvent): void {
         <button class="view-modal-close" @click="emit('close')">✕</button>
       </div>
       <div class="view-modal-body">
+        <div v-if="errorInfo?.message" class="console-error-message">{{ errorInfo.message }}</div>
         <div
           id="console-terminal"
           ref="terminalRef"

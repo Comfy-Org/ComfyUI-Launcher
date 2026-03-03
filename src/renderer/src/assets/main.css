@@ -513,6 +513,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   overflow-y: auto; max-height: 300px; user-select: text;
 }
 #console-terminal { max-height: none; flex: 1; min-height: 0; }
+.console-error-message { color: var(--danger); font-size: 14px; padding: 10px 12px; white-space: pre-wrap; user-select: text; }
 
 /* View modals */
 .view-modal {
