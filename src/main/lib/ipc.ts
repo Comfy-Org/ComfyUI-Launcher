@@ -758,11 +758,16 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       if (inst.installPath && fs.existsSync(inst.installPath)) {
         actions.unshift(deleteAction(inst))
       }
-      return [{
-        title: i18n.t('errors.unknownSource'),
-        pinBottom: true,
-        actions,
-      }]
+      return [
+        {
+          title: '',
+          description: i18n.t('errors.unknownSource'),
+        },
+        {
+          pinBottom: true,
+          actions,
+        },
+      ]
     }
     return source.getDetailSections(inst)
   })
