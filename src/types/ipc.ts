@@ -346,6 +346,7 @@ export interface ModelDownloadProgress {
 export interface ModelFileInfo {
   name: string
   directory: string
+  fullPath: string
   sizeBytes: number
   modifiedAt: number
 }

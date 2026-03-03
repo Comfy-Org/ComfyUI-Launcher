@@ -32,10 +32,6 @@ function fmtDate(ms: number): string {
   })
 }
 
-function formatFolderLabel(folder: string): string {
-  return folder.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
 async function loadFolders(): Promise<void> {
   folders.value = await window.api.getModelFolders()
   if (folders.value.length > 0 && !selectedFolder.value) {
@@ -53,8 +49,8 @@ async function loadFiles(): Promise<void> {
   }
 }
 
-function showInFolder(_file: ModelFileInfo): void {
-  window.api.openPath(selectedFolder.value)
+function showInFolder(file: ModelFileInfo): void {
+  window.api.showDownloadInFolder(file.fullPath)
 }
 
 watch(selectedFolder, () => loadFiles())
@@ -78,8 +74,8 @@ defineExpose({ refresh: loadFiles })
         :class="{ active: selectedFolder === folder }"
         @click="selectedFolder = folder"
       >
-        <FolderOpen :size="14" />
-        <span>{{ formatFolderLabel(folder) }}</span>
+        <FolderOpen :size="14" style="flex-shrink: 0" />
+        <span>{{ folder }}</span>
       </button>
     </div>
     <div class="model-browser-main">
@@ -136,7 +132,7 @@ defineExpose({ refresh: loadFiles })
   background: var(--bg);
 }
 .model-browser-sidebar {
-  width: 180px;
+  width: 220px;
   flex-shrink: 0;
   background: var(--surface);
   border-right: 1px solid var(--border);

@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Download } from 'lucide-vue-next'
 import DirCard from '../components/DirCard.vue'
 import ModelBrowser from '../components/ModelBrowser.vue'
-import DownloadModelDialog from '../components/DownloadModelDialog.vue'
 import type { ModelsSection } from '../types/ipc'
 
 const activeTab = ref<'directories' | 'browse'>('directories')
-const showDownloadDialog = ref(false)
 
 const systemDefault = ref('')
 const sections = ref<ModelsSection[]>([])
@@ -73,28 +70,22 @@ defineExpose({ loadModels })
       <div class="breadcrumb">
         <span class="breadcrumb-current">{{ $t('models.title') }}</span>
       </div>
-      <div class="filter-tabs" style="margin-bottom: 0; border-bottom: none;">
-        <button
-          class="filter-tab"
-          :class="{ active: activeTab === 'directories' }"
-          @click="activeTab = 'directories'"
-        >
-          {{ $t('models.directoriesTab') }}
-        </button>
-        <button
-          class="filter-tab"
-          :class="{ active: activeTab === 'browse' }"
-          @click="activeTab = 'browse'"
-        >
-          {{ $t('models.browse') }}
-        </button>
-      </div>
-      <div class="toolbar-actions">
-        <button class="add-btn" @click="showDownloadDialog = true">
-          <Download :size="14" />
-          {{ $t('downloads.downloadModel') }}
-        </button>
-      </div>
+    </div>
+    <div class="filter-tabs">
+      <button
+        class="filter-tab"
+        :class="{ active: activeTab === 'directories' }"
+        @click="activeTab = 'directories'"
+      >
+        {{ $t('models.directoriesTab') }}
+      </button>
+      <button
+        class="filter-tab"
+        :class="{ active: activeTab === 'browse' }"
+        @click="activeTab = 'browse'"
+      >
+        {{ $t('models.browse') }}
+      </button>
     </div>
 
     <div v-if="activeTab === 'directories'" class="view-scroll">
@@ -131,7 +122,5 @@ defineExpose({ loadModels })
     <div v-else class="view-scroll" style="padding: 16px;">
       <ModelBrowser />
     </div>
-
-    <DownloadModelDialog v-model="showDownloadDialog" />
   </div>
 </template>

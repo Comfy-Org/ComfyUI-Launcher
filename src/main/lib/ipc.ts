@@ -919,7 +919,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   ipcMain.handle('get-model-files', (_event, directory: string) => {
     const modelsDirs = (settings.get('modelsDirs') as string[]) || settings.defaults.modelsDirs
-    const files: Array<{ name: string; directory: string; sizeBytes: number; modifiedAt: number }> = []
+    const files: Array<{ name: string; directory: string; fullPath: string; sizeBytes: number; modifiedAt: number }> = []
     const ALLOWED_EXTS = new Set(['.safetensors', '.sft', '.ckpt', '.pth', '.pt', '.bin', '.onnx'])
 
     for (const baseDir of modelsDirs) {
@@ -932,10 +932,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           const ext = path.extname(entry.name).toLowerCase()
           if (!ALLOWED_EXTS.has(ext)) continue
           try {
-            const stat = fs.statSync(path.join(dirPath, entry.name))
+            const filePath = path.join(dirPath, entry.name)
+            const stat = fs.statSync(filePath)
             files.push({
               name: entry.name,
               directory,
+              fullPath: filePath,
               sizeBytes: stat.size,
               modifiedAt: stat.mtimeMs,
             })
