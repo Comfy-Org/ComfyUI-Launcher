@@ -26,6 +26,7 @@ import ProgressModal from './views/ProgressModal.vue'
 import NewInstallModal from './views/NewInstallModal.vue'
 import QuickInstallModal from './views/QuickInstallModal.vue'
 import TrackModal from './views/TrackModal.vue'
+import LoadSnapshotModal from './views/LoadSnapshotModal.vue'
 
 // Lucide icons
 import { LayoutDashboard, Box, Play, FolderOpen, Image, Settings } from 'lucide-vue-next'
@@ -50,6 +51,7 @@ const progressInstallationId = ref<string | null>(null)
 const showNewInstall = ref(false)
 const showQuickInstall = ref(false)
 const showTrack = ref(false)
+const showLoadSnapshot = ref(false)
 
 // --- Template refs ---
 const listRef = ref<InstanceType<typeof InstallationList> | null>(null)
@@ -60,6 +62,7 @@ const progressRef = ref<InstanceType<typeof ProgressModal> | null>(null)
 const newInstallRef = ref<InstanceType<typeof NewInstallModal> | null>(null)
 const quickInstallRef = ref<InstanceType<typeof QuickInstallModal> | null>(null)
 const trackRef = ref<InstanceType<typeof TrackModal> | null>(null)
+const loadSnapshotRef = ref<InstanceType<typeof LoadSnapshotModal> | null>(null)
 
 // --- Sidebar ---
 const sidebarItems = computed(() => [
@@ -124,6 +127,16 @@ async function openTrack(): Promise<void> {
 
 function closeTrack(): void {
   showTrack.value = false
+}
+
+async function openLoadSnapshot(): Promise<void> {
+  showLoadSnapshot.value = true
+  await nextTick()
+  loadSnapshotRef.value?.open()
+}
+
+function closeLoadSnapshot(): void {
+  showLoadSnapshot.value = false
 }
 
 function showProgress(opts: {
@@ -272,6 +285,7 @@ onMounted(async () => {
         @show-progress="showProgress"
         @show-new-install="openNewInstall"
         @show-track="openTrack"
+        @show-load-snapshot="openLoadSnapshot"
       >
         <template #update-banner>
           <UpdateBanner />
@@ -344,6 +358,13 @@ onMounted(async () => {
     ref="trackRef"
     @close="closeTrack"
     @navigate-list="handleNavigateList"
+  />
+
+  <LoadSnapshotModal
+    v-if="showLoadSnapshot"
+    ref="loadSnapshotRef"
+    @close="closeLoadSnapshot"
+    @show-progress="showProgress"
   />
 
   <!-- Global modal dialog (alerts/confirms/prompts/selects) -->

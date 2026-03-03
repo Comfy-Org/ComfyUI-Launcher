@@ -227,6 +227,7 @@ const emit = defineEmits<{
   }]
   'show-new-install': []
   'show-track': []
+  'show-load-snapshot': []
 }>()
 
 // --- Context menu ---
@@ -244,6 +245,7 @@ defineExpose({ refresh })
       </div>
       <div class="toolbar-actions">
         <button @click="emit('show-track')">{{ $t('list.trackExisting') }}</button>
+        <button @click="emit('show-load-snapshot')">{{ $t('list.loadSnapshot') }}</button>
         <button class="primary add-btn" @click="emit('show-new-install')">
           + {{ $t('list.newInstall') }}
         </button>
@@ -397,3 +399,5 @@ defineExpose({ refresh })
     />
   </div>
 </template>
+
+
