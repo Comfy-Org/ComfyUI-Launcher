@@ -31,7 +31,8 @@ import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
-import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot } from './snapshots'
+import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot, restoreCustomNodes, restorePipPackages } from './snapshots'
+import type { SnapshotExportEnvelope } from './snapshots'
 import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
@@ -686,6 +687,56 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             installations.update(installationId, data).then(() => {})
           await source.postInstall(inst, { sendProgress, update })
         }
+
+        // After postInstall, check for pending snapshot restore
+        const freshInst = await installations.get(installationId)
+        const pendingFile = freshInst?.pendingSnapshotRestore as string | undefined
+        if (freshInst && pendingFile && fs.existsSync(pendingFile)) {
+          const sendOutput = (text: string): void => {
+            try { if (!sender.isDestroyed()) sender.send('comfy-output', { installationId, text }) } catch {}
+          }
+          const update = (data: Record<string, unknown>): Promise<void> =>
+            installations.update(installationId, data).then(() => {})
+
+          try {
+            sendProgress('steps', { steps: [
+              { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
+              { phase: 'restore-pip', label: i18n.t('standalone.snapshotRestorePipPhase') },
+            ] })
+
+            const fileContent = await fs.promises.readFile(pendingFile, 'utf-8')
+            const envelope = validateExportEnvelope(JSON.parse(fileContent))
+            await importSnapshots(freshInst.installPath, envelope)
+            const targetSnapshot = envelope.snapshots[0]!
+
+            sendOutput('\n── Restore Nodes ──\n')
+            await restoreCustomNodes(freshInst.installPath, freshInst, targetSnapshot, sendProgress, sendOutput, abort.signal)
+
+            if (!abort.signal.aborted) {
+              sendOutput('\n── Restore Packages ──\n')
+              await restorePipPackages(freshInst.installPath, freshInst, targetSnapshot,
+                (phase, data) => sendProgress(phase === 'restore' ? 'restore-pip' : phase, data),
+                sendOutput, abort.signal)
+            }
+
+            // Save post-restore snapshot
+            try {
+              const filename = await saveSnapshot(freshInst.installPath, freshInst, 'post-restore')
+              const snapshotCount = await getSnapshotCount(freshInst.installPath)
+              await update({ pendingSnapshotRestore: undefined, lastSnapshot: filename, snapshotCount })
+            } catch {
+              await update({ pendingSnapshotRestore: undefined })
+            }
+          } catch (restoreErr) {
+            console.warn('Post-install snapshot restore failed:', restoreErr)
+            sendOutput(`\n⚠ Snapshot restore failed: ${(restoreErr as Error).message}\nThe installation completed successfully. You can restore the snapshot manually from the Snapshots tab.\n`)
+            await update({ pendingSnapshotRestore: undefined })
+          } finally {
+            // Clean up the staged temp file
+            fs.promises.unlink(pendingFile).catch(() => {})
+          }
+        }
+
         sendProgress('done', { percent: 100, status: 'Complete' })
       } catch (err) {
         _operationAborts.delete(installationId)
@@ -860,6 +911,217 @@ export function register(callbacks: RegisterCallbacks = {}): void {
                   diff.nodesChanged.length === 0 && diff.pipsAdded.length === 0 && diff.pipsRemoved.length === 0 &&
                   diff.pipsChanged.length === 0
     return { mode: 'current' as const, baseLabel: 'Current state', diff, empty }
+  })
+
+  ipcMain.handle('export-snapshot', async (_event, installationId: string, filename: string) => {
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) return { ok: false, message: 'Installation not found.' }
+    const snapshot = await loadSnapshot(inst.installPath, filename)
+    const envelope = buildExportEnvelope(inst.name, [{ filename, snapshot }])
+    const win = BrowserWindow.fromWebContents(_event.sender)
+    if (!win) return { ok: false, message: 'No window.' }
+    const safeName = inst.name.replace(/[<>:"/\\|?*]+/g, '_')
+    const dateStr = snapshot.createdAt.slice(0, 10).replace(/-/g, '')
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      defaultPath: `snapshot-${safeName}-${snapshot.trigger}-${dateStr}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (canceled || !filePath) return { ok: false }
+    await fs.promises.writeFile(filePath, JSON.stringify(envelope, null, 2))
+    return { ok: true }
+  })
+
+  ipcMain.handle('export-all-snapshots', async (_event, installationId: string) => {
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) return { ok: false, message: 'Installation not found.' }
+    const entries = await listSnapshots(inst.installPath)
+    if (entries.length === 0) return { ok: false, message: 'No snapshots to export.' }
+    const envelope = buildExportEnvelope(inst.name, entries)
+    const win = BrowserWindow.fromWebContents(_event.sender)
+    if (!win) return { ok: false, message: 'No window.' }
+    const safeName = inst.name.replace(/[<>:"/\\|?*]+/g, '_')
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      defaultPath: `snapshots-${safeName}-${dateStr}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (canceled || !filePath) return { ok: false }
+    await fs.promises.writeFile(filePath, JSON.stringify(envelope, null, 2))
+    return { ok: true }
+  })
+
+  ipcMain.handle('import-snapshots', async (_event, installationId: string) => {
+    const inst = await installations.get(installationId)
+    if (!inst || !inst.installPath) return { ok: false, message: 'Installation not found.' }
+    const win = BrowserWindow.fromWebContents(_event.sender)
+    if (!win) return { ok: false, message: 'No window.' }
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile'],
+    })
+    if (canceled || filePaths.length === 0) return { ok: false }
+    const content = await fs.promises.readFile(filePaths[0]!, 'utf-8')
+    let parsed: unknown
+    try { parsed = JSON.parse(content) } catch { return { ok: false, message: 'Invalid JSON file.' } }
+    let envelope
+    try { envelope = validateExportEnvelope(parsed) } catch (err) { return { ok: false, message: (err as Error).message } }
+    const result = await importSnapshots(inst.installPath, envelope)
+    const snapshotCount = await getSnapshotCount(inst.installPath)
+    const allSnapshots = await listSnapshots(inst.installPath)
+    const lastSnapshot = allSnapshots.length > 0 ? allSnapshots[0]!.filename : null
+    await installations.update(installationId, { snapshotCount, ...(lastSnapshot ? { lastSnapshot } : {}) })
+    return { ok: true, imported: result.imported, skipped: result.skipped }
+  })
+
+  function buildSnapshotPreview(filePath: string, envelope: SnapshotExportEnvelope): Record<string, unknown> {
+    const newest = envelope.snapshots[0]!
+    const snapshots = envelope.snapshots.map((s, i) => ({
+      filename: `imported-${i}`,
+      createdAt: s.createdAt,
+      trigger: s.trigger,
+      label: s.label,
+      comfyuiVersion: s.comfyui.displayVersion || s.comfyui.ref,
+      nodeCount: s.customNodes.length,
+      pipPackageCount: Object.keys(s.pipPackages).length,
+    }))
+    return {
+      filePath,
+      installationName: envelope.installationName,
+      snapshotCount: envelope.snapshots.length,
+      snapshots,
+      newestSnapshot: {
+        filename: 'imported-0',
+        createdAt: newest.createdAt,
+        trigger: newest.trigger,
+        label: newest.label,
+        comfyui: newest.comfyui,
+        pythonVersion: newest.pythonVersion,
+        updateChannel: newest.updateChannel,
+        customNodes: newest.customNodes.map((n) => ({
+          id: n.id,
+          type: n.type,
+          dirName: n.dirName,
+          enabled: n.enabled,
+          version: n.version,
+          commit: n.commit,
+          url: n.url,
+        })),
+        pipPackageCount: Object.keys(newest.pipPackages).length,
+        pipPackages: newest.pipPackages,
+      },
+    }
+  }
+
+  ipcMain.handle('preview-snapshot-file', async (_event) => {
+    const win = BrowserWindow.fromWebContents(_event.sender)
+    if (!win) return { ok: false, message: 'No window.' }
+
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      filters: [{ name: 'Snapshot', extensions: ['json'] }],
+      properties: ['openFile'],
+    })
+    if (canceled || filePaths.length === 0) return { ok: false }
+
+    const content = await fs.promises.readFile(filePaths[0]!, 'utf-8')
+    let parsed: unknown
+    try { parsed = JSON.parse(content) } catch { return { ok: false, message: 'Invalid JSON file.' } }
+    let envelope: SnapshotExportEnvelope
+    try { envelope = validateExportEnvelope(parsed) } catch (err) { return { ok: false, message: (err as Error).message } }
+
+    return { ok: true, preview: buildSnapshotPreview(filePaths[0]!, envelope) }
+  })
+
+  ipcMain.handle('preview-snapshot-path', async (_event, filePath: string) => {
+    if (!filePath || !fs.existsSync(filePath)) return { ok: false, message: 'Snapshot file not found.' }
+
+    const content = await fs.promises.readFile(filePath, 'utf-8')
+    let parsed: unknown
+    try { parsed = JSON.parse(content) } catch { return { ok: false, message: 'Invalid JSON file.' } }
+    let envelope: SnapshotExportEnvelope
+    try { envelope = validateExportEnvelope(parsed) } catch (err) { return { ok: false, message: (err as Error).message } }
+
+    return { ok: true, preview: buildSnapshotPreview(filePath, envelope) }
+  })
+
+  ipcMain.handle('create-from-snapshot', async (_event, filePath: string, customName?: string) => {
+    if (!filePath || !fs.existsSync(filePath)) return { ok: false, message: 'Snapshot file not found.' }
+
+    const content = await fs.promises.readFile(filePath, 'utf-8')
+    let parsed: unknown
+    try { parsed = JSON.parse(content) } catch { return { ok: false, message: 'Invalid JSON file.' } }
+    let envelope: SnapshotExportEnvelope
+    try { envelope = validateExportEnvelope(parsed) } catch (err) { return { ok: false, message: (err as Error).message } }
+
+    // 3. Extract variant from newest snapshot
+    const targetSnapshot = envelope.snapshots[0]!
+    const snapshotVariant = targetSnapshot.comfyui.variant || ''
+
+    // 4. Map to current platform variant
+    const platformPrefix: Record<string, string> = { win32: 'win-', darwin: 'mac-', linux: 'linux-' }
+    const prefix = platformPrefix[process.platform]
+    if (!prefix) return { ok: false, message: `Unsupported platform: ${process.platform}` }
+    const strippedVariant = snapshotVariant.replace(/^(win|mac|linux)-/, '')
+    const baseGpu = strippedVariant.replace(/-.*$/, '') // e.g. "nvidia" from "nvidia-cu128"
+
+    // 5. Fetch latest release and find matching variant
+    const source = sourceMap['standalone']!
+    const releaseOptions = await source.getFieldOptions('release', {}, {})
+    if (releaseOptions.length === 0) return { ok: false, message: 'No releases available.' }
+    const latestRelease = releaseOptions[0]!
+
+    const gpu = await detectGPU()
+    const variantOptions = await source.getFieldOptions('variant', { release: latestRelease }, { gpu: gpu?.id })
+    if (variantOptions.length === 0) return { ok: false, message: 'No compatible variants found for this platform.' }
+
+    // Match: exact re-prefixed variant, then base GPU type, then recommended, then first
+    const localVariant = prefix + strippedVariant
+    let matched = variantOptions.find((v) => (v.data?.variantId as string) === localVariant)
+    if (!matched) {
+      matched = variantOptions.find((v) => {
+        const vid = ((v.data?.variantId as string) || '').replace(/^(win|mac|linux)-/, '')
+        return vid === baseGpu || vid.startsWith(baseGpu + '-')
+      })
+    }
+    if (!matched) matched = variantOptions.find((v) => v.recommended)
+    if (!matched) matched = variantOptions[0]!
+
+    // 6. Build installation
+    const instData = {
+      sourceId: source.id,
+      sourceLabel: source.label,
+      ...source.buildInstallation({ release: latestRelease, variant: matched }),
+    }
+    const baseName = customName || envelope.installationName || 'ComfyUI'
+    const name = await uniqueName(baseName)
+    const dirName = name.replace(/[<>:"/\\|?*]+/g, '_').trim() || 'ComfyUI'
+    const installDir = defaultInstallDir()
+    let installPath = path.join(installDir, dirName)
+    let suffix = 1
+    while (fs.existsSync(installPath)) {
+      installPath = path.join(installDir, `${dirName} (${suffix})`)
+      suffix++
+    }
+
+    const duplicate = await findDuplicatePath(installPath)
+    if (duplicate) return { ok: false, message: `Directory already used by "${duplicate.name}".` }
+
+    // Copy snapshot file to a temp location so it survives if the user
+    // moves/deletes the original during the (potentially long) installation.
+    const stagingDir = path.join(os.tmpdir(), 'comfyui-launcher-snapshots')
+    await fs.promises.mkdir(stagingDir, { recursive: true })
+    const stagedFile = path.join(stagingDir, `pending-${Date.now()}.json`)
+    await fs.promises.copyFile(filePath, stagedFile)
+
+    const entry = await installations.add({
+      name,
+      installPath,
+      pendingSnapshotRestore: stagedFile,
+      ...instData,
+      seen: false,
+    })
+    ensureDefaultPrimary(entry)
+
+    return { ok: true, entry: { id: entry.id, name: entry.name } }
   })
 
   // Settings
