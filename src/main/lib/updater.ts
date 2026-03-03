@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { app, ipcMain, BrowserWindow } from 'electron'
 import todesktop from '@todesktop/runtime'
 import * as settings from '../settings'
 import { evaluateUpdaterCanaryGate } from './updateGate'
@@ -115,12 +115,16 @@ function bindUpdaterEvents(): void {
 
 async function runCheck({ source, userInitiated = false }: CheckOptions): Promise<CheckResult> {
   const startedAt = Date.now()
-  const gate = await evaluateUpdaterCanaryGate()
+  const gate = await evaluateUpdaterCanaryGate(undefined, undefined, {
+    currentVersion: app.getVersion(),
+  })
   captureTelemetry('updater_gate_evaluated', {
     source,
     userInitiated,
     allowed: gate.allowed,
     reason: gate.reason,
+    variant: gate.variant,
+    currentVersion: app.getVersion(),
   })
   const gateSummary = `[updater] canary gate ${source}: ${gate.allowed ? 'allow' : 'block'} (${gate.reason})`
   if (gate.allowed) {

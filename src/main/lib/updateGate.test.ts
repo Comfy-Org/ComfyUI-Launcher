@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { evaluateUpdaterCanaryGate, resolveUpdaterCanaryConfig, type UpdaterCanaryConfig } from './updateGate'
+import type { FeatureFlagResult } from 'posthog-node'
 
 const BASE_CONFIG: UpdaterCanaryConfig = {
   enabled: true,
@@ -13,6 +14,16 @@ const BASE_CONFIG: UpdaterCanaryConfig = {
 
 function buildConfig(overrides: Partial<UpdaterCanaryConfig> = {}): UpdaterCanaryConfig {
   return { ...BASE_CONFIG, ...overrides }
+}
+
+function buildResult(overrides: Partial<FeatureFlagResult> = {}): FeatureFlagResult {
+  return {
+    key: 'launcher_auto_update_enabled',
+    enabled: true,
+    variant: 'allow',
+    payload: undefined,
+    ...overrides,
+  }
 }
 
 describe('evaluateUpdaterCanaryGate', () => {
@@ -35,11 +46,7 @@ describe('evaluateUpdaterCanaryGate', () => {
   })
 
   it('allows update checks when the PostHog flag is true', async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      featureFlags: {
-        launcher_auto_update_enabled: true,
-      },
-    })
+    const fetcher = vi.fn().mockResolvedValue(buildResult({ enabled: true }))
     const decision = await evaluateUpdaterCanaryGate(buildConfig(), fetcher)
 
     expect(decision.allowed).toBe(true)
@@ -47,59 +54,27 @@ describe('evaluateUpdaterCanaryGate', () => {
   })
 
   it('blocks update checks when the PostHog flag is false', async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      featureFlags: {
-        launcher_auto_update_enabled: false,
-      },
-    })
+    const fetcher = vi.fn().mockResolvedValue(buildResult({ enabled: false }))
     const decision = await evaluateUpdaterCanaryGate(buildConfig(), fetcher)
 
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('flag-block')
   })
 
-  it('treats non-boolean mapped flag values as missing', async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      featureFlags: {
-        launcher_auto_update_enabled: 'true',
-      },
-    })
+  it('falls back when the flag result is missing', async () => {
+    const fetcher = vi.fn().mockResolvedValue(undefined)
     const decision = await evaluateUpdaterCanaryGate(buildConfig({ fallbackPolicy: 'block' }), fetcher)
 
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('fallback-missing-flag')
   })
 
-  it('allows update checks when the flag appears in array-style response', async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      featureFlags: ['other_flag', 'launcher_auto_update_enabled'],
-    })
+  it('ignores payload data for gate decisions', async () => {
+    const fetcher = vi.fn().mockResolvedValue(buildResult({ enabled: true, payload: { any: 'value' } }))
     const decision = await evaluateUpdaterCanaryGate(buildConfig(), fetcher)
 
     expect(decision.allowed).toBe(true)
     expect(decision.reason).toBe('flag-allow')
-  })
-
-  it('treats missing array-style flag keys as disabled', async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      featureFlags: ['other_flag'],
-    })
-    const decision = await evaluateUpdaterCanaryGate(buildConfig({ fallbackPolicy: 'allow' }), fetcher)
-
-    expect(decision.allowed).toBe(false)
-    expect(decision.reason).toBe('flag-block')
-  })
-
-  it('falls back to block when the flag is missing from response', async () => {
-    const fetcher = vi.fn().mockResolvedValue({
-      featureFlags: {
-        some_other_flag: true,
-      },
-    })
-    const decision = await evaluateUpdaterCanaryGate(buildConfig({ fallbackPolicy: 'block' }), fetcher)
-
-    expect(decision.allowed).toBe(false)
-    expect(decision.reason).toBe('fallback-missing-flag')
   })
 
   it('falls back to allow on network failures when configured', async () => {
@@ -127,5 +102,12 @@ describe('evaluateUpdaterCanaryGate', () => {
     })
 
     expect(config.flagKey).toBe('launcher_auto_update_enabled')
+  })
+
+  it('passes app_version context into the fetcher', async () => {
+    const fetcher = vi.fn().mockResolvedValue(buildResult({ enabled: true }))
+    await evaluateUpdaterCanaryGate(buildConfig(), fetcher, { currentVersion: '1.2.3' })
+
+    expect(fetcher).toHaveBeenCalledWith(expect.any(Object), { currentVersion: '1.2.3' })
   })
 })

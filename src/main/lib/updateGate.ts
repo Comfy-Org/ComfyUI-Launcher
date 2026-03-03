@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { PostHog } from 'posthog-node'
+import type { FeatureFlagResult } from 'posthog-node'
 import {
   DEFAULT_POSTHOG_HOST,
   DEFAULT_POSTHOG_PROJECT_TOKEN,
@@ -22,6 +23,10 @@ export interface UpdaterCanaryConfig {
   override?: boolean
 }
 
+export interface UpdaterCanaryContext {
+  currentVersion?: string
+}
+
 export type UpdaterCanaryDecisionReason =
   | 'not-configured'
   | 'override-allow'
@@ -38,26 +43,12 @@ export interface UpdaterCanaryDecision {
   variant?: string
 }
 
-interface ParsedFlagAssignment {
-  found: boolean
-  enabled: boolean
-  variant?: string
-}
-
-type PosthogDecideFetcher = (config: UpdaterCanaryConfig) => Promise<unknown>
+type PosthogDecideFetcher = (
+  config: UpdaterCanaryConfig,
+  context: UpdaterCanaryContext
+) => Promise<FeatureFlagResult | undefined>
 
 let _cachedDistinctId: string | null = null
-
-class UpdateGatePostHogClient extends PostHog {
-  async fetchFeatureFlags(distinctId: string, flagKey: string): Promise<Record<string, unknown>> {
-    const result = await this.getFlags(distinctId, {}, {}, {}, { flag_keys_to_evaluate: [flagKey] })
-    if (!result.success) {
-      const statusSuffix = result.error.statusCode ? ` ${result.error.statusCode}` : ''
-      throw new Error(`PostHog flags request failed (${result.error.type}${statusSuffix})`)
-    }
-    return result.response.featureFlags as Record<string, unknown>
-  }
-}
 
 function parseBooleanOverride(value: string | undefined): boolean | undefined {
   if (!value) return undefined
@@ -73,27 +64,6 @@ function parseBooleanOverride(value: string | undefined): boolean | undefined {
 
 function parseFallbackPolicy(value: string | undefined): UpdaterCanaryFallbackPolicy {
   return value?.trim().toLowerCase() === 'block' ? 'block' : 'allow'
-}
-
-function parseFlagAssignment(rawFeatureFlags: unknown, flagKey: string): ParsedFlagAssignment {
-  if (Array.isArray(rawFeatureFlags)) {
-    const enabled = rawFeatureFlags.some((key) => key === flagKey)
-    // Array payloads list only enabled flags, so absence means explicit false.
-    return { found: true, enabled }
-  }
-
-  if (rawFeatureFlags && typeof rawFeatureFlags === 'object') {
-    const flags = rawFeatureFlags as Record<string, unknown>
-    if (Object.prototype.hasOwnProperty.call(flags, flagKey)) {
-      const value = flags[flagKey]
-      if (typeof value === 'boolean') {
-        return { found: true, enabled: value }
-      }
-      return { found: false, enabled: false }
-    }
-  }
-
-  return { found: false, enabled: false }
 }
 
 function getOrCreateDistinctId(): string {
@@ -140,8 +110,11 @@ export function resolveUpdaterCanaryConfig(env: NodeJS.ProcessEnv = process.env)
   }
 }
 
-async function fetchPosthogDecide(config: UpdaterCanaryConfig): Promise<unknown> {
-  const client = new UpdateGatePostHogClient(config.projectToken, {
+async function fetchPosthogDecide(
+  config: UpdaterCanaryConfig,
+  context: UpdaterCanaryContext
+): Promise<FeatureFlagResult | undefined> {
+  const client = new PostHog(config.projectToken, {
     host: config.host,
     requestTimeout: config.timeoutMs,
     featureFlagsRequestTimeoutMs: config.timeoutMs,
@@ -151,8 +124,20 @@ async function fetchPosthogDecide(config: UpdaterCanaryConfig): Promise<unknown>
     flushInterval: 0,
   })
   try {
-    const featureFlags = await client.fetchFeatureFlags(config.distinctId, config.flagKey)
-    return { featureFlags }
+    const personProperties: Record<string, string> = {}
+    if (context.currentVersion) {
+      personProperties['$app_version'] = context.currentVersion
+      // Persist app version on the person profile so flag conditions can target it.
+      client.identify({
+        distinctId: config.distinctId,
+        properties: personProperties,
+      })
+    }
+
+    return await client.getFeatureFlagResult(config.flagKey, config.distinctId, {
+      personProperties,
+      sendFeatureFlagEvents: false,
+    })
   } finally {
     client.shutdown(config.timeoutMs)
   }
@@ -169,7 +154,8 @@ function fallbackDecision(
 
 export async function evaluateUpdaterCanaryGate(
   config: UpdaterCanaryConfig = resolveUpdaterCanaryConfig(),
-  fetcher: PosthogDecideFetcher = fetchPosthogDecide
+  fetcher: PosthogDecideFetcher = fetchPosthogDecide,
+  context: UpdaterCanaryContext = {}
 ): Promise<UpdaterCanaryDecision> {
   if (config.override !== undefined) {
     return {
@@ -188,11 +174,8 @@ export async function evaluateUpdaterCanaryGate(
   }
 
   try {
-    const raw = await fetcher(config)
-    const featureFlags = (raw as { featureFlags?: unknown })?.featureFlags
-    const assignment = parseFlagAssignment(featureFlags, config.flagKey)
-
-    if (!assignment.found) {
+    const result = await fetcher(config, context)
+    if (!result) {
       return fallbackDecision(
         config,
         'fallback-missing-flag',
@@ -201,12 +184,12 @@ export async function evaluateUpdaterCanaryGate(
     }
 
     return {
-      allowed: assignment.enabled,
-      reason: assignment.enabled ? 'flag-allow' : 'flag-block',
-      detail: assignment.enabled
+      allowed: result.enabled,
+      reason: result.enabled ? 'flag-allow' : 'flag-block',
+      detail: result.enabled
         ? `Feature flag "${config.flagKey}" enabled updates.`
         : `Feature flag "${config.flagKey}" blocked updates.`,
-      variant: assignment.variant,
+      variant: result.variant,
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
