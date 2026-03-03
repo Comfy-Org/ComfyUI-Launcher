@@ -202,6 +202,11 @@ export interface KillResult {
   ok: boolean
 }
 
+export interface QuitActiveItem {
+  name: string
+  type: 'session' | 'operation' | 'download'
+}
+
 // --- Settings types ---
 export interface SettingsSection {
   title?: string
@@ -543,7 +548,7 @@ export interface ElectronApi {
   onInstanceStopped(callback: (data: { installationId: string }) => void): Unsubscribe
   onThemeChanged(callback: (theme: ResolvedTheme) => void): Unsubscribe
   onLocaleChanged(callback: (messages: Record<string, unknown>) => void): Unsubscribe
-  onConfirmQuit(callback: () => void): Unsubscribe
+  onConfirmQuit(callback: (details: QuitActiveItem[]) => void): Unsubscribe
   onInstallationsChanged(callback: () => void): Unsubscribe
   onUpdateAvailable(callback: (info: UpdateInfo) => void): Unsubscribe
   onUpdateDownloadProgress(callback: (progress: UpdateDownloadProgress) => void): Unsubscribe

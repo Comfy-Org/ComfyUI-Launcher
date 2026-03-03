@@ -22,6 +22,7 @@ export type {
   PortConflictInfo,
   AddResult,
   KillResult,
+  QuitActiveItem,
   SettingsSection,
   SettingsAction,
   SettingsField,

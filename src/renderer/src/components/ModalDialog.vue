@@ -140,11 +140,21 @@ onUnmounted(() => {
       <!-- Confirm -->
       <div v-else-if="state.type === 'confirm'" class="modal-box">
         <div class="modal-title">{{ state.title }}</div>
-        <div
-          class="modal-message"
-          @click="handleMessageClick"
-          v-html="linkifiedMessage"
-        ></div>
+        <div class="modal-body">
+          <div
+            class="modal-message"
+            @click="handleMessageClick"
+            v-html="linkifiedMessage"
+          ></div>
+          <div v-if="state.messageDetails.length" class="modal-details">
+            <div v-for="(group, gi) in state.messageDetails" :key="gi" class="modal-detail-group">
+              <span class="modal-detail-label">{{ group.label }}</span>
+              <ul class="modal-detail-list">
+                <li v-for="(item, ii) in group.items" :key="ii">{{ item }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
         <div class="modal-actions">
           <button @click="close(false)">{{ $t('common.cancel') }}</button>
           <button :class="state.confirmStyle" @click="close(true)">

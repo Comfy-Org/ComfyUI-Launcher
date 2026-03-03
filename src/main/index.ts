@@ -207,9 +207,13 @@ function createLauncherWindow(): void {
     }
     if (ipc.hasActiveOperations()) {
       e.preventDefault()
-      if (!launcherWindow!.isDestroyed()) {
-        launcherWindow!.webContents.send('confirm-quit')
-      }
+      ipc.getActiveDetails()
+        .catch(() => [] as Awaited<ReturnType<typeof ipc.getActiveDetails>>)
+        .then((details) => {
+          if (launcherWindow!.isDestroyed()) return
+          if (details.length === 0) { quitApp(); return }
+          launcherWindow!.webContents.send('confirm-quit', details)
+        })
       return
     }
     quitApp()

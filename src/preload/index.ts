@@ -137,7 +137,7 @@ const api: ElectronApi = {
     return () => ipcRenderer.removeListener('locale-changed', handler)
   },
   onConfirmQuit: (callback) => {
-    const handler = () => callback()
+    const handler = (_event: IpcRendererEvent, details: unknown) => callback(details as Parameters<typeof callback>[0])
     ipcRenderer.on('confirm-quit', handler)
     return () => ipcRenderer.removeListener('confirm-quit', handler)
   },
