@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { PostHog } from 'posthog-node'
+import {
+  DEFAULT_POSTHOG_HOST,
+  POSTHOG_DISTINCT_ID_SETTING_KEY,
+  normalizePosthogHost,
+  parsePosthogTimeoutMs,
+} from './posthogConfig'
 
 export type UpdaterCanaryFallbackPolicy = 'allow' | 'block'
 
@@ -38,12 +44,6 @@ interface ParsedFlagAssignment {
 
 type PosthogDecideFetcher = (config: UpdaterCanaryConfig) => Promise<unknown>
 
-const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com'
-const DEFAULT_TIMEOUT_MS = 5000
-const MAX_TIMEOUT_MS = 30000
-const MIN_TIMEOUT_MS = 1000
-const DISTINCT_ID_SETTING_KEY = 'posthogDistinctId'
-
 let _cachedDistinctId: string | null = null
 
 class UpdateGatePostHogClient extends PostHog {
@@ -55,10 +55,6 @@ class UpdateGatePostHogClient extends PostHog {
     }
     return result.response.featureFlags as Record<string, unknown>
   }
-}
-
-function normalizeHost(host: string): string {
-  return host.replace(/\/+$/, '')
 }
 
 function parseBooleanOverride(value: string | undefined): boolean | undefined {
@@ -75,12 +71,6 @@ function parseBooleanOverride(value: string | undefined): boolean | undefined {
 
 function parseFallbackPolicy(value: string | undefined): UpdaterCanaryFallbackPolicy {
   return value?.trim().toLowerCase() === 'block' ? 'block' : 'allow'
-}
-
-function parseTimeoutMs(value: string | undefined): number {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return DEFAULT_TIMEOUT_MS
-  return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, Math.round(parsed)))
 }
 
 function parseFlagAssignment(rawFeatureFlags: unknown, flagKey: string): ParsedFlagAssignment {
@@ -114,14 +104,14 @@ function getOrCreateDistinctId(): string {
       get: (key: string) => unknown
       set: (key: string, value: unknown) => void
     }
-    const existing = settings.get(DISTINCT_ID_SETTING_KEY)
+    const existing = settings.get(POSTHOG_DISTINCT_ID_SETTING_KEY)
     if (typeof existing === 'string' && existing.trim().length > 0) {
       _cachedDistinctId = existing
       return existing
     }
 
     const generated = randomUUID()
-    settings.set(DISTINCT_ID_SETTING_KEY, generated)
+    settings.set(POSTHOG_DISTINCT_ID_SETTING_KEY, generated)
     _cachedDistinctId = generated
     return generated
   } catch {
@@ -134,7 +124,7 @@ function getOrCreateDistinctId(): string {
 export function resolveUpdaterCanaryConfig(env: NodeJS.ProcessEnv = process.env): UpdaterCanaryConfig {
   const flagKey = (env['COMFY_UPDATER_CANARY_FLAG_KEY'] ?? '').trim()
   const projectToken = (env['COMFY_POSTHOG_PROJECT_TOKEN'] ?? '').trim()
-  const host = normalizeHost((env['COMFY_POSTHOG_HOST'] ?? DEFAULT_POSTHOG_HOST).trim() || DEFAULT_POSTHOG_HOST)
+  const host = normalizePosthogHost((env['COMFY_POSTHOG_HOST'] ?? DEFAULT_POSTHOG_HOST).trim() || DEFAULT_POSTHOG_HOST)
   const distinctId = (env['COMFY_POSTHOG_DISTINCT_ID'] ?? env['COMFY_UPDATER_DISTINCT_ID'] ?? '').trim() || getOrCreateDistinctId()
 
   return {
@@ -144,7 +134,7 @@ export function resolveUpdaterCanaryConfig(env: NodeJS.ProcessEnv = process.env)
     flagKey,
     distinctId,
     fallbackPolicy: parseFallbackPolicy(env['COMFY_UPDATER_CANARY_FALLBACK']),
-    timeoutMs: parseTimeoutMs(env['COMFY_UPDATER_CANARY_TIMEOUT_MS']),
+    timeoutMs: parsePosthogTimeoutMs(env['COMFY_UPDATER_CANARY_TIMEOUT_MS']),
     override: parseBooleanOverride(env['COMFY_UPDATER_CANARY_OVERRIDE']),
   }
 }

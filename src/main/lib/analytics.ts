@@ -3,13 +3,13 @@ import { app } from 'electron'
 import { PostHog } from 'posthog-node'
 import * as settings from '../settings'
 import type { RendererErrorReport } from '../../types/ipc'
+import {
+  DEFAULT_POSTHOG_HOST,
+  POSTHOG_DISTINCT_ID_SETTING_KEY,
+  normalizePosthogHost,
+  parsePosthogTimeoutMs,
+} from './posthogConfig'
 
-const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com'
-const DEFAULT_TIMEOUT_MS = 5000
-const MIN_TIMEOUT_MS = 1000
-const MAX_TIMEOUT_MS = 30000
-
-const DISTINCT_ID_SETTING_KEY = 'posthogDistinctId'
 const TELEMETRY_ENABLED_SETTING_KEY = 'telemetryEnabled'
 const ERROR_REPORTING_ENABLED_SETTING_KEY = 'errorReportingEnabled'
 
@@ -61,16 +61,6 @@ function parseBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
-function parseTimeoutMs(value: unknown): number {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return DEFAULT_TIMEOUT_MS
-  return Math.max(MIN_TIMEOUT_MS, Math.min(MAX_TIMEOUT_MS, Math.round(parsed)))
-}
-
-function normalizeHost(host: string): string {
-  return host.replace(/\/+$/, '')
-}
-
 function getOrCreateDistinctId(): string {
   if (_cachedDistinctId) return _cachedDistinctId
 
@@ -80,14 +70,14 @@ function getOrCreateDistinctId(): string {
     return envDistinctId
   }
 
-  const existing = settings.get(DISTINCT_ID_SETTING_KEY)
+  const existing = settings.get(POSTHOG_DISTINCT_ID_SETTING_KEY)
   if (typeof existing === 'string' && existing.trim().length > 0) {
     _cachedDistinctId = existing
     return existing
   }
 
   const generated = randomUUID()
-  settings.set(DISTINCT_ID_SETTING_KEY, generated)
+  settings.set(POSTHOG_DISTINCT_ID_SETTING_KEY, generated)
   _cachedDistinctId = generated
   return generated
 }
@@ -108,8 +98,8 @@ function getPosthogConfig(): PosthogConfig | null {
   const projectToken = (process.env['COMFY_POSTHOG_PROJECT_TOKEN'] ?? '').trim()
   if (!projectToken) return null
 
-  const host = normalizeHost((process.env['COMFY_POSTHOG_HOST'] ?? DEFAULT_POSTHOG_HOST).trim() || DEFAULT_POSTHOG_HOST)
-  const timeoutMs = parseTimeoutMs(process.env['COMFY_POSTHOG_TIMEOUT_MS'] ?? process.env['COMFY_UPDATER_CANARY_TIMEOUT_MS'])
+  const host = normalizePosthogHost((process.env['COMFY_POSTHOG_HOST'] ?? DEFAULT_POSTHOG_HOST).trim() || DEFAULT_POSTHOG_HOST)
+  const timeoutMs = parsePosthogTimeoutMs(process.env['COMFY_POSTHOG_TIMEOUT_MS'] ?? process.env['COMFY_UPDATER_CANARY_TIMEOUT_MS'])
 
   return {
     host,
