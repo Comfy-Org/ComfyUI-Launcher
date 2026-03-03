@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { PostHog } from 'posthog-node'
 
 export type UpdaterCanaryFallbackPolicy = 'allow' | 'block'
 
@@ -44,6 +45,17 @@ const MIN_TIMEOUT_MS = 1000
 const DISTINCT_ID_SETTING_KEY = 'posthogDistinctId'
 
 let _cachedDistinctId: string | null = null
+
+class UpdateGatePostHogClient extends PostHog {
+  async fetchFeatureFlags(distinctId: string, flagKey: string): Promise<Record<string, unknown>> {
+    const result = await this.getFlags(distinctId, {}, {}, {}, { flag_keys_to_evaluate: [flagKey] })
+    if (!result.success) {
+      const statusSuffix = result.error.statusCode ? ` ${result.error.statusCode}` : ''
+      throw new Error(`PostHog flags request failed (${result.error.type}${statusSuffix})`)
+    }
+    return result.response.featureFlags as Record<string, unknown>
+  }
+}
 
 function normalizeHost(host: string): string {
   return host.replace(/\/+$/, '')
@@ -138,25 +150,21 @@ export function resolveUpdaterCanaryConfig(env: NodeJS.ProcessEnv = process.env)
 }
 
 async function fetchPosthogDecide(config: UpdaterCanaryConfig): Promise<unknown> {
-  const res = await fetch(`${config.host}/decide/?v=3`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'User-Agent': 'ComfyUI-Launcher',
-    },
-    body: JSON.stringify({
-      api_key: config.projectToken,
-      distinct_id: config.distinctId,
-    }),
-    signal: AbortSignal.timeout(config.timeoutMs),
+  const client = new UpdateGatePostHogClient(config.projectToken, {
+    host: config.host,
+    requestTimeout: config.timeoutMs,
+    featureFlagsRequestTimeoutMs: config.timeoutMs,
+    fetchRetryCount: 0,
+    sendFeatureFlagEvent: false,
+    flushAt: 1,
+    flushInterval: 0,
   })
-
-  if (!res.ok) {
-    throw new Error(`PostHog decide failed (HTTP ${res.status})`)
+  try {
+    const featureFlags = await client.fetchFeatureFlags(config.distinctId, config.flagKey)
+    return { featureFlags }
+  } finally {
+    client.shutdown(config.timeoutMs)
   }
-
-  return (await res.json()) as unknown
 }
 
 function fallbackDecision(

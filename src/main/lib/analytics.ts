@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
+import { PostHog } from 'posthog-node'
 import * as settings from '../settings'
 import type { RendererErrorReport } from '../../types/ipc'
 
@@ -19,12 +20,19 @@ const MAX_DEPTH = 4
 
 let _cachedDistinctId: string | null = null
 let _processHandlersBound = false
+let _posthogClient: PostHog | null = null
+let _posthogClientConfigKey: string | null = null
 
 interface PosthogConfig {
   host: string
   projectToken: string
   distinctId: string
   timeoutMs: number
+}
+
+interface PosthogClientState {
+  config: PosthogConfig
+  client: PostHog
 }
 
 function parseBoolean(value: unknown): boolean | undefined {
@@ -111,6 +119,36 @@ function getPosthogConfig(): PosthogConfig | null {
   }
 }
 
+function posthogConfigKey(config: PosthogConfig): string {
+  return `${config.host}|${config.projectToken}|${config.distinctId}|${config.timeoutMs}`
+}
+
+function getPosthogClientState(): PosthogClientState | null {
+  const config = getPosthogConfig()
+  if (!config) return null
+
+  const key = posthogConfigKey(config)
+  if (!_posthogClient || _posthogClientConfigKey !== key) {
+    if (_posthogClient) {
+      try {
+        _posthogClient.shutdown(config.timeoutMs)
+      } catch {}
+    }
+    _posthogClient = new PostHog(config.projectToken, {
+      host: config.host,
+      requestTimeout: config.timeoutMs,
+      featureFlagsRequestTimeoutMs: config.timeoutMs,
+      fetchRetryCount: 0,
+      sendFeatureFlagEvent: false,
+      flushAt: 1,
+      flushInterval: 0,
+    })
+    _posthogClientConfigKey = key
+  }
+
+  return { config, client: _posthogClient }
+}
+
 function truncateString(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value
   return `${value.slice(0, maxLength)}…`
@@ -160,37 +198,20 @@ function serializeError(error: unknown): Record<string, unknown> {
   }
 }
 
-async function sendPosthogEvent(event: string, properties: Record<string, unknown>): Promise<void> {
-  const config = getPosthogConfig()
-  if (!config) return
-
-  const payload = {
-    api_key: config.projectToken,
-    event,
-    distinct_id: config.distinctId,
-    properties: {
-      ...sanitizeProperties(properties),
-      launcherVersion: app.getVersion(),
-      platform: process.platform,
-      arch: process.arch,
-    },
-  }
-
+function sendPosthogEvent(event: string, properties: Record<string, unknown>): void {
+  const state = getPosthogClientState()
+  if (!state) return
   try {
-    const response = await fetch(`${config.host}/capture/`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'ComfyUI-Launcher',
+    state.client.capture({
+      distinctId: state.config.distinctId,
+      event,
+      properties: {
+        ...sanitizeProperties(properties),
+        launcherVersion: app.getVersion(),
+        platform: process.platform,
+        arch: process.arch,
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(config.timeoutMs),
     })
-
-    if (!response.ok) {
-      console.warn(`[analytics] PostHog capture failed (${response.status}) for event "${event}"`)
-    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.warn(`[analytics] Failed to send PostHog event "${event}": ${msg}`)
@@ -199,13 +220,13 @@ async function sendPosthogEvent(event: string, properties: Record<string, unknow
 
 export function captureTelemetry(event: string, properties: Record<string, unknown> = {}): void {
   if (!isTelemetryEnabled()) return
-  void sendPosthogEvent(event, { category: 'telemetry', ...properties })
+  sendPosthogEvent(event, { category: 'telemetry', ...properties })
 }
 
 export function captureError(event: string, error: unknown, context: Record<string, unknown> = {}): void {
   if (!isErrorReportingEnabled()) return
   const serializedError = serializeError(error)
-  void sendPosthogEvent(event, {
+  sendPosthogEvent(event, {
     category: 'error-report',
     ...context,
     ...serializedError,
@@ -235,4 +256,14 @@ export function registerProcessErrorHandlers(): void {
   process.on('unhandledRejection', (reason) => {
     captureError('main_unhandled_rejection', reason)
   })
+}
+
+export function shutdownAnalytics(): void {
+  if (!_posthogClient) return
+  try {
+    const timeoutMs = getPosthogConfig()?.timeoutMs
+    _posthogClient.shutdown(timeoutMs)
+  } catch {}
+  _posthogClient = null
+  _posthogClientConfigKey = null
 }

@@ -18,7 +18,7 @@ import {
   setLauncherWindow,
 } from './lib/comfyDownloadManager'
 import { getModelDownloadContentScript } from './lib/comfyContentScript'
-import { captureError, registerProcessErrorHandlers } from './lib/analytics'
+import { captureError, registerProcessErrorHandlers, shutdownAnalytics } from './lib/analytics'
 
 todesktop.init({ autoUpdater: false })
 registerProcessErrorHandlers()
@@ -500,6 +500,7 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     isQuitting = true
     cleanupTempDownloads()
+    shutdownAnalytics()
   })
 
   app.on('window-all-closed', () => {
