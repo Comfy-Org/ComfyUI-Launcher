@@ -398,8 +398,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     status: 'installed',
   })
 
-  // Auto-track Desktop install if detected (Windows/Mac only)
-  if (process.platform === 'win32' || process.platform === 'darwin') {
+  // Auto-track Desktop install if detected
+  {
     const desktopInfo = detectDesktopInstall()
     if (desktopInfo) {
       installations.ensureExists('desktop', {
@@ -970,13 +970,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     }
     if (key === 'modelsDirs') {
       // Re-sync shared model paths into Desktop's config if Desktop is tracked
-      if (process.platform === 'win32' || process.platform === 'darwin') {
-        const desktopInfo = detectDesktopInstall()
-        if (desktopInfo) {
-          try {
-            syncSharedModelPaths(desktopInfo.configDir, value as string[])
-          } catch {}
-        }
+      const desktopInfo = detectDesktopInstall()
+      if (desktopInfo) {
+        try {
+          syncSharedModelPaths(desktopInfo.configDir, value as string[])
+        } catch {}
       }
     }
   })
