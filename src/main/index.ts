@@ -11,6 +11,7 @@ import { configDir, migrateXdgPaths } from './lib/paths'
 import { waitForPort } from './lib/process'
 import { isQuitInProgress, setQuitReason } from './lib/quit-state'
 import type { InstallationRecord } from './installations'
+import type { DatadogForwardedError } from '../types/ipc'
 import {
   attachSessionDownloadHandler,
   cleanupTempDownloads,
@@ -138,6 +139,78 @@ function attachContextMenu(comfyWindow: BrowserWindow): void {
 let launcherWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 const comfyWindows = new Map<string, BrowserWindow>()
+let processErrorHandlersRegistered = false
+
+function serializeUnknownError(error: unknown): { message: string; stack?: string } {
+  if (error instanceof Error) {
+    return {
+      message: error.message || error.name || 'Error',
+      stack: error.stack,
+    }
+  }
+  if (typeof error === 'string') {
+    return { message: error }
+  }
+  if (error === null || error === undefined) {
+    return { message: 'Unknown error' }
+  }
+  try {
+    return { message: JSON.stringify(error) }
+  } catch {
+    return { message: String(error) }
+  }
+}
+
+function forwardDatadogError(payload: DatadogForwardedError): void {
+  if (!launcherWindow || launcherWindow.isDestroyed()) return
+  try {
+    launcherWindow.webContents.send('dd-error', payload)
+  } catch {}
+}
+
+function registerProcessErrorHandlers(): void {
+  if (processErrorHandlersRegistered) return
+  processErrorHandlersRegistered = true
+
+  process.on('uncaughtExceptionMonitor', (error) => {
+    const serialized = serializeUnknownError(error)
+    forwardDatadogError({
+      source: 'main-uncaught-exception',
+      message: serialized.message,
+      stack: serialized.stack,
+      level: 'critical',
+      context: { origin: 'main-process' },
+    })
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    const serialized = serializeUnknownError(reason)
+    forwardDatadogError({
+      source: 'main-unhandled-rejection',
+      message: serialized.message,
+      stack: serialized.stack,
+      level: 'error',
+      context: { origin: 'main-process' },
+    })
+  })
+
+  app.on('child-process-gone', (_event, details) => {
+    const extra = details as unknown as Record<string, unknown>
+    forwardDatadogError({
+      source: 'main-child-process-gone',
+      message: `Child process ${details.type} exited: ${details.reason}`,
+      level: 'error',
+      context: {
+        origin: 'main-process',
+        type: details.type,
+        reason: details.reason,
+        exitCode: details.exitCode,
+        name: extra['name'],
+        serviceName: extra['serviceName'],
+      },
+    })
+  })
+}
 
 function createLauncherWindow(): void {
   launcherWindow = new BrowserWindow({
@@ -165,6 +238,18 @@ function createLauncherWindow(): void {
     if (launcherWindow && !launcherWindow.isDestroyed()) {
       launcherWindow.webContents.setZoomLevel(0)
     }
+  })
+  launcherWindow.webContents.on('render-process-gone', (_event, details) => {
+    forwardDatadogError({
+      source: 'launcher-render-process-gone',
+      message: `Launcher renderer process exited (${details.reason})`,
+      level: 'critical',
+      context: {
+        origin: 'main-process',
+        reason: details.reason,
+        exitCode: details.exitCode,
+      },
+    })
   })
 
   function notifyZoomLevel(): void {
@@ -417,7 +502,18 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     }, 2000)
   })
 
-  comfyWindow.webContents.on('render-process-gone', () => {
+  comfyWindow.webContents.on('render-process-gone', (_event, details) => {
+    forwardDatadogError({
+      source: 'comfy-window-render-process-gone',
+      message: `Comfy window renderer process exited (${details.reason})`,
+      level: 'error',
+      context: {
+        origin: 'main-process',
+        installationId,
+        reason: details.reason,
+        exitCode: details.exitCode,
+      },
+    })
     reloadComfy()
   })
 
@@ -474,6 +570,7 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     migrateXdgPaths()
+    registerProcessErrorHandlers()
 
     const locale = (settings.get('language') as string | undefined) || app.getLocale().split('-')[0]
     i18n.init(locale)

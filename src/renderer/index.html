@@ -9,11 +9,12 @@
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws:"
+      content="default-src 'self'; script-src 'self' https://www.datadoghq-browser-agent.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: https://*.datadoghq.com"
     />
   </head>
   <body>
     <div id="app"></div>
+    <script src="https://www.datadoghq-browser-agent.com/us5/v6/datadog-rum.js" crossorigin="anonymous"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

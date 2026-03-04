@@ -189,6 +189,11 @@ const api: ElectronApi = {
     ipcRenderer.on('model-download-progress', handler)
     return () => ipcRenderer.removeListener('model-download-progress', handler)
   },
+  onDatadogError: (callback) => {
+    const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
+    ipcRenderer.on('dd-error', handler)
+    return () => ipcRenderer.removeListener('dd-error', handler)
+  },
 }
 
 if (process.contextIsolated) {
