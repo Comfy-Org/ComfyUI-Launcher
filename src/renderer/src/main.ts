@@ -37,10 +37,20 @@ function isFlagDisabled(value: string | undefined): boolean {
   return ['0', 'false', 'off'].includes((value || '').trim().toLowerCase())
 }
 
-const datadogClientToken = (import.meta.env.VITE_DATADOG_RUM_CLIENT_TOKEN || '').trim()
-const datadogApplicationId = (import.meta.env.VITE_DATADOG_RUM_APPLICATION_ID || '').trim()
+const DEFAULT_DATADOG_APPLICATION_ID = '74a97924-20d7-4890-8e55-0c2b87193373'
+const DEFAULT_DATADOG_CLIENT_TOKEN = 'pub5b0afc7fe0411fcebad80bb87274d711'
+const DEFAULT_DATADOG_SERVICE = 'comfyui-launcher'
+
+const datadogClientToken = (
+  import.meta.env.VITE_DATADOG_RUM_CLIENT_TOKEN
+  || DEFAULT_DATADOG_CLIENT_TOKEN
+).trim()
+const datadogApplicationId = (
+  import.meta.env.VITE_DATADOG_RUM_APPLICATION_ID
+  || DEFAULT_DATADOG_APPLICATION_ID
+).trim()
 const datadogSite = (import.meta.env.VITE_DATADOG_RUM_SITE || 'us5.datadoghq.com').trim()
-const datadogService = (import.meta.env.VITE_DATADOG_RUM_SERVICE || 'comfyui-launcher').trim()
+const datadogService = (import.meta.env.VITE_DATADOG_RUM_SERVICE || DEFAULT_DATADOG_SERVICE).trim()
 const datadogEnv = (import.meta.env.VITE_DATADOG_RUM_ENV || 'prod-v2').trim()
 
 const isDatadogEnabled = !isFlagDisabled(import.meta.env.VITE_DATADOG_RUM_ENABLED)
