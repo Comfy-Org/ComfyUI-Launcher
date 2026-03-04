@@ -11,6 +11,9 @@ importers:
       7zip-bin:
         specifier: ^5.2.0
         version: 5.2.0
+      '@datadog/browser-rum':
+        specifier: 6.28.1
+        version: 6.28.1
       '@todesktop/runtime':
         specifier: ^2.1.3
         version: 2.1.3
@@ -202,6 +205,20 @@ packages:
   '@babel/types@7.29.0':
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
+
+  '@datadog/browser-core@6.28.1':
+    resolution: {integrity: sha512-h5y6aEyMTBZ091Y1mVLe2ta2YHiBa1qEEHliIp7+lb7rMZ1uWzYUzAu83bmTfvgI/yEZdHcVeTjxMucAncwK3g==}
+
+  '@datadog/browser-rum-core@6.28.1':
+    resolution: {integrity: sha512-/Eu2YuQkpdZk4GvQi4AV1/dt60qrEt0HTQC53PXoWav7SGx2UNWlTCxO6wio6kzgmlkyqa/gCscWqnUsQPWWXg==}
+
+  '@datadog/browser-rum@6.28.1':
+    resolution: {integrity: sha512-7KwMvhVsvTdt6OtB3dnSW8KZDycne3hAI96+CcWUII6Wg9Xv+UH1dbIW1skDHp9ANmLl1DZrSs9XdWCYR7rqSQ==}
+    peerDependencies:
+      '@datadog/browser-logs': 6.28.1
+    peerDependenciesMeta:
+      '@datadog/browser-logs':
+        optional: true
 
   '@develar/schema-utils@2.6.5':
     resolution: {integrity: sha512-0cp4PsWQ/9avqTVMCtZ+GirikIA36ikvjtHweU4/j8yLtgObI0+JUPhYFScgwlteveGB1rt3Cm8UhN04XayDig==}
@@ -3197,6 +3214,17 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@datadog/browser-core@6.28.1': {}
+
+  '@datadog/browser-rum-core@6.28.1':
+    dependencies:
+      '@datadog/browser-core': 6.28.1
+
+  '@datadog/browser-rum@6.28.1':
+    dependencies:
+      '@datadog/browser-core': 6.28.1
+      '@datadog/browser-rum-core': 6.28.1
 
   '@develar/schema-utils@2.6.5':
     dependencies:
