@@ -18,7 +18,9 @@
     "noPinned": "No pinned installations. Right-click an install to pin it to the dashboard.",
     "pinnedInQuickLaunch": "Pinned installations are already shown in Quick Launch above.",
     "pinToDashboard": "Pin to Dashboard",
-    "unpinFromDashboard": "Unpin from Dashboard"
+    "unpinFromDashboard": "Unpin from Dashboard",
+    "telemetryNotice": "Anonymous telemetry is collected to improve ComfyUI Launcher.",
+    "telemetrySettings": "Manage in Settings"
   },
 
   "sidebar": {
@@ -265,6 +267,8 @@
     "closeQuitOperations": "In Progress",
     "closeQuitDownloads": "Downloading",
     "autoUpdate": "Check for updates on startup",
+    "telemetry": "Telemetry",
+    "telemetryEnabled": "Share anonymous usage telemetry",
     "models": "Shared Models",
     "downloads": "Downloads",
     "cacheDir": "Cache Directory",

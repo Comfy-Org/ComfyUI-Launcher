@@ -19,7 +19,9 @@
     "noPinned": "没有固定的安装。右键单击安装以将其固定到仪表盘。",
     "pinnedInQuickLaunch": "已固定的安装已在上方的快速启动中显示。",
     "pinToDashboard": "固定到仪表盘",
-    "unpinFromDashboard": "从仪表盘取消固定"
+    "unpinFromDashboard": "从仪表盘取消固定",
+    "telemetryNotice": "我们会收集匿名使用遥测数据来改进 ComfyUI 启动器。",
+    "telemetrySettings": "在设置中管理"
   },
 
   "sidebar": {
@@ -214,6 +216,8 @@
     "closeQuitMessage": "ComfyUI 实例仍在运行。退出将停止所有实例。",
     "closeQuitConfirm": "退出",
     "autoUpdate": "启动时检查更新",
+    "telemetry": "遥测",
+    "telemetryEnabled": "共享匿名使用遥测数据",
     "models": "共享模型",
     "downloads": "下载",
     "cacheDir": "缓存目录",

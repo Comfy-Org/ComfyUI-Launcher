@@ -1143,6 +1143,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         ],
       },
       {
+        title: i18n.t('settings.telemetry'),
+        fields: [
+          { id: 'telemetryEnabled', label: i18n.t('settings.telemetryEnabled'), type: 'boolean', value: s.telemetryEnabled !== false },
+        ],
+      },
+      {
         title: i18n.t('settings.downloads'),
         fields: [
           { id: 'cacheDir', label: i18n.t('settings.cacheDir'), type: 'path', value: s.cacheDir, openable: true },
@@ -1220,6 +1226,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         if (!win.isDestroyed()) win.webContents.send('locale-changed', msgs)
       })
       if (_onLocaleChanged) _onLocaleChanged()
+    }
+    if (key === 'telemetryEnabled') {
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) win.webContents.send('telemetry-setting-changed', value)
+      })
     }
   })
 

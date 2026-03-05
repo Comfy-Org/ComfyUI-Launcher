@@ -10,6 +10,7 @@ import { useTheme } from './composables/useTheme'
 import { useLauncherPrefs } from './composables/useLauncherPrefs'
 import type { Installation, ActionResult, QuitActiveItem } from './types/ipc'
 import type { ModalDetailGroup } from './composables/useModal'
+import { emitTelemetryAction } from './lib/telemetry'
 
 import ModalDialog from './components/ModalDialog.vue'
 import UpdateBanner from './components/UpdateBanner.vue'
@@ -75,7 +76,14 @@ const sidebarItems = computed(() => [
 ])
 
 function switchView(view: TabView): void {
+  const fromView = activeView.value
   activeView.value = view
+  if (view !== fromView) {
+    emitTelemetryAction('launcher.view.opened', {
+      view,
+      from_view: fromView,
+    })
+  }
   if (view === 'list') listRef.value?.refresh()
   else if (view === 'settings') settingsRef.value?.loadSettings()
   else if (view === 'models') modelsRef.value?.loadModels()
@@ -100,6 +108,10 @@ function closeConsole(): void {
 }
 
 async function openNewInstall(): Promise<void> {
+  emitTelemetryAction('launcher.install.flow.opened', {
+    flow: 'new_install',
+    entrypoint: activeView.value,
+  })
   showNewInstall.value = true
   await nextTick()
   newInstallRef.value?.open()
@@ -110,6 +122,10 @@ function closeNewInstall(): void {
 }
 
 async function openQuickInstall(): Promise<void> {
+  emitTelemetryAction('launcher.install.flow.opened', {
+    flow: 'quick_install',
+    entrypoint: activeView.value,
+  })
   showQuickInstall.value = true
   await nextTick()
   quickInstallRef.value?.open()
@@ -120,6 +136,10 @@ function closeQuickInstall(): void {
 }
 
 async function openTrack(): Promise<void> {
+  emitTelemetryAction('launcher.install.flow.opened', {
+    flow: 'track_existing',
+    entrypoint: activeView.value,
+  })
   showTrack.value = true
   await nextTick()
   trackRef.value?.open()
@@ -130,6 +150,10 @@ function closeTrack(): void {
 }
 
 async function openLoadSnapshot(): Promise<void> {
+  emitTelemetryAction('launcher.install.flow.opened', {
+    flow: 'load_snapshot',
+    entrypoint: activeView.value,
+  })
   showLoadSnapshot.value = true
   await nextTick()
   loadSnapshotRef.value?.open()
@@ -272,6 +296,7 @@ onMounted(async () => {
         v-show="activeView === 'dashboard'"
         :visible="activeView === 'dashboard'"
         @show-quick-install="openQuickInstall"
+        @show-settings="switchView('settings')"
         @show-detail="openDetail"
         @show-console="openConsole"
         @show-progress="showProgress"

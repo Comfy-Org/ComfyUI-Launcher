@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import type { SnapshotFilePreview, FieldOption, GPUInfo } from '../types/ipc'
 import { stripVariantPrefix, getVariantImage, getVariantGpuLabel, sortedCardOptions } from '../lib/variants'
+import { emitTelemetryAction, toVariantBucket } from '../lib/telemetry'
 
 const emit = defineEmits<{
   close: []
@@ -200,6 +201,15 @@ function handleClearPreview(): void {
   optionsGeneration++
 }
 
+function selectVariant(option: FieldOption): void {
+  selectedVariant.value = option
+  emitTelemetryAction('launcher.install.variant.selected', {
+    variant_bucket: toVariantBucket((option.data?.variantId as string | undefined) || option.value),
+    recommended: !!option.recommended,
+    flow: 'snapshot',
+  })
+}
+
 async function handleCreate(): Promise<void> {
   if (!preview.value || creating.value) return
   creating.value = true
@@ -376,7 +386,7 @@ defineExpose({ open })
                       selected: selectedVariant?.value === opt.value,
                       recommended: opt.recommended,
                     }]"
-                    @click="selectedVariant = opt"
+                    @click="selectVariant(opt)"
                   >
                     <div class="variant-card-icon">
                       <img

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useElectronApi } from '../composables/useElectronApi'
 import { useModal } from '../composables/useModal'
 import type { UpdateInfo, UpdateDownloadProgress } from '../types/ipc'
+import { emitTelemetryAction } from '../lib/telemetry'
 
 type UpdateState =
   | { type: 'available'; version: string }
@@ -39,20 +40,39 @@ const bannerMessage = computed<string>(() => {
 })
 
 function dismiss() {
+  emitTelemetryAction('launcher.update.cta', {
+    action: 'dismissed',
+    state: state.value?.type || 'unknown',
+    target_version: (state.value?.type === 'available' || state.value?.type === 'ready') ? state.value.version : undefined,
+  })
   visible.value = false
   state.value = null
 }
 
 async function download() {
+  emitTelemetryAction('launcher.update.cta', {
+    action: 'download_clicked',
+    state: state.value?.type || 'unknown',
+    target_version: state.value?.type === 'available' ? state.value.version : undefined,
+  })
   state.value = { type: 'downloading', transferred: '0', total: '0', percent: 0 }
   await api.downloadUpdate()
 }
 
 async function install() {
+  emitTelemetryAction('launcher.update.cta', {
+    action: 'install_clicked',
+    state: state.value?.type || 'unknown',
+    target_version: state.value?.type === 'ready' ? state.value.version : undefined,
+  })
   await api.installUpdate()
 }
 
 function retry() {
+  emitTelemetryAction('launcher.update.cta', {
+    action: 'retry_clicked',
+    state: state.value?.type || 'unknown',
+  })
   state.value = null
   visible.value = false
   api.checkForUpdate()

@@ -579,5 +579,6 @@ export interface ElectronApi {
   onUpdateError(callback: (err: { message: string }) => void): Unsubscribe
   onZoomChanged(callback: (level: number) => void): Unsubscribe
   onModelDownloadProgress(callback: (progress: ModelDownloadProgress) => void): Unsubscribe
+  onTelemetrySettingChanged(callback: (enabled: boolean | undefined) => void): Unsubscribe
   onDatadogError(callback: (payload: DatadogForwardedError) => void): Unsubscribe
 }
