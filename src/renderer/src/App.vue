@@ -44,6 +44,14 @@ useTheme()
 type TabView = 'dashboard' | 'list' | 'running' | 'models' | 'media' | 'settings'
 const activeView = ref<TabView>('dashboard')
 
+type TelemetryContext = Record<string, boolean | number | string | null | undefined>
+
+function emitTelemetryAction(actionName: string, context: TelemetryContext): void {
+  window.dispatchEvent(new CustomEvent('launcher-telemetry-action', {
+    detail: { actionName, context },
+  }))
+}
+
 // --- Modal views ---
 const detailInstallation = ref<Installation | null>(null)
 const consoleInstallationId = ref<string | null>(null)
@@ -75,7 +83,14 @@ const sidebarItems = computed(() => [
 ])
 
 function switchView(view: TabView): void {
+  const fromView = activeView.value
   activeView.value = view
+  if (view !== fromView) {
+    emitTelemetryAction('launcher.view.opened', {
+      view,
+      from_view: fromView,
+    })
+  }
   if (view === 'list') listRef.value?.refresh()
   else if (view === 'settings') settingsRef.value?.loadSettings()
   else if (view === 'models') modelsRef.value?.loadModels()

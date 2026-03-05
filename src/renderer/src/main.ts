@@ -63,6 +63,10 @@ const isDatadogConfigured = !isFlagDisabled(import.meta.env.VITE_DATADOG_RUM_ENA
 let isDatadogInitialized = false
 
 type TelemetryContext = Record<string, boolean | number | string | null | undefined>
+type TelemetryActionEventDetail = {
+  actionName: string
+  context?: TelemetryContext
+}
 
 function toDatadogTrackingConsent(enabled: boolean | undefined): DatadogTrackingConsent {
   return enabled === false ? 'not-granted' : 'granted'
@@ -88,6 +92,14 @@ function trackTelemetryAction(actionName: string, context: TelemetryContext): vo
   try {
     datadogRum.addAction(actionName, context)
   } catch {}
+}
+
+function handleTelemetryActionBridgeEvent(event: Event): void {
+  const detail = (event as CustomEvent<unknown>).detail as TelemetryActionEventDetail | undefined
+  if (!detail || typeof detail !== 'object') return
+  if (typeof detail.actionName !== 'string' || detail.actionName.length === 0) return
+  const context = detail.context && typeof detail.context === 'object' ? detail.context : {}
+  trackTelemetryAction(detail.actionName, context)
 }
 
 async function initializeDatadog(): Promise<void> {
@@ -122,6 +134,8 @@ window.api.onTelemetrySettingChanged((enabled) => {
   if (!isDatadogConfigured) return
   setDatadogTrackingConsent(toDatadogTrackingConsent(enabled))
 })
+
+window.addEventListener('launcher-telemetry-action', handleTelemetryActionBridgeEvent)
 
 void initializeDatadog()
 
