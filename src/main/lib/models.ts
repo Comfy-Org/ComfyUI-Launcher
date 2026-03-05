@@ -101,6 +101,7 @@ export function ensureModelPathsConfig(modelsDirs: string[] | null | undefined):
   if (!modelsDirs || !Array.isArray(modelsDirs) || modelsDirs.length === 0) return null
   const resolved = modelsDirs.map((d) => path.resolve(d))
   const extraFolders = discoverExtraFoldersFromSharedDirs(resolved)
+  console.log('[models] ensureModelPathsConfig: shared dirs =', resolved, 'extras =', extraFolders)
   const yaml = buildYaml(resolved, extraFolders)
 
   let existing: string | null = null
@@ -109,6 +110,7 @@ export function ensureModelPathsConfig(modelsDirs: string[] | null | undefined):
   } catch {}
 
   if (existing !== yaml) {
+    console.log('[models] ensureModelPathsConfig: writing updated YAML')
     writeFileSafe(YAML_PATH, yaml)
   }
 
@@ -147,6 +149,7 @@ export function syncCustomModelFolders(
 ): void {
   if (!modelsDirs || !Array.isArray(modelsDirs) || modelsDirs.length === 0) return
   const extraFolders = discoverExtraModelFolders(installPath)
+  console.log('[models] syncCustomModelFolders: installPath =', installPath, 'extras from install =', extraFolders)
   if (extraFolders.length === 0) return
 
   // Create matching subdirectories in each shared models root
@@ -155,6 +158,7 @@ export function syncCustomModelFolders(
       const target = path.join(dir, folder)
       try {
         fs.mkdirSync(target, { recursive: true })
+        console.log('[models] syncCustomModelFolders: created', target)
       } catch {}
     }
   }
