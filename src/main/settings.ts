@@ -4,21 +4,65 @@ import { configDir, cacheDir, homeDir } from './lib/paths'
 import { MODEL_FOLDER_TYPES } from './lib/models'
 import { readFileSafe, writeFileSafe } from './lib/safe-file'
 
-export interface Settings {
+export interface KnownSettings {
   cacheDir: string
   maxCachedFiles: number
-  onLauncherClose: string
+  onLauncherClose: 'tray' | 'quit'
   modelsDirs: string[]
   inputDir: string
   outputDir: string
-  [key: string]: unknown
+  language?: string
+  theme?: string
+  autoUpdate?: boolean
+  primaryInstallId?: string
+  pinnedInstallIds?: string[]
 }
+
+export type Settings = KnownSettings & Record<string, unknown>
+
+type DefaultedSettingKey =
+  | 'cacheDir'
+  | 'maxCachedFiles'
+  | 'onLauncherClose'
+  | 'modelsDirs'
+  | 'inputDir'
+  | 'outputDir'
+type SettingsDefaults = Pick<KnownSettings, DefaultedSettingKey>
 
 const dataPath = path.join(configDir(), "settings.json")
 
 const SHARED_ROOT = path.join(homeDir(), "ComfyUI-Shared")
 
-export const defaults: Settings = {
+const SETTINGS_SCHEMA = {
+  cacheDir: { nullable: false },
+  maxCachedFiles: { nullable: false },
+  onLauncherClose: { nullable: false },
+  modelsDirs: { nullable: false },
+  inputDir: { nullable: false },
+  outputDir: { nullable: false },
+  language: { nullable: false },
+  theme: { nullable: false },
+  autoUpdate: { nullable: false },
+  primaryInstallId: { nullable: false },
+  pinnedInstallIds: { nullable: false },
+} as const satisfies Record<keyof KnownSettings, { nullable: boolean }>
+
+export type KnownSettingKey = keyof typeof SETTINGS_SCHEMA
+export type NullableKnownSettingKey = {
+  [K in KnownSettingKey]-?: (typeof SETTINGS_SCHEMA)[K]['nullable'] extends true ? K : never
+}[KnownSettingKey]
+
+const KNOWN_SETTING_KEYS = Object.keys(SETTINGS_SCHEMA) as KnownSettingKey[]
+
+function isKnownSettingKey(key: string): key is KnownSettingKey {
+  return Object.prototype.hasOwnProperty.call(SETTINGS_SCHEMA, key)
+}
+
+function isNullableKnownSettingKey(key: KnownSettingKey): key is NullableKnownSettingKey {
+  return SETTINGS_SCHEMA[key].nullable
+}
+
+export const defaults: SettingsDefaults = {
   cacheDir: path.join(cacheDir(), "download-cache"),
   maxCachedFiles: 5,
   onLauncherClose: "tray",
@@ -37,6 +81,13 @@ function load(): Settings {
       const obj: unknown = JSON.parse(raw)
       if (obj && typeof obj === 'object' && !Array.isArray(obj)) parsed = obj as Record<string, unknown>
     } catch {}
+  }
+  if (parsed) {
+    for (const key of KNOWN_SETTING_KEYS) {
+      if (parsed[key] === null && !isNullableKnownSettingKey(key)) {
+        delete parsed[key]
+      }
+    }
   }
   const result: Settings = { ...defaults, ...(parsed || {}) }
   // Ensure system default directory is always present in modelsDirs
@@ -66,12 +117,27 @@ function save(settings: Settings): void {
   writeFileSafe(dataPath, JSON.stringify(settings, null, 2), true)
 }
 
+export function get<K extends KnownSettingKey>(key: K): KnownSettings[K]
+export function get(key: string): unknown
 export function get(key: string): unknown {
   return load()[key]
 }
 
-export function set(key: string, value: unknown): void {
+export function set<K extends string>(
+  key: K,
+  value: K extends KnownSettingKey ? KnownSettings[K] | undefined : unknown
+): void {
   const settings = load()
+  // `undefined` is the canonical "unset/default" value in settings.
+  // For known non-nullable keys, treat `null` the same way.
+  if (
+    value === undefined
+    || (value === null && isKnownSettingKey(key) && !isNullableKnownSettingKey(key))
+  ) {
+    delete settings[key]
+    save(settings)
+    return
+  }
   settings[key] = value
   save(settings)
 }

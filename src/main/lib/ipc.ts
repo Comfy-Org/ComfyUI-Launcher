@@ -88,14 +88,14 @@ async function uniqueName(baseName: string): Promise<string> {
 
 /** Re-assign primary to the first remaining local install, or clear it. */
 async function autoAssignPrimary(removedId: string): Promise<void> {
-  const currentPrimary = settings.get('primaryInstallId') as string | undefined
+  const currentPrimary = settings.get('primaryInstallId')
   if (currentPrimary !== removedId) return
   const all = (await installations.list()).filter((i) => i.id !== removedId)
   const firstLocal = all.find((i) => {
     const source = sourceMap[i.sourceId]
     return source && source.category === 'local'
   })
-  settings.set('primaryInstallId', firstLocal?.id ?? null)
+  settings.set('primaryInstallId', firstLocal?.id)
 }
 
 /** Set as primary if this is the first local install and no primary is set. */
@@ -419,7 +419,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const validIds = new Set(remaining.map((i) => i.id))
       let settingsChanged = false
 
-      const currentPrimary = settings.get('primaryInstallId') as string | undefined
+      const currentPrimary = settings.get('primaryInstallId')
       if (currentPrimary && !validIds.has(currentPrimary)) {
         await autoAssignPrimary(currentPrimary)
         settingsChanged = true
@@ -537,13 +537,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const list = await installations.list()
 
     // Ensure a primary is always set when local installs exist
-    const currentPrimary = settings.get('primaryInstallId') as string | undefined
+    const currentPrimary = settings.get('primaryInstallId')
     if (!currentPrimary || !list.some((i) => i.id === currentPrimary)) {
       const firstLocal = list.find((i) => {
         const s = sourceMap[i.sourceId]
         return s && s.category === 'local'
       })
-      const newPrimary = firstLocal?.id ?? null
+      const newPrimary = firstLocal?.id
       if (currentPrimary !== newPrimary) {
         settings.set('primaryInstallId', newPrimary)
       }
@@ -1134,7 +1134,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               { value: 'github', label: i18n.t('settings.themeGithub') },
             ] },
           { id: 'autoUpdate', label: i18n.t('settings.autoUpdate'), type: 'boolean', value: s.autoUpdate !== false },
-          { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || 'quit',
+          { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || settings.defaults.onLauncherClose,
             options: [
               { value: 'quit', label: i18n.t('settings.closeQuit') },
               { value: 'tray', label: i18n.t('settings.closeTray') },

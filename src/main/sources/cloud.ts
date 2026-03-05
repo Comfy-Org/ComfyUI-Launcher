@@ -1,4 +1,5 @@
 import { parseUrl } from '../lib/util'
+import { withCloudDistributionUtm } from '../lib/cloudUrl'
 import { t } from '../lib/i18n'
 import type { InstallationRecord } from '../installations'
 import type { SourcePlugin, FieldOption, ActionResult, ActionTools, LaunchCommand } from '../types/sources'
@@ -39,7 +40,7 @@ export const cloud: SourcePlugin = {
   },
 
   getLaunchCommand(installation: InstallationRecord): LaunchCommand | null {
-    const parsed = parseUrl(installation.remoteUrl as string)
+    const parsed = parseUrl(withCloudDistributionUtm((installation.remoteUrl as string) || DEFAULT_URL))
     if (!parsed) return null
     return {
       remote: true,
@@ -110,5 +111,3 @@ export const cloud: SourcePlugin = {
     return []
   },
 }
-
-

@@ -52,6 +52,7 @@ const datadogApplicationId = (
 const datadogSite = (import.meta.env.VITE_DATADOG_RUM_SITE || 'us5.datadoghq.com').trim()
 const datadogService = (import.meta.env.VITE_DATADOG_RUM_SERVICE || DEFAULT_DATADOG_SERVICE).trim()
 const datadogEnv = (import.meta.env.VITE_DATADOG_RUM_ENV || 'prod-v2').trim()
+const datadogVersion = (import.meta.env.VITE_DATADOG_RUM_VERSION || '').trim()
 
 const isDatadogEnabled = !isFlagDisabled(import.meta.env.VITE_DATADOG_RUM_ENABLED)
   && datadogClientToken.length > 0
@@ -64,6 +65,7 @@ if (isDatadogEnabled) {
     site: datadogSite,
     service: datadogService,
     env: datadogEnv,
+    version: datadogVersion || undefined,
     sessionSampleRate: parseSampleRate(import.meta.env.VITE_DATADOG_RUM_SESSION_SAMPLE_RATE, 100),
     sessionReplaySampleRate: parseSampleRate(import.meta.env.VITE_DATADOG_RUM_SESSION_REPLAY_SAMPLE_RATE, 0),
     trackResources: true,
