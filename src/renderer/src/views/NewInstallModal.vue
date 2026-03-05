@@ -3,6 +3,8 @@ import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import type { Source, SourceField, FieldOption, DiskSpaceInfo, PathIssue, HardwareValidation } from '../types/ipc'
+import { stripVariantPrefix, getVariantImage, sortedCardOptions } from '../lib/variants'
+import { emitTelemetryAction, toVariantBucket } from '../lib/telemetry'
 
 const emit = defineEmits<{
   close: []
@@ -51,6 +53,32 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1048576).toFixed(0)} MB`
 }
 
+function toPathGuardrail(issue: PathIssue): string {
+  switch (issue) {
+    case 'insideAppBundle': return 'path_inside_bundle'
+    case 'oneDrive': return 'onedrive'
+    case 'insideSharedDir': return 'inside_shared_dir'
+    case 'insideExistingInstall': return 'inside_existing_install'
+    default: return 'path_issue'
+  }
+}
+
+function trackGuardrailBlocked(guardrailType: string, stage: string): void {
+  emitTelemetryAction('launcher.install.guardrail.blocked', {
+    guardrail_type: guardrailType,
+    flow: 'wizard',
+    stage,
+  })
+}
+
+function trackDiskWarningResponse(warningType: string, accepted: boolean): void {
+  emitTelemetryAction('launcher.install.disk_warning.response', {
+    warning_type: warningType,
+    accepted,
+    flow: 'wizard',
+  })
+}
+
 let diskSpaceGeneration = 0
 
 function fetchDiskSpace(targetPath: string): void {
@@ -92,43 +120,12 @@ watch(instPath, (newPath) => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
   if (diskSpaceTimer) clearTimeout(diskSpaceTimer)
 })
 
 /** Generation counter — incremented on each open/source change to discard stale responses */
 let loadGeneration = 0
-
-/** Map GPU vendor key (from variantId) to a logo image path */
-const variantImages: Record<string, string> = {
-  nvidia: './images/nvidia-logo.jpg',
-  amd: './images/amd-logo.png',
-  mps: './images/apple-mps-logo.png',
-}
-
-/** Preferred display order for variant cards */
-const variantOrder: string[] = ['amd', 'nvidia', 'intel-xpu', 'cpu', 'mps']
-
-function stripVariantPrefix(variantId: string): string {
-  return variantId.replace(/^(win|mac|linux)-/, '')
-}
-
-function getVariantImage(option: FieldOption): string | null {
-  const stripped = stripVariantPrefix((option.data?.variantId as string) ?? option.value)
-  for (const key of Object.keys(variantImages)) {
-    if (stripped === key || stripped.startsWith(key + '-')) return variantImages[key]!
-  }
-  return null
-}
-
-function sortedCardOptions(options: FieldOption[]): FieldOption[] {
-  return [...options].sort((a, b) => {
-    const aKey = stripVariantPrefix((a.data?.variantId as string) ?? a.value)
-    const bKey = stripVariantPrefix((b.data?.variantId as string) ?? b.value)
-    const aIdx = variantOrder.findIndex((k) => aKey === k || aKey.startsWith(k + '-'))
-    const bIdx = variantOrder.findIndex((k) => bKey === k || bKey.startsWith(k + '-'))
-    return (aIdx < 0 ? 999 : aIdx) - (bIdx < 0 ? 999 : bIdx)
-  })
-}
 
 const totalSteps = computed(() => {
   if (!currentSource.value) return 3
@@ -171,7 +168,12 @@ function rawSelections(): Record<string, FieldOption> {
 let installDirPromise: Promise<string> | null = null
 let sourcesPromise: Promise<Source[]> | null = null
 
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.key === 'Escape') emit('close')
+}
+
 onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
   window.api
     .detectGPU()
     .then((gpu) => {
@@ -242,6 +244,7 @@ async function selectSourceCard(source: Source): Promise<void> {
   if (currentSource.value?.id === source.id) return
 
   if (source.id === 'standalone' && hardwareValidation && !hardwareValidation.supported) {
+    trackGuardrailBlocked('unsupported_hw', 'source_select')
     await modal.alert({
       title: t('newInstall.unsupportedHardwareTitle'),
       message: hardwareValidation.error || '',
@@ -250,6 +253,11 @@ async function selectSourceCard(source: Source): Promise<void> {
   }
 
   await selectSource(source)
+  emitTelemetryAction('launcher.install.method.selected', {
+    source_id: source.id,
+    source_category: source.category || source.id,
+    flow: 'wizard',
+  })
 }
 
 async function selectSource(source: Source): Promise<void> {
@@ -399,6 +407,13 @@ function handleFieldSelectChange(field: SourceField, fieldIndex: number, value: 
 
 function selectCardOption(field: SourceField, fieldIndex: number, option: FieldOption): void {
   selections.value[field.id] = option
+  if (field.id === 'variant') {
+    emitTelemetryAction('launcher.install.variant.selected', {
+      variant_bucket: toVariantBucket((option.data?.variantId as string | undefined) || option.value),
+      recommended: !!option.recommended,
+      flow: 'wizard',
+    })
+  }
 
   const source = currentSource.value
   if (!source) return
@@ -470,7 +485,10 @@ async function handleSave(): Promise<void> {
           confirmLabel: t('newInstall.nvidiaDriverContinue'),
           confirmStyle: 'primary',
         })
-        if (!ok) return
+        if (!ok) {
+          trackGuardrailBlocked('nvidia_driver', 'save')
+          return
+        }
       }
     }
   }
@@ -513,6 +531,7 @@ async function handleSave(): Promise<void> {
       const issues = await window.api.validateInstallPath(instPath.value)
       for (const issue of issues) {
         if (issue === 'insideAppBundle') {
+          trackGuardrailBlocked(toPathGuardrail(issue), 'save')
           await modal.alert({
             title: t('pathValidation.insideAppBundleTitle'),
             message: t('pathValidation.insideAppBundleMessage'),
@@ -520,6 +539,7 @@ async function handleSave(): Promise<void> {
           return
         }
         if (issue === 'oneDrive') {
+          trackGuardrailBlocked(toPathGuardrail(issue), 'save')
           await modal.alert({
             title: t('pathValidation.oneDriveTitle'),
             message: t('pathValidation.oneDriveMessage'),
@@ -527,6 +547,7 @@ async function handleSave(): Promise<void> {
           return
         }
         if (issue === 'insideSharedDir') {
+          trackGuardrailBlocked(toPathGuardrail(issue), 'save')
           await modal.alert({
             title: t('pathValidation.insideSharedDirTitle'),
             message: t('pathValidation.insideSharedDirMessage'),
@@ -534,6 +555,7 @@ async function handleSave(): Promise<void> {
           return
         }
         if (issue === 'insideExistingInstall') {
+          trackGuardrailBlocked(toPathGuardrail(issue), 'save')
           await modal.alert({
             title: t('pathValidation.insideExistingInstallTitle'),
             message: t('pathValidation.insideExistingInstallMessage'),
@@ -569,6 +591,7 @@ async function handleSave(): Promise<void> {
           confirmLabel: t('diskSpace.continueAnyway'),
           confirmStyle: 'primary',
         })
+        trackDiskWarningResponse('insufficient_estimated', !!ok)
         if (!ok) return
       } else if (space.free < 1073741824) {
         // Warn if less than 1 GB free even without an estimate
@@ -580,6 +603,7 @@ async function handleSave(): Promise<void> {
           confirmLabel: t('diskSpace.continueAnyway'),
           confirmStyle: 'primary',
         })
+        trackDiskWarningResponse('low_free_space', !!ok)
         if (!ok) return
       }
     } catch {

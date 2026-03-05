@@ -18,7 +18,9 @@
     "noPinned": "No pinned installations. Right-click an install to pin it to the dashboard.",
     "pinnedInQuickLaunch": "Pinned installations are already shown in Quick Launch above.",
     "pinToDashboard": "Pin to Dashboard",
-    "unpinFromDashboard": "Unpin from Dashboard"
+    "unpinFromDashboard": "Unpin from Dashboard",
+    "telemetryNotice": "Anonymous telemetry is collected to improve ComfyUI Launcher.",
+    "telemetrySettings": "Manage in Settings"
   },
 
   "sidebar": {
@@ -121,6 +123,10 @@
     "snapshotCreateInstall": "Create Installation",
     "snapshotDropHint": "Drop a snapshot .json file here",
     "snapshotNameHint": "Characters like < > : \" / \\ | ? * will be removed",
+    "snapshotRelease": "Release",
+    "snapshotOriginalRelease": "Snapshot version: {tag}",
+    "snapshotDevice": "Device",
+    "snapshotHardwareMismatch": "The snapshot was created with {snapshotDevice}. Your detected hardware is {detectedDevice}. The recommended variant for your hardware has been pre-selected.",
     "newInstall": "New Install",
     "empty": "No installs yet.",
     "emptyHint": "Install or track an existing version of ComfyUI.",
@@ -261,6 +267,8 @@
     "closeQuitOperations": "In Progress",
     "closeQuitDownloads": "Downloading",
     "autoUpdate": "Check for updates on startup",
+    "telemetry": "Telemetry",
+    "telemetryEnabled": "Share anonymous usage telemetry",
     "models": "Shared Models",
     "downloads": "Downloads",
     "cacheDir": "Cache Directory",
@@ -633,6 +641,7 @@
     "installNotReady": "This install is not ready to launch. It may still be installing or may have failed.",
     "installFailed": "Install Failed",
     "deleteInterrupted": "Delete Interrupted",
+    "deleteLocked": "A file could not be deleted because it is in use by another program. Close any applications that may have files open in this directory and try again.\n{path}",
     "cannotAdd": "Cannot Add",
     "dirNotExist": "Directory does not exist: {path}",
     "cannotOpenDir": "Could not open directory: {error}",

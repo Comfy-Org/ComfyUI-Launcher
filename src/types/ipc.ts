@@ -348,6 +348,14 @@ export interface TrackResult {
   message?: string
 }
 
+export interface DatadogForwardedError {
+  source: string
+  message: string
+  stack?: string
+  level?: 'debug' | 'info' | 'warn' | 'error' | 'critical'
+  context?: Record<string, unknown>
+}
+
 // --- Snapshot tab types ---
 export interface CopyEvent {
   installationId: string
@@ -523,7 +531,7 @@ export interface ElectronApi {
   previewSnapshotFile(): Promise<{ ok: boolean; preview?: SnapshotFilePreview; message?: string }>
   previewDesktopMigration(): Promise<{ ok: boolean; message?: string; preview?: SnapshotFilePreview; snapshotPath?: string }>
   previewSnapshotPath(filePath: string): Promise<{ ok: boolean; preview?: SnapshotFilePreview; message?: string }>
-  createFromSnapshot(filePath: string, name?: string): Promise<{ ok: boolean; entry?: { id: string; name: string }; message?: string }>
+  createFromSnapshot(filePath: string, name?: string, releaseTag?: string, variantId?: string): Promise<{ ok: boolean; entry?: { id: string; name: string }; message?: string }>
   getPathForFile(file: File): string
 
   // Settings
@@ -572,4 +580,6 @@ export interface ElectronApi {
   onUpdateError(callback: (err: { message: string }) => void): Unsubscribe
   onZoomChanged(callback: (level: number) => void): Unsubscribe
   onModelDownloadProgress(callback: (progress: ModelDownloadProgress) => void): Unsubscribe
+  onTelemetrySettingChanged(callback: (enabled: boolean | undefined) => void): Unsubscribe
+  onDatadogError(callback: (payload: DatadogForwardedError) => void): Unsubscribe
 }

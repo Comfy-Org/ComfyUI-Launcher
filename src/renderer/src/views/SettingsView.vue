@@ -43,7 +43,7 @@ defineExpose({ loadSettings })
           />
         </div>
 
-        <div v-if="section.actions?.length" class="detail-actions" style="margin-top: 8px">
+        <div v-if="section.actions?.length" class="detail-actions">
           <button
             v-for="(action, aIdx) in section.actions"
             :key="aIdx"

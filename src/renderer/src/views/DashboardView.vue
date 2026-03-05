@@ -7,6 +7,7 @@ import { useModal } from '../composables/useModal'
 import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import { useInstallContextMenu } from '../composables/useInstallContextMenu'
+import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import { Download, Star, Clock, Cloud, Pin } from 'lucide-vue-next'
 import DashboardCard from '../components/DashboardCard.vue'
 import ContextMenu from '../components/ContextMenu.vue'
@@ -25,6 +26,7 @@ const prefs = useLauncherPrefs()
 
 const emit = defineEmits<{
   'show-quick-install': []
+  'show-settings': []
   'show-detail': [inst: Installation]
   'show-console': [installationId: string]
   'show-progress': [opts: {
@@ -215,6 +217,10 @@ function timeAgo(timestamp: number): string {
 async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<void> {
   const action = actions.find((a) => a.style === 'primary') ?? actions[0] ?? null
   if (!inst || !action) return
+  const telemetryContext = {
+    source_category: inst.sourceCategory || 'unknown',
+    ui_surface: 'dashboard',
+  }
 
   if (action.enabled === false && action.disabledMessage) {
     await modal.alert({ title: action.label, message: action.disabledMessage })
@@ -228,14 +234,21 @@ async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<
       confirmLabel: action.label,
       confirmStyle: action.style || 'danger',
     })
-    if (!confirmed) return
+    if (!confirmed) {
+      emitTelemetryAction('launcher.action.result', { action_id: action.id, result: 'cancelled', ...telemetryContext })
+      return
+    }
   }
 
   if (action.id === 'launch') {
     const canLaunch = await localInstanceGuard.checkBeforeLaunch(inst.id)
-    if (!canLaunch) return
+    if (!canLaunch) {
+      emitTelemetryAction('launcher.action.result', { action_id: action.id, result: 'cancelled', ...telemetryContext })
+      return
+    }
   }
 
+  emitTelemetryAction('launcher.action.invoked', { action_id: action.id, ...telemetryContext })
   if (action.showProgress) {
     emit('show-progress', {
       installationId: inst.id,
@@ -246,9 +259,21 @@ async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<
     return
   }
 
-  const result = await window.api.runAction(inst.id, action.id)
-  if (result.message) {
-    await modal.alert({ title: action.label, message: result.message })
+  try {
+    const result = await window.api.runAction(inst.id, action.id)
+    const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
+    emitTelemetryAction('launcher.action.result', { action_id: action.id, result: resultValue, ...telemetryContext })
+    if (result.message) {
+      await modal.alert({ title: action.label, message: result.message })
+    }
+  } catch (error: unknown) {
+    emitTelemetryAction('launcher.action.result', {
+      action_id: action.id,
+      result: 'failed',
+      error_bucket: toErrorBucket(error),
+      ...telemetryContext,
+    })
+    throw error
   }
 }
 
@@ -285,6 +310,12 @@ async function changePrimary(): Promise<void> {
           <Download :size="18" />
           {{ $t('dashboard.installComfyUI') }}
         </button>
+        <p class="dashboard-telemetry-notice">
+          {{ $t('dashboard.telemetryNotice') }}
+          <button class="dashboard-telemetry-link" @click="emit('show-settings')">
+            {{ $t('dashboard.telemetrySettings') }}
+          </button>
+        </p>
       </div>
 
       <!-- Quick Launch section -->
@@ -345,7 +376,7 @@ async function changePrimary(): Promise<void> {
       <!-- Pinned section -->
       <div v-if="primaryInstall" class="dashboard-section">
         <div class="dashboard-section-label">
-          <Pin :size="14" style="vertical-align: -2px; margin-right: 4px;" />
+          <Pin :size="14" />
           {{ $t('dashboard.pinned') }}
         </div>
         <div v-if="pinnedInstalls.length > 0" class="dashboard-quick-launch">
@@ -379,7 +410,7 @@ async function changePrimary(): Promise<void> {
       <!-- Cloud section -->
       <div v-if="cloudInstall" class="dashboard-section">
         <div class="dashboard-section-label">
-          <Cloud :size="14" style="vertical-align: -2px; margin-right: 4px;" />
+          <Cloud :size="14" />
           {{ $t('dashboard.cloudSection') }}
         </div>
         <div class="dashboard-cloud-card" @contextmenu.prevent="openCardMenu($event, cloudInstall!)">

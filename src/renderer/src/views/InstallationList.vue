@@ -8,6 +8,7 @@ import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { useInstallContextMenu } from '../composables/useInstallContextMenu'
 import { useProgressStore } from '../stores/progressStore'
 import { DraggableList } from '../lib/draggableList'
+import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import InstanceCard from '../components/InstanceCard.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import type { Installation, ListAction } from '../types/ipc'
@@ -104,6 +105,10 @@ function getLaunchMeta(inst: Installation): string {
 }
 
 async function handleListAction(inst: Installation, action: ListAction): Promise<void> {
+  const telemetryContext = {
+    source_category: inst.sourceCategory || 'unknown',
+    ui_surface: 'list',
+  }
   if (action.enabled === false && action.disabledMessage) {
     await modal.alert({ title: action.label, message: action.disabledMessage })
     return
@@ -119,12 +124,19 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
       confirmLabel: action.label,
       confirmStyle: action.style || 'danger',
     })
-    if (!confirmed) return
+    if (!confirmed) {
+      emitTelemetryAction('launcher.action.result', { action_id: action.id, result: 'cancelled', ...telemetryContext })
+      return
+    }
   }
   if (action.id === 'launch') {
     const canLaunch = await localInstanceGuard.checkBeforeLaunch(inst.id)
-    if (!canLaunch) return
+    if (!canLaunch) {
+      emitTelemetryAction('launcher.action.result', { action_id: action.id, result: 'cancelled', ...telemetryContext })
+      return
+    }
   }
+  emitTelemetryAction('launcher.action.invoked', { action_id: action.id, ...telemetryContext })
   if (action.showProgress) {
     emit('show-progress', {
       installationId: inst.id,
@@ -134,11 +146,23 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
     })
     return
   }
-  const result = await window.api.runAction(inst.id, action.id)
-  if (result.navigate === 'list') {
-    await refresh()
-  } else if (result.message) {
-    await modal.alert({ title: action.label, message: result.message })
+  try {
+    const result = await window.api.runAction(inst.id, action.id)
+    const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
+    emitTelemetryAction('launcher.action.result', { action_id: action.id, result: resultValue, ...telemetryContext })
+    if (result.navigate === 'list') {
+      await refresh()
+    } else if (result.message) {
+      await modal.alert({ title: action.label, message: result.message })
+    }
+  } catch (error: unknown) {
+    emitTelemetryAction('launcher.action.result', {
+      action_id: action.id,
+      result: 'failed',
+      error_bucket: toErrorBucket(error),
+      ...telemetryContext,
+    })
+    throw error
   }
 }
 
@@ -273,9 +297,9 @@ defineExpose({ refresh })
 
         <!-- Empty: no installations at all -->
         <div v-else-if="filteredInstallations.length === 0" class="empty-state">
-          <div style="font-weight: 700; color: var(--text-muted)">{{ $t('list.empty') }}</div>
-          <div style="margin-top: 4px">{{ $t('list.emptyHint') }}</div>
-          <button class="accent add-btn" style="margin-top: 8px" @click="emit('show-new-install')">
+          <div class="empty-state-title">{{ $t('list.empty') }}</div>
+          <div class="empty-state-hint">{{ $t('list.emptyHint') }}</div>
+          <button class="accent add-btn empty-state-action" @click="emit('show-new-install')">
             + {{ $t('list.newInstall') }}
           </button>
         </div>
@@ -378,9 +402,9 @@ defineExpose({ refresh })
           v-if="filteredInstallations.length > 0 && !hasLocal && (filter === 'all' || filter === 'local')"
           class="empty-state"
         >
-          <div style="font-weight: 700; color: var(--text-muted)">{{ $t('list.empty') }}</div>
-          <div style="margin-top: 4px">{{ $t('list.emptyHint') }}</div>
-          <button class="accent add-btn" style="margin-top: 8px" @click="emit('show-new-install')">
+          <div class="empty-state-title">{{ $t('list.empty') }}</div>
+          <div class="empty-state-hint">{{ $t('list.emptyHint') }}</div>
+          <button class="accent add-btn empty-state-action" @click="emit('show-new-install')">
             + {{ $t('list.newInstall') }}
           </button>
         </div>
@@ -399,5 +423,4 @@ defineExpose({ refresh })
     />
   </div>
 </template>
-
 

@@ -195,7 +195,7 @@ const emit = defineEmits<{
         <template v-if="sessionStore.errorInstances.size > 0">
           <div
             class="detail-section-title"
-            :style="sessionStore.runningInstances.size > 0 ? 'margin-top: 18px' : ''"
+            :class="{ spaced: sessionStore.runningInstances.size > 0 }"
           >
             {{ $t('running.errors') }}
           </div>
@@ -238,11 +238,7 @@ const emit = defineEmits<{
         <template v-if="inProgressIds.length > 0">
           <div
             class="detail-section-title"
-            :style="
-              (sessionStore.runningInstances.size > 0 || sessionStore.errorInstances.size > 0)
-                ? 'margin-top: 18px'
-                : ''
-            "
+            :class="{ spaced: sessionStore.runningInstances.size > 0 || sessionStore.errorInstances.size > 0 }"
           >
             {{ $t('running.inProgress') }}
           </div>

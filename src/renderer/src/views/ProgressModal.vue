@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, X, TriangleAlert } from 'lucide-vue-next'
 import { useModal } from '../composables/useModal'
@@ -239,6 +239,25 @@ function handleOverlayClick(event: MouseEvent): void {
   }
   mouseDownOnOverlay.value = false
 }
+
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.key !== 'Escape') return
+  if (props.installationId === null) return
+  const id = displayId.value
+  if (!id) return
+  const op = progressStore.operations.get(id)
+  if (!op || op.finished) {
+    emit('close')
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
+})
 
 defineExpose({ startOperation, showOperation })
 </script>

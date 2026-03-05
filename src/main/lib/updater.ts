@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import todesktop from '@todesktop/runtime'
 import * as settings from '../settings'
+import { clearQuitReason, setQuitReason } from './quit-state'
 
 interface UpdateInfo {
   version: string
@@ -90,6 +91,7 @@ function bindUpdaterEvents(): void {
   })
 
   updater.on('error', (...args: unknown[]) => {
+    clearQuitReason()
     broadcast('update-error', { message: updaterErrorMessage(args) })
   })
 }
@@ -141,8 +143,10 @@ export function register(): void {
       return
     }
     try {
+      setQuitReason('update-install')
       updater.restartAndInstall()
     } catch (err) {
+      clearQuitReason()
       broadcast('update-error', { message: err instanceof Error ? err.message : String(err) })
     }
   })

@@ -90,14 +90,14 @@ async function uniqueName(baseName: string): Promise<string> {
 
 /** Re-assign primary to the first remaining local install, or clear it. */
 async function autoAssignPrimary(removedId: string): Promise<void> {
-  const currentPrimary = settings.get('primaryInstallId') as string | undefined
+  const currentPrimary = settings.get('primaryInstallId')
   if (currentPrimary !== removedId) return
   const all = (await installations.list()).filter((i) => i.id !== removedId)
   const firstLocal = all.find((i) => {
     const source = sourceMap[i.sourceId]
     return source && source.category === 'local'
   })
-  settings.set('primaryInstallId', firstLocal?.id ?? null)
+  settings.set('primaryInstallId', firstLocal?.id)
 }
 
 /** Set as primary if this is the first local install and no primary is set. */
@@ -446,7 +446,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const validIds = new Set(remaining.map((i) => i.id))
       let settingsChanged = false
 
-      const currentPrimary = settings.get('primaryInstallId') as string | undefined
+      const currentPrimary = settings.get('primaryInstallId')
       if (currentPrimary && !validIds.has(currentPrimary)) {
         await autoAssignPrimary(currentPrimary)
         settingsChanged = true
@@ -564,13 +564,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const list = await installations.list()
 
     // Ensure a primary is always set when local installs exist
-    const currentPrimary = settings.get('primaryInstallId') as string | undefined
+    const currentPrimary = settings.get('primaryInstallId')
     if (!currentPrimary || !list.some((i) => i.id === currentPrimary)) {
       const firstLocal = list.find((i) => {
         const s = sourceMap[i.sourceId]
         return s && s.category === 'local'
       })
-      const newPrimary = firstLocal?.id ?? null
+      const newPrimary = firstLocal?.id
       if (currentPrimary !== newPrimary) {
         settings.set('primaryInstallId', newPrimary)
       }
@@ -676,7 +676,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       fs.mkdirSync(inst.installPath, { recursive: true })
       fs.writeFileSync(path.join(inst.installPath, MARKER_FILE), installationId)
       if (source.installSteps) {
-        sendProgress('steps', { steps: source.installSteps })
+        const steps = [...source.installSteps]
+        if (inst.pendingSnapshotRestore) {
+          steps.push(
+            { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
+            { phase: 'restore-pip', label: i18n.t('standalone.snapshotRestorePipPhase') },
+          )
+        }
+        sendProgress('steps', { steps })
       }
       const abort = new AbortController()
       _operationAborts.set(installationId, abort)
@@ -700,11 +707,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             installations.update(installationId, data).then(() => {})
 
           try {
-            sendProgress('steps', { steps: [
-              { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
-              { phase: 'restore-pip', label: i18n.t('standalone.snapshotRestorePipPhase') },
-            ] })
-
             const fileContent = await fs.promises.readFile(pendingFile, 'utf-8')
             const envelope = validateExportEnvelope(JSON.parse(fileContent))
             await importSnapshots(freshInst.installPath, envelope)
@@ -1073,7 +1075,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     return { ok: true, preview: buildSnapshotPreview(filePath, envelope) }
   })
 
-  ipcMain.handle('create-from-snapshot', async (_event, filePath: string, customName?: string) => {
+  ipcMain.handle('create-from-snapshot', async (_event, filePath: string, customName?: string, releaseTag?: string, variantId?: string) => {
     if (!filePath || !fs.existsSync(filePath)) return { ok: false, message: 'Snapshot file not found.' }
 
     const content = await fs.promises.readFile(filePath, 'utf-8')
@@ -1082,7 +1084,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     let envelope: SnapshotExportEnvelope
     try { envelope = validateExportEnvelope(parsed) } catch (err) { return { ok: false, message: (err as Error).message } }
 
-    // 3. Extract variant from newest snapshot
+    // 3. Extract variant from newest snapshot (used as fallback for matching)
     const targetSnapshot = envelope.snapshots[0]!
     const snapshotVariant = targetSnapshot.comfyui.variant || ''
 
@@ -1093,33 +1095,48 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const strippedVariant = snapshotVariant.replace(/^(win|mac|linux)-/, '')
     const baseGpu = strippedVariant.replace(/-.*$/, '') // e.g. "nvidia" from "nvidia-cu128"
 
-    // 5. Fetch latest release and find matching variant
+    // 5. Fetch releases and find matching release
     const source = sourceMap['standalone']!
     const releaseOptions = await source.getFieldOptions('release', {}, {})
     if (releaseOptions.length === 0) return { ok: false, message: 'No releases available.' }
-    const latestRelease = releaseOptions[0]!
+
+    let selectedRelease: FieldOption
+    if (releaseTag) {
+      const match = releaseOptions.find((r) => r.value === releaseTag)
+      if (!match) return { ok: false, message: `Release "${releaseTag}" is no longer available.` }
+      selectedRelease = match
+    } else {
+      console.warn('No releaseTag specified for create-from-snapshot, falling back to latest release.')
+      selectedRelease = releaseOptions[0]!
+    }
 
     const gpu = await detectGPU()
-    const variantOptions = await source.getFieldOptions('variant', { release: latestRelease }, { gpu: gpu?.id })
+    const variantOptions = await source.getFieldOptions('variant', { release: selectedRelease }, { gpu: gpu?.id })
     if (variantOptions.length === 0) return { ok: false, message: 'No compatible variants found for this platform.' }
 
-    // Match: exact re-prefixed variant, then base GPU type, then recommended, then first
-    const localVariant = prefix + strippedVariant
-    let matched = variantOptions.find((v) => (v.data?.variantId as string) === localVariant)
-    if (!matched) {
-      matched = variantOptions.find((v) => {
-        const vid = ((v.data?.variantId as string) || '').replace(/^(win|mac|linux)-/, '')
-        return vid === baseGpu || vid.startsWith(baseGpu + '-')
-      })
+    let matched: FieldOption | undefined
+    if (variantId) {
+      matched = variantOptions.find((v) => (v.data?.variantId as string) === variantId)
+      if (!matched) return { ok: false, message: `Variant "${variantId}" is not available for the selected release.` }
+    } else {
+      // Match: exact re-prefixed variant, then base GPU type, then recommended, then first
+      const localVariant = prefix + strippedVariant
+      matched = variantOptions.find((v) => (v.data?.variantId as string) === localVariant)
+      if (!matched) {
+        matched = variantOptions.find((v) => {
+          const vid = ((v.data?.variantId as string) || '').replace(/^(win|mac|linux)-/, '')
+          return vid === baseGpu || vid.startsWith(baseGpu + '-')
+        })
+      }
+      if (!matched) matched = variantOptions.find((v) => v.recommended)
+      if (!matched) matched = variantOptions[0]!
     }
-    if (!matched) matched = variantOptions.find((v) => v.recommended)
-    if (!matched) matched = variantOptions[0]!
 
     // 6. Build installation
     const instData = {
       sourceId: source.id,
       sourceLabel: source.label,
-      ...source.buildInstallation({ release: latestRelease, variant: matched }),
+      ...source.buildInstallation({ release: selectedRelease, variant: matched }),
     }
     const baseName = customName || envelope.installationName || 'ComfyUI'
     const name = await uniqueName(baseName)
@@ -1174,11 +1191,17 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               { value: 'github', label: i18n.t('settings.themeGithub') },
             ] },
           { id: 'autoUpdate', label: i18n.t('settings.autoUpdate'), type: 'boolean', value: s.autoUpdate !== false },
-          { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || 'quit',
+          { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || settings.defaults.onLauncherClose,
             options: [
               { value: 'quit', label: i18n.t('settings.closeQuit') },
               { value: 'tray', label: i18n.t('settings.closeTray') },
             ] },
+        ],
+      },
+      {
+        title: i18n.t('settings.telemetry'),
+        fields: [
+          { id: 'telemetryEnabled', label: i18n.t('settings.telemetryEnabled'), type: 'boolean', value: s.telemetryEnabled !== false },
         ],
       },
       {
@@ -1268,6 +1291,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           syncSharedModelPaths(desktopInfo.configDir, value as string[])
         } catch {}
       }
+    }
+    if (key === 'telemetryEnabled') {
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) win.webContents.send('telemetry-setting-changed', value)
+      })
     }
   })
 
@@ -1389,14 +1417,18 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         }, { signal: abort.signal })
       } catch (err) {
         _operationAborts.delete(installationId)
-        if (abort.signal.aborted) {
-          try {
-            fs.mkdirSync(inst.installPath, { recursive: true })
-            fs.writeFileSync(markerPath, markerContent)
-          } catch {}
-          await installations.update(installationId, { status: 'partial-delete' })
+        // Always restore marker so future delete attempts don't hit the safety check
+        try {
+          fs.mkdirSync(inst.installPath, { recursive: true })
+          fs.writeFileSync(markerPath, markerContent)
+        } catch {}
+        await installations.update(installationId, { status: 'partial-delete' })
+        const raw = (err as NodeJS.ErrnoException)
+        let message = raw.message
+        if (raw.code === 'EBUSY' || raw.code === 'EPERM') {
+          message = i18n.t('errors.deleteLocked', { path: raw.path ?? '' })
         }
-        return { ok: false, message: (err as Error).message }
+        return { ok: false, message }
       }
       _operationAborts.delete(installationId)
       await installations.remove(installationId)

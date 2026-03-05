@@ -73,8 +73,8 @@ const api: ElectronApi = {
     ipcRenderer.invoke('preview-desktop-migration'),
   previewSnapshotPath: (filePath: string) =>
     ipcRenderer.invoke('preview-snapshot-path', filePath),
-  createFromSnapshot: (filePath: string, name?: string) =>
-    ipcRenderer.invoke('create-from-snapshot', filePath, name),
+  createFromSnapshot: (filePath: string, name?: string, releaseTag?: string, variantId?: string) =>
+    ipcRenderer.invoke('create-from-snapshot', filePath, name, releaseTag, variantId),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
 
   // Settings
@@ -190,6 +190,16 @@ const api: ElectronApi = {
     const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
     ipcRenderer.on('model-download-progress', handler)
     return () => ipcRenderer.removeListener('model-download-progress', handler)
+  },
+  onTelemetrySettingChanged: (callback) => {
+    const handler = (_event: IpcRendererEvent, enabled: unknown) => callback(enabled as Parameters<typeof callback>[0])
+    ipcRenderer.on('telemetry-setting-changed', handler)
+    return () => ipcRenderer.removeListener('telemetry-setting-changed', handler)
+  },
+  onDatadogError: (callback) => {
+    const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
+    ipcRenderer.on('dd-error', handler)
+    return () => ipcRenderer.removeListener('dd-error', handler)
   },
 }
 

@@ -71,7 +71,7 @@ function formatNodeVersion(node: { version?: string; commit?: string }): string 
 }
 
 .diff-section-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -88,7 +88,7 @@ function formatNodeVersion(node: { version?: string; commit?: string }): string 
   text-overflow: ellipsis;
   user-select: text;
 }
-.diff-added { color: var(--success, #00cd72); }
+.diff-added { color: var(--success); }
 .diff-removed { color: var(--danger); }
-.diff-changed { color: var(--warning, #fd9903); }
+.diff-changed { color: var(--warning); }
 </style>
