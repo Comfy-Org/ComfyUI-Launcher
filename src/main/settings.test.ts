@@ -24,7 +24,9 @@ let settings: {
   defaults: { onLauncherClose: 'tray' | 'quit' }
 }
 
-const settingsPath = path.join(xdgConfigHome, 'comfyui-launcher', 'settings.json')
+const settingsPath = process.platform === 'linux'
+  ? path.join(xdgConfigHome, 'comfyui-launcher', 'settings.json')
+  : path.join(userDataPath, 'settings.json')
 
 function readPersistedSettings(): Record<string, unknown> {
   const raw = fs.readFileSync(settingsPath, 'utf-8')

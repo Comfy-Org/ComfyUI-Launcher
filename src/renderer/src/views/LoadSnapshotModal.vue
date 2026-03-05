@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, toRaw, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
-import type { SnapshotFilePreview } from '../types/ipc'
+import type { SnapshotFilePreview, FieldOption, GPUInfo } from '../types/ipc'
+import { stripVariantPrefix, getVariantImage, getVariantGpuLabel, sortedCardOptions } from '../lib/variants'
 
 const emit = defineEmits<{
   close: []
@@ -27,6 +28,30 @@ const loading = ref(false)
 const creating = ref(false)
 const dragging = ref(false)
 
+// Release & variant selection
+const releaseOptions = ref<FieldOption[]>([])
+const selectedRelease = ref<FieldOption | null>(null)
+const releaseLoading = ref(false)
+const variantOptions = ref<FieldOption[]>([])
+const selectedVariant = ref<FieldOption | null>(null)
+const variantLoading = ref(false)
+const detectedGpu = ref<GPUInfo | null>(null)
+let optionsGeneration = 0
+
+const sortedVariants = computed(() => sortedCardOptions(variantOptions.value))
+
+const snapshotGpuLabel = computed(() => {
+  if (!preview.value) return null
+  return getVariantGpuLabel(preview.value.newestSnapshot.comfyui.variant || '')
+})
+
+const detectedGpuLabel = computed(() => detectedGpu.value?.label || null)
+
+const hardwareMismatch = computed(() => {
+  if (!snapshotGpuLabel.value || !detectedGpuLabel.value) return false
+  return snapshotGpuLabel.value !== detectedGpuLabel.value
+})
+
 const INVALID_NAME_CHARS = /[<>:"/\\|?*]/
 const nameHasInvalidChars = computed(() => INVALID_NAME_CHARS.test(installName.value))
 const mouseDownOnOverlay = ref(false)
@@ -39,7 +64,72 @@ function open(): void {
   loading.value = false
   creating.value = false
   dragging.value = false
+  releaseOptions.value = []
+  selectedRelease.value = null
+  variantOptions.value = []
+  selectedVariant.value = null
+  releaseLoading.value = false
+  variantLoading.value = false
+  optionsGeneration++
 }
+
+async function loadReleaseOptions(): Promise<void> {
+  const gen = ++optionsGeneration
+  releaseLoading.value = true
+  releaseOptions.value = []
+  selectedRelease.value = null
+  variantOptions.value = []
+  selectedVariant.value = null
+  try {
+    const gpu = await window.api.detectGPU()
+    if (gen !== optionsGeneration) return
+    detectedGpu.value = gpu
+
+    const options = await window.api.getFieldOptions('standalone', 'release', {})
+    if (gen !== optionsGeneration) return
+    releaseOptions.value = options
+
+    // Preselect the release matching the snapshot's releaseTag, or fall back to latest
+    const snapshotTag = preview.value?.newestSnapshot.comfyui.releaseTag
+    const match = snapshotTag ? options.find((o) => o.value === snapshotTag) : null
+    selectedRelease.value = match || options[0] || null
+  } finally {
+    if (gen === optionsGeneration) releaseLoading.value = false
+  }
+}
+
+async function loadVariantOptions(): Promise<void> {
+  if (!selectedRelease.value) {
+    variantOptions.value = []
+    selectedVariant.value = null
+    return
+  }
+  const gen = ++optionsGeneration
+  variantLoading.value = true
+  variantOptions.value = []
+  selectedVariant.value = null
+  try {
+    const rawRelease = JSON.parse(JSON.stringify(toRaw(selectedRelease.value))) as FieldOption
+    const options = await window.api.getFieldOptions('standalone', 'variant', { release: rawRelease })
+    if (gen !== optionsGeneration) return
+    variantOptions.value = options
+
+    // Default to the variant matching the snapshot's device, then recommended (detected GPU), then first
+    const snapshotVariantId = preview.value?.newestSnapshot.comfyui.variant || ''
+    const snapshotStripped = stripVariantPrefix(snapshotVariantId)
+    const snapshotMatch = snapshotStripped
+      ? options.find((o) => stripVariantPrefix((o.data?.variantId as string) || '') === snapshotStripped)
+      : null
+    const recommended = options.find((o) => o.recommended)
+    selectedVariant.value = snapshotMatch || recommended || options[0] || null
+  } finally {
+    if (gen === optionsGeneration) variantLoading.value = false
+  }
+}
+
+watch(selectedRelease, () => {
+  loadVariantOptions()
+})
 
 async function loadFromPath(filePath: string): Promise<void> {
   loading.value = true
@@ -55,6 +145,7 @@ async function loadFromPath(filePath: string): Promise<void> {
       preview.value = result.preview
       installName.value = result.preview.installationName || ''
       nodesExpanded.value = true
+      await loadReleaseOptions()
     }
   } finally {
     loading.value = false
@@ -73,6 +164,7 @@ async function handleBrowse(): Promise<void> {
     preview.value = result.preview
     installName.value = result.preview.installationName || ''
     nodesExpanded.value = true
+    await loadReleaseOptions()
   }
 }
 
@@ -101,15 +193,22 @@ async function handleDrop(event: DragEvent): Promise<void> {
 
 function handleClearPreview(): void {
   preview.value = null
+  releaseOptions.value = []
+  selectedRelease.value = null
+  variantOptions.value = []
+  selectedVariant.value = null
+  optionsGeneration++
 }
 
 async function handleCreate(): Promise<void> {
   if (!preview.value || creating.value) return
   creating.value = true
   const filePath = preview.value.filePath
+  const releaseTag = selectedRelease.value?.value
+  const variantId = (selectedVariant.value?.data?.variantId as string) || selectedVariant.value?.value || undefined
 
   try {
-    const result = await window.api.createFromSnapshot(filePath, installName.value || undefined)
+    const result = await window.api.createFromSnapshot(filePath, installName.value || undefined, releaseTag, variantId)
     if (!result.ok) {
       if (result.message) {
         await modal.alert({ title: t('list.loadSnapshot'), message: result.message })
@@ -235,6 +334,77 @@ defineExpose({ open })
               </div>
             </div>
 
+            <!-- Release selection -->
+            <div class="ls-section">
+              <div class="ls-field">
+                <span class="ls-label">{{ $t('list.snapshotRelease') }}</span>
+                <select
+                  v-if="!releaseLoading && releaseOptions.length > 0"
+                  class="ls-select"
+                  :value="releaseOptions.indexOf(selectedRelease!)"
+                  @change="selectedRelease = releaseOptions[Number(($event.target as HTMLSelectElement).value)] ?? null"
+                >
+                  <option
+                    v-for="(opt, i) in releaseOptions"
+                    :key="opt.value"
+                    :value="i"
+                  >
+                    {{ opt.label }}{{ opt.recommended ? ` (${$t('newInstall.latest')})` : '' }}
+                  </option>
+                </select>
+                <span v-else-if="releaseLoading" class="ls-value">{{ $t('newInstall.loading') }}</span>
+                <span v-else class="ls-value">{{ $t('newInstall.noOptions') }}</span>
+                <span v-if="preview.newestSnapshot.comfyui.releaseTag" class="ls-release-hint">
+                  {{ $t('list.snapshotOriginalRelease', { tag: preview.newestSnapshot.comfyui.releaseTag }) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Device / variant selection -->
+            <div class="ls-section">
+              <div class="ls-field">
+                <span class="ls-label">{{ $t('list.snapshotDevice') }}</span>
+                <div v-if="variantLoading" class="ls-value">{{ $t('newInstall.loading') }}</div>
+                <div
+                  v-else-if="variantOptions.length > 0"
+                  class="variant-cards"
+                >
+                  <div
+                    v-for="opt in sortedVariants"
+                    :key="opt.value"
+                    :class="['variant-card', {
+                      selected: selectedVariant?.value === opt.value,
+                      recommended: opt.recommended,
+                    }]"
+                    @click="selectedVariant = opt"
+                  >
+                    <div class="variant-card-icon">
+                      <img
+                        v-if="getVariantImage(opt)"
+                        :src="getVariantImage(opt)!"
+                        :alt="opt.label"
+                        draggable="false"
+                      />
+                      <span v-else class="variant-card-icon-text">{{ opt.label }}</span>
+                    </div>
+                    <div class="variant-card-label">{{ opt.label }}</div>
+                    <div v-if="opt.recommended" class="variant-card-badge">
+                      {{ $t('newInstall.recommended') }}
+                    </div>
+                    <div v-if="opt.description" class="variant-card-desc">
+                      {{ opt.description }}
+                    </div>
+                  </div>
+                </div>
+                <span v-else class="ls-value">{{ $t('newInstall.noOptions') }}</span>
+              </div>
+
+              <!-- Hardware mismatch warning -->
+              <div v-if="hardwareMismatch" class="ls-hw-warning">
+                {{ $t('list.snapshotHardwareMismatch', { snapshotDevice: snapshotGpuLabel, detectedDevice: detectedGpuLabel }) }}
+              </div>
+            </div>
+
             <!-- Source info -->
             <div class="ls-section">
               <div class="ls-field">
@@ -331,7 +501,7 @@ defineExpose({ open })
           <button v-if="preview" @click="handleClearPreview">{{ $t('common.back') }}</button>
           <button
             class="primary"
-            :disabled="!preview || creating"
+            :disabled="!preview || creating || !selectedVariant"
             @click="handleCreate"
           >
             {{ creating ? $t('newInstall.loading') : $t('list.snapshotCreateInstall') }}
@@ -455,6 +625,12 @@ defineExpose({ open })
 .ls-name-hint {
   font-size: 11px;
   color: var(--warning);
+  margin-top: 2px;
+}
+
+.ls-release-hint {
+  font-size: 12px;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -592,6 +768,33 @@ defineExpose({ open })
 .ls-empty {
   font-size: 14px;
   color: var(--text-muted);
+}
+
+/* Release select */
+.ls-select {
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  box-sizing: border-box;
+  width: 100%;
+}
+.ls-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Hardware mismatch warning */
+.ls-hw-warning {
+  font-size: 13px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 8px;
 }
 
 /* Pip packages */
