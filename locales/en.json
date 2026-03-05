@@ -411,7 +411,7 @@
     "migrateConfirmTitle": "Migrate Desktop to Standalone",
     "migrateConfirmMessage": "This will create a new Standalone installation with your Desktop custom nodes, workflows, and settings. Your Desktop installation will not be modified.",
     "migrateConfirm": "Start Migration",
-    "migrating": "Migrating Desktop to Standalone…",
+    "migrating": "Migrating Desktop to Standalone",
     "scanningDesktop": "Scanning Desktop installation…",
     "creatingSnapshot": "Creating Desktop snapshot…",
     "copyingUserData": "Copying workflows and settings…",

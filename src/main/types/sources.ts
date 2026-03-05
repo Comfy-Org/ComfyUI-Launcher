@@ -34,6 +34,11 @@ export interface LaunchCommand {
   url?: string
   host?: string
   env?: NodeJS.ProcessEnv
+  /** When true, show the spawned process window (disables windowsHide). */
+  showWindow?: boolean
+  /** When true, skip port conflict detection and port readiness waiting.
+   *  The session is registered immediately after spawning. */
+  skipPortWait?: boolean
 }
 
 // --- Install / action tools ---

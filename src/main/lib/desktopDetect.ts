@@ -204,5 +204,6 @@ export async function captureDesktopSnapshot(info: DesktopInstallInfo): Promise<
     },
     customNodes,
     pipPackages,
+    skipPipSync: true,
   }
 }

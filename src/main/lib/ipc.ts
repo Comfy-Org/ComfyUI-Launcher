@@ -715,7 +715,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             sendOutput('\n── Restore Nodes ──\n')
             await restoreCustomNodes(freshInst.installPath, freshInst, targetSnapshot, sendProgress, sendOutput, abort.signal)
 
-            if (!abort.signal.aborted) {
+            if (!abort.signal.aborted && !targetSnapshot.skipPipSync) {
               sendOutput('\n── Restore Packages ──\n')
               await restorePipPackages(freshInst.installPath, freshInst, targetSnapshot,
                 (phase, data) => sendProgress(phase === 'restore' ? 'restore-pip' : phase, data),
@@ -1579,7 +1579,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           { phase: 'extract', label: i18n.t('common.extract') },
           { phase: 'setup', label: i18n.t('standalone.setupEnv') },
           { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
-          { phase: 'restore-pip', label: i18n.t('standalone.snapshotRestorePipPhase') },
           { phase: 'migrate', label: i18n.t('desktop.copyingUserData') },
         ] })
 
@@ -1668,7 +1667,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             sendOutput('\n── Restore Nodes ──\n')
             await restoreCustomNodes(freshInst.installPath, freshInst, targetSnapshot, sendProgress, sendOutput, abort.signal)
 
-            if (!abort.signal.aborted) {
+            if (!abort.signal.aborted && !targetSnapshot.skipPipSync) {
               sendOutput('\n── Restore Packages ──\n')
               await restorePipPackages(freshInst.installPath, freshInst, targetSnapshot,
                 (phase, data) => sendProgress(phase === 'restore' ? 'restore-pip' : phase, data),
@@ -1961,6 +1960,44 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         return { ok: false, message: `Executable not found: ${launchCmd.cmd}` }
       }
 
+      // Skip port logic entirely — spawn and immediately register session
+      if (launchCmd.skipPortWait) {
+        _broadcastToRenderer('instance-launching', { installationId, installationName: inst.name })
+        const sendOutput = (text: string): void => {
+          if (!sender.isDestroyed()) sender.send('comfy-output', { installationId, text })
+        }
+        const launchEnv = { ...process.env }
+        const proc = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv, { showWindow: launchCmd.showWindow })
+        let stderrBuf = ''
+        proc.stdout?.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
+        proc.stderr?.on('data', (chunk: Buffer) => {
+          const text = chunk.toString('utf-8')
+          stderrBuf += text
+          if (stderrBuf.length > 8192) stderrBuf = stderrBuf.slice(-4096)
+          sendOutput(text)
+        })
+
+        _operationAborts.delete(installationId)
+        const mode = (inst.launchMode as string | undefined) || 'window'
+        _addSession(installationId, { proc, port: 0, mode, installationName: inst.name })
+
+        proc.on('exit', (code) => {
+          // A clean exit (code 0) is normal for externally-managed processes
+          // (e.g. the user closed the Desktop app directly).
+          const crashed = _runningSessions.has(installationId) && code !== 0
+          _removeSession(installationId)
+          if (!sender.isDestroyed()) {
+            sender.send('comfy-exited', { installationId, crashed, exitCode: code, installationName: inst.name })
+          }
+          if (_onComfyExited) _onComfyExited({ installationId })
+        })
+
+        if (_onLaunch) {
+          _onLaunch({ port: 0, process: proc, installation: inst, mode })
+        }
+        return { ok: true, mode }
+      }
+
       if (actionData && actionData.portOverride) {
         setPortArg(launchCmd as LaunchCmd, actionData.portOverride as number)
       }
@@ -2051,7 +2088,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
 
       function spawnComfy(): { proc: ChildProcess; getStderr: () => string } {
-        const p = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv)
+        const p = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv, { showWindow: launchCmd.showWindow })
         let stderrBuf = ''
         p.stdout!.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
         p.stderr!.on('data', (chunk: Buffer) => {
@@ -2262,6 +2299,10 @@ export async function stopRunning(installationId?: string): Promise<void> {
 
 export function hasRunningSessions(): boolean {
   return _runningSessions.size > 0
+}
+
+export function getSessionProcess(installationId: string): ChildProcess | null {
+  return _runningSessions.get(installationId)?.proc ?? null
 }
 
 export function hasActiveOperations(): boolean {

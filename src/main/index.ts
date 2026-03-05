@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { execFile } from 'child_process'
 import type { ChildProcess } from 'child_process'
 import todesktop from '@todesktop/runtime'
 import * as ipc from './lib/ipc'
@@ -139,6 +140,22 @@ function attachContextMenu(comfyWindow: BrowserWindow): void {
 let launcherWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 const comfyWindows = new Map<string, BrowserWindow>()
+
+function focusExternalProcessWindow(pid: number): void {
+  if (process.platform === 'win32') {
+    // AppActivate accepts a numeric PID to bring the process window to the foreground.
+    // wscript is near-instant compared to PowerShell.
+    const vbsPath = path.join(app.getPath('temp'), `comfy-focus-${pid}.vbs`)
+    fs.writeFileSync(vbsPath, `CreateObject("WScript.Shell").AppActivate ${pid}`)
+    execFile('wscript.exe', ['//Nologo', '//B', vbsPath], { windowsHide: true }, () => {
+      fs.unlink(vbsPath, () => {})
+    })
+  } else if (process.platform === 'darwin') {
+    execFile('osascript', ['-e',
+      `tell application "System Events" to set frontmost of (first process whose unix id is ${pid}) to true`,
+    ], () => {})
+  }
+}
 let processErrorHandlersRegistered = false
 
 function serializeUnknownError(error: unknown): { message: string; stack?: string } {
@@ -410,12 +427,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   const comfyUrl = url || `http://127.0.0.1:${port}`
   const installationId = installation.id
 
-  if (mode === 'console') {
-    if (proc) {
-      proc.on('exit', () => {
-        comfyWindows.delete(installationId)
-      })
-    }
+  if (mode === 'console' || mode === 'external') {
     return
   }
 
@@ -552,6 +564,14 @@ ipcMain.handle('focus-comfy-window', (_event, installationId: string) => {
     win.focus()
     return true
   }
+
+  // For external processes (e.g. Desktop), bring the child process window to front
+  const proc = ipc.getSessionProcess(installationId)
+  if (proc?.pid) {
+    focusExternalProcessWindow(proc.pid)
+    return true
+  }
+
   return false
 })
 

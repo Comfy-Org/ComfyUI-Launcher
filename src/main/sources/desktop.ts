@@ -18,7 +18,7 @@ export const desktop: SourcePlugin = {
   get label() { return t('desktop.label') },
   get description() { return t('desktop.desc') },
   category: 'local',
-  hasConsole: false,
+  hasConsole: true,
   skipInstall: true,
   platforms: ['win32', 'darwin'],
   hidden: true,
@@ -45,17 +45,18 @@ export const desktop: SourcePlugin = {
       cmd: execPath,
       args: [],
       cwd: path.dirname(execPath),
+      showWindow: true,
+      skipPortWait: true,
     }
   },
 
   getListActions(installation: InstallationRecord): Record<string, unknown>[] {
-    const execPath = (installation.desktopExePath as string | undefined) || findDesktopExecutable()
     return [
       {
-        id: 'open-desktop',
-        label: t('desktop.openApp'),
+        id: 'launch',
+        label: t('actions.launch'),
         style: 'primary',
-        enabled: installation.status === 'installed' && !!execPath,
+        enabled: installation.status === 'installed',
       },
     ]
   },
@@ -80,12 +81,6 @@ export const desktop: SourcePlugin = {
         pinBottom: true,
         actions: [
           {
-            id: 'open-desktop',
-            label: t('desktop.openApp'),
-            style: 'primary',
-            enabled: !!execPath,
-          },
-          {
             id: 'migrate-to-standalone',
             label: t('desktop.migrateToStandalone'),
             style: 'default',
@@ -101,7 +96,7 @@ export const desktop: SourcePlugin = {
           },
           {
             id: 'open-folder',
-            label: t('actions.openFolder'),
+            label: t('actions.openDirectory'),
             style: 'default',
             enabled: !!installation.installPath,
           },
@@ -134,14 +129,6 @@ export const desktop: SourcePlugin = {
     _actionData: Record<string, unknown> | undefined,
     _tools: ActionTools
   ): Promise<ActionResult> {
-    if (actionId === 'open-desktop') {
-      const execPath = (installation.desktopExePath as string | undefined) || findDesktopExecutable()
-      if (!execPath) return { ok: false, message: t('desktop.notFound') }
-      const err = await shell.openPath(execPath)
-      if (err) return { ok: false, message: err }
-      return { ok: true }
-    }
-
     if (actionId === 'open-folder') {
       if (installation.installPath) {
         await shell.openPath(installation.installPath)
@@ -157,4 +144,3 @@ export const desktop: SourcePlugin = {
     return []
   },
 }
-
