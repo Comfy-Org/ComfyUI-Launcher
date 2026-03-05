@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import type { Source, FieldOption, DiskSpaceInfo, PathIssue } from '../types/ipc'
+import { emitTelemetryAction, toVariantBucket } from '../lib/telemetry'
 
 const emit = defineEmits<{
   close: []
@@ -48,6 +49,32 @@ const variantOrder: string[] = ['amd', 'nvidia', 'intel-xpu', 'cpu', 'mps']
 
 function stripVariantPrefix(variantId: string): string {
   return variantId.replace(/^(win|mac|linux)-/, '')
+}
+
+function toPathGuardrail(issue: PathIssue): string {
+  switch (issue) {
+    case 'insideAppBundle': return 'path_inside_bundle'
+    case 'oneDrive': return 'onedrive'
+    case 'insideSharedDir': return 'inside_shared_dir'
+    case 'insideExistingInstall': return 'inside_existing_install'
+    default: return 'path_issue'
+  }
+}
+
+function trackGuardrailBlocked(guardrailType: string, stage: string): void {
+  emitTelemetryAction('launcher.install.guardrail.blocked', {
+    guardrail_type: guardrailType,
+    flow: 'quick',
+    stage,
+  })
+}
+
+function trackDiskWarningResponse(warningType: string, accepted: boolean): void {
+  emitTelemetryAction('launcher.install.disk_warning.response', {
+    warning_type: warningType,
+    accepted,
+    flow: 'quick',
+  })
 }
 
 function getVariantImage(option: FieldOption): string | null {
@@ -174,6 +201,7 @@ async function open(): Promise<void> {
     ])
 
     if (!hw.supported) {
+      trackGuardrailBlocked('unsupported_hw', 'open')
       await modal.alert({
         title: t('newInstall.unsupportedHardwareTitle'),
         message: hw.error || '',
@@ -198,6 +226,11 @@ async function open(): Promise<void> {
       return
     }
     source.value = standalone
+    emitTelemetryAction('launcher.install.method.selected', {
+      source_id: standalone.id,
+      source_category: standalone.category || standalone.id,
+      flow: 'quick',
+    })
 
     // Load releases and auto-select latest
     const releases = await window.api.getFieldOptions('standalone', 'release', {})
@@ -229,6 +262,11 @@ async function open(): Promise<void> {
 
 function selectVariant(option: FieldOption): void {
   selectedVariant.value = option
+  emitTelemetryAction('launcher.install.variant.selected', {
+    variant_bucket: toVariantBucket((option.data?.variantId as string | undefined) || option.value),
+    recommended: !!option.recommended,
+    flow: 'quick',
+  })
 }
 
 async function handleInstall(): Promise<void> {
@@ -250,7 +288,11 @@ async function handleInstall(): Promise<void> {
           confirmLabel: t('newInstall.nvidiaDriverContinue'),
           confirmStyle: 'primary',
         })
-        if (!ok) { installing.value = false; return }
+        if (!ok) {
+          trackGuardrailBlocked('nvidia_driver', 'install')
+          installing.value = false
+          return
+        }
       }
     }
 
@@ -260,6 +302,7 @@ async function handleInstall(): Promise<void> {
         const issues = await window.api.validateInstallPath(instPath.value)
         for (const issue of issues) {
           if (issue === 'insideAppBundle') {
+            trackGuardrailBlocked(toPathGuardrail(issue), 'install')
             await modal.alert({
               title: t('pathValidation.insideAppBundleTitle'),
               message: t('pathValidation.insideAppBundleMessage'),
@@ -268,6 +311,7 @@ async function handleInstall(): Promise<void> {
             return
           }
           if (issue === 'oneDrive') {
+            trackGuardrailBlocked(toPathGuardrail(issue), 'install')
             await modal.alert({
               title: t('pathValidation.oneDriveTitle'),
               message: t('pathValidation.oneDriveMessage'),
@@ -276,6 +320,7 @@ async function handleInstall(): Promise<void> {
             return
           }
           if (issue === 'insideSharedDir') {
+            trackGuardrailBlocked(toPathGuardrail(issue), 'install')
             await modal.alert({
               title: t('pathValidation.insideSharedDirTitle'),
               message: t('pathValidation.insideSharedDirMessage'),
@@ -284,6 +329,7 @@ async function handleInstall(): Promise<void> {
             return
           }
           if (issue === 'insideExistingInstall') {
+            trackGuardrailBlocked(toPathGuardrail(issue), 'install')
             await modal.alert({
               title: t('pathValidation.insideExistingInstallTitle'),
               message: t('pathValidation.insideExistingInstallMessage'),
@@ -318,6 +364,7 @@ async function handleInstall(): Promise<void> {
             confirmLabel: t('diskSpace.continueAnyway'),
             confirmStyle: 'primary',
           })
+          trackDiskWarningResponse('insufficient_estimated', !!ok)
           if (!ok) { installing.value = false; return }
         } else if (space.free < 1073741824) {
           const ok = await modal.confirm({
@@ -328,6 +375,7 @@ async function handleInstall(): Promise<void> {
             confirmLabel: t('diskSpace.continueAnyway'),
             confirmStyle: 'primary',
           })
+          trackDiskWarningResponse('low_free_space', !!ok)
           if (!ok) { installing.value = false; return }
         }
       } catch {

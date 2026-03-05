@@ -189,6 +189,11 @@ const api: ElectronApi = {
     ipcRenderer.on('model-download-progress', handler)
     return () => ipcRenderer.removeListener('model-download-progress', handler)
   },
+  onTelemetrySettingChanged: (callback) => {
+    const handler = (_event: IpcRendererEvent, enabled: unknown) => callback(enabled as Parameters<typeof callback>[0])
+    ipcRenderer.on('telemetry-setting-changed', handler)
+    return () => ipcRenderer.removeListener('telemetry-setting-changed', handler)
+  },
   onDatadogError: (callback) => {
     const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
     ipcRenderer.on('dd-error', handler)

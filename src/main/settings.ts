@@ -14,6 +14,7 @@ export interface KnownSettings {
   language?: string
   theme?: string
   autoUpdate?: boolean
+  telemetryEnabled?: boolean
   primaryInstallId?: string
   pinnedInstallIds?: string[]
 }
@@ -43,6 +44,7 @@ const SETTINGS_SCHEMA = {
   language: { nullable: false },
   theme: { nullable: false },
   autoUpdate: { nullable: false },
+  telemetryEnabled: { nullable: false },
   primaryInstallId: { nullable: false },
   pinnedInstallIds: { nullable: false },
 } as const satisfies Record<keyof KnownSettings, { nullable: boolean }>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { SettingsField } from '../types/ipc'
+import { emitTelemetryAction } from '../lib/telemetry'
 
 interface Props {
   field: SettingsField
@@ -13,6 +14,11 @@ const localPaths = ref<string[]>(Array.isArray(props.field.value) ? [...props.fi
 
 async function updateSetting(value: string | boolean | number | string[]): Promise<void> {
   await window.api.setSetting(props.field.id, value)
+  emitTelemetryAction('launcher.settings.changed', {
+    setting_key: props.field.id,
+    value_kind: props.field.type || 'text',
+    bool_value: typeof value === 'boolean' ? value : undefined,
+  })
   emit('setting-updated')
 }
 

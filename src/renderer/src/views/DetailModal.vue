@@ -6,6 +6,7 @@ import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import DetailSectionComponent from '../components/DetailSection.vue'
 import SnapshotTab from '../components/SnapshotTab.vue'
 import { useInstallationStore } from '../stores/installationStore'
+import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
@@ -152,6 +153,10 @@ function handleActionClick(action: ActionDef, event: MouseEvent): void {
 
 async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Promise<void> {
   if (!props.installation) return
+  const telemetryContext = {
+    source_category: props.installation.sourceCategory || 'unknown',
+    ui_surface: 'detail',
+  }
   let mutableAction = { ...action }
 
   // fieldSelects chain
@@ -301,6 +306,7 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
         String((mutableAction.data as Record<string, unknown>)?.[k] ?? k)
     )
     const title = `${rawTitle} — ${instName}`
+    emitTelemetryAction('launcher.action.invoked', { action_id: mutableAction.id, ...telemetryContext })
     emit('show-progress', {
       installationId: instId,
       title,
@@ -319,11 +325,14 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     btn.classList.add('loading')
   }
   try {
+    emitTelemetryAction('launcher.action.invoked', { action_id: mutableAction.id, ...telemetryContext })
     const result = await window.api.runAction(
       props.installation.id,
       mutableAction.id,
       mutableAction.data ? toRaw(mutableAction.data) : undefined
     )
+    const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
+    emitTelemetryAction('launcher.action.result', { action_id: mutableAction.id, result: resultValue, ...telemetryContext })
     if (result.navigate === 'list') {
       emit('close')
       emit('navigate-list')
@@ -332,6 +341,14 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     } else if (result.message) {
       await modal.alert({ title: mutableAction.label, message: result.message })
     }
+  } catch (error: unknown) {
+    emitTelemetryAction('launcher.action.result', {
+      action_id: mutableAction.id,
+      result: 'failed',
+      error_bucket: toErrorBucket(error),
+      ...telemetryContext,
+    })
+    throw error
   } finally {
     if (btn) {
       btn.disabled = false
