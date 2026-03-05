@@ -2,7 +2,7 @@ import { ref, watch } from 'vue'
 import { useInstallationStore } from '../stores/installationStore'
 
 // Module-level shared state so all components see the same values
-const primaryInstallId = ref<string | null>(null)
+const primaryInstallId = ref<string | undefined>(undefined)
 const pinnedInstallIds = ref<string[]>([])
 const loaded = ref(false)
 let loadPromise: Promise<void> | null = null
@@ -14,7 +14,7 @@ export function useLauncherPrefs() {
     loadPromise = (async () => {
       const [, pinned] = await Promise.all([
         syncPrimaryFromMain(),
-        window.api.getSetting('pinnedInstallIds') as Promise<string[] | null>,
+        window.api.getSetting('pinnedInstallIds') as Promise<string[] | undefined>,
       ])
       pinnedInstallIds.value = Array.isArray(pinned) ? pinned : []
       loaded.value = true
@@ -23,7 +23,7 @@ export function useLauncherPrefs() {
   }
 
   async function syncPrimaryFromMain(): Promise<void> {
-    primaryInstallId.value = (await window.api.getSetting('primaryInstallId') as string | null) ?? null
+    primaryInstallId.value = await window.api.getSetting('primaryInstallId') as string | undefined
   }
 
   // Re-sync primary from main process whenever installations change

@@ -7,7 +7,7 @@ vi.stubGlobal('window', {
   api: {
     getInstallations: vi.fn().mockResolvedValue([]),
     onInstallationsChanged: vi.fn(),
-    getSetting: vi.fn().mockResolvedValue(null),
+    getSetting: vi.fn().mockResolvedValue(undefined),
     runAction: vi.fn().mockResolvedValue(undefined),
   }
 })
@@ -27,7 +27,7 @@ describe('useLauncherPrefs', () => {
     vi.clearAllMocks()
     prefs = useLauncherPrefs()
     // Reset module-level shared state to isolate tests
-    prefs.primaryInstallId.value = null
+    prefs.primaryInstallId.value = undefined
     prefs.pinnedInstallIds.value = []
   })
 
@@ -36,7 +36,7 @@ describe('useLauncherPrefs', () => {
       vi.mocked(window.api.getSetting).mockImplementation((key: string) => {
         if (key === 'primaryInstallId') return Promise.resolve('inst-1')
         if (key === 'pinnedInstallIds') return Promise.resolve(['inst-2', 'inst-3'])
-        return Promise.resolve(null)
+        return Promise.resolve(undefined)
       })
 
       await prefs.loadPrefs()
