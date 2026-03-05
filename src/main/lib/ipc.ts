@@ -1911,16 +1911,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
             attachExitHandler(proc)
             if (_onComfyRestarted) _onComfyRestarted({ installationId, process: proc })
-            // Sync custom-node model directories after Manager-triggered restart
-            // Wait for the port so custom nodes have initialized and created their dirs
-            if ((inst.useSharedPaths as boolean | undefined) !== false) {
-              waitForPort(launchCmd.port!, '127.0.0.1', { timeoutMs: 120000 })
-                .then(() => {
-                  const restartModelsDirs = settings.get('modelsDirs') as string[] | undefined
-                  syncCustomModelFolders(inst.installPath, restartModelsDirs)
-                })
-                .catch(() => {})
-            }
             // Capture snapshot after Manager-triggered restart
             if (inst.sourceId === 'standalone') {
               installations.get(installationId).then((currentInst) => {

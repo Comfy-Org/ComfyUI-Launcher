@@ -31,15 +31,22 @@ export const MODEL_FOLDER_TYPES = [
 
 const YAML_PATH: string = path.join(dataDir(), "shared_model_paths.yaml")
 
-const MODEL_FOLDER_SET = new Set<string>(MODEL_FOLDER_TYPES)
+// Canonical names + legacy/alias directory names that ComfyUI creates on disk
+// but maps to canonical names (e.g. unet→diffusion_models, clip→text_encoders).
+const KNOWN_MODEL_FOLDERS = new Set<string>([
+  ...MODEL_FOLDER_TYPES,
+  'clip',           // legacy alias for text_encoders
+  'unet',           // legacy alias for diffusion_models
+  't2i_adapter',    // secondary dir for controlnet
+])
 
 /**
- * Scans a directory for subdirectories whose names are not in MODEL_FOLDER_TYPES.
+ * Scans a directory for subdirectories whose names are not in KNOWN_MODEL_FOLDERS.
  */
 function extraFoldersIn(dir: string): string[] {
   try {
     return fs.readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && !MODEL_FOLDER_SET.has(e.name))
+      .filter((e) => e.isDirectory() && !KNOWN_MODEL_FOLDERS.has(e.name))
       .map((e) => e.name)
   } catch {
     return []
