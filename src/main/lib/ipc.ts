@@ -649,7 +649,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       fs.mkdirSync(inst.installPath, { recursive: true })
       fs.writeFileSync(path.join(inst.installPath, MARKER_FILE), installationId)
       if (source.installSteps) {
-        sendProgress('steps', { steps: source.installSteps })
+        const steps = [...source.installSteps]
+        if (inst.pendingSnapshotRestore) {
+          steps.push(
+            { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
+            { phase: 'restore-pip', label: i18n.t('standalone.snapshotRestorePipPhase') },
+          )
+        }
+        sendProgress('steps', { steps })
       }
       const abort = new AbortController()
       _operationAborts.set(installationId, abort)
@@ -673,11 +680,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             installations.update(installationId, data).then(() => {})
 
           try {
-            sendProgress('steps', { steps: [
-              { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
-              { phase: 'restore-pip', label: i18n.t('standalone.snapshotRestorePipPhase') },
-            ] })
-
             const fileContent = await fs.promises.readFile(pendingFile, 'utf-8')
             const envelope = validateExportEnvelope(JSON.parse(fileContent))
             await importSnapshots(freshInst.installPath, envelope)
