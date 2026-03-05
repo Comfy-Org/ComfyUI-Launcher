@@ -151,7 +151,7 @@ function handleOverlayClick(event: MouseEvent): void {
           </button>
           <button
             v-if="!isExited && !errorInfo"
-            class="danger"
+            class="danger-solid"
             @click="api.stopComfyUI(installationId!)"
           >
             {{ $t('console.stop') }}

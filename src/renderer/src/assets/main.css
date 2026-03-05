@@ -251,6 +251,8 @@ button.accent { color: var(--accent); border-color: var(--accent); font-weight: 
 button.accent:hover { background: var(--accent); color: var(--bg); }
 button.danger { color: var(--danger); border-color: var(--danger); }
 button.danger:hover { background: var(--danger); color: var(--bg); }
+button.danger-solid { background: var(--danger); color: var(--bg); border-color: var(--danger); }
+button.danger-solid:hover { background: color-mix(in srgb, var(--danger) 85%, #000); }
 button:disabled, button.looks-disabled { opacity: 0.4; cursor: default; }
 button.loading { opacity: 0.7; pointer-events: none; }
 button.loading::after {

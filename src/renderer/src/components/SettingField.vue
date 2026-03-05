@@ -118,7 +118,7 @@ v-else-if="field.type === 'number'" type="number" class="detail-field-input"
         <input type="text" class="detail-field-input" :value="p" readonly />
         <button @click="openPath(p)">{{ $t('settings.open') }}</button>
         <button @click="browsePath(index)">{{ $t('common.browse') }}</button>
-        <button class="danger" @click="removePath(index)">{{ $t('models.removeDir') }}</button>
+        <button class="danger-solid" @click="removePath(index)">{{ $t('models.removeDir') }}</button>
       </div>
       <button @click="addPath">{{ $t('models.addDir') }}</button>
     </div>

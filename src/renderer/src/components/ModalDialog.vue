@@ -14,6 +14,10 @@ const localOptions = reactive<(ModalOption & { checked: boolean })[]>([])
 
 const anyChecked = computed(() => localOptions.some((o) => o.checked))
 
+const confirmClass = computed(() =>
+  state.confirmStyle === 'danger' ? 'danger-solid' : state.confirmStyle
+)
+
 function escapeHtml(text: string): string {
   const div = document.createElement('div')
   div.textContent = text
@@ -157,7 +161,7 @@ onUnmounted(() => {
         </div>
         <div class="modal-actions">
           <button @click="close(false)">{{ $t('common.cancel') }}</button>
-          <button :class="state.confirmStyle" @click="close(true)">
+          <button :class="confirmClass" @click="close(true)">
             {{ state.confirmLabel }}
           </button>
         </div>
@@ -176,7 +180,7 @@ onUnmounted(() => {
         <div class="modal-actions">
           <button @click="close(null)">{{ $t('common.cancel') }}</button>
           <button
-            :class="state.confirmStyle"
+            :class="confirmClass"
             :disabled="!anyChecked"
             @click="submitOptions()"
           >

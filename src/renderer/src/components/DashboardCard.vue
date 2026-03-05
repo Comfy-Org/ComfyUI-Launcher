@@ -104,7 +104,7 @@ function stopComfyUI(): void {
       <button v-if="installation.hasConsole" @click="emit('show-console', installation.id)">
         {{ $t('list.console') }}
       </button>
-      <button class="danger dashboard-cta-btn" @click="stopComfyUI()">
+      <button class="danger-solid dashboard-cta-btn" @click="stopComfyUI()">
         <Square :size="16" />
         {{ $t('console.stop') }}
       </button>

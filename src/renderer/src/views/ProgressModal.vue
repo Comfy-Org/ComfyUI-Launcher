@@ -418,7 +418,7 @@ defineExpose({ startOperation, showOperation })
           </button>
           <button
             v-else-if="!currentOp.finished"
-            class="danger"
+            class="danger-solid"
             :disabled="currentOp.cancelRequested"
             @click="handleCancel"
           >

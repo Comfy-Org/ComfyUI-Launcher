@@ -176,7 +176,7 @@ const emit = defineEmits<{
                 >
                   {{ $t('list.console') }}
                 </button>
-                <button class="danger" @click="stopComfyUI(installationId)">
+                <button class="danger-solid" @click="stopComfyUI(installationId)">
                   {{ $t('console.stop') }}
                 </button>
                 <button

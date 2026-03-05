@@ -370,7 +370,7 @@ defineExpose({ refresh })
               <button v-if="inst.hasConsole" @click="emit('show-console', inst.id)">
                 {{ $t('list.console') }}
               </button>
-              <button class="danger" @click="stopComfyUI(inst.id)">
+              <button class="danger-solid" @click="stopComfyUI(inst.id)">
                 {{ $t('console.stop') }}
               </button>
             </template>
