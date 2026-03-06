@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, toRaw } from 'vue'
+import { ref, computed, watch, nextTick, toRaw, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
@@ -414,6 +414,20 @@ function handleOverlayClick(event: MouseEvent): void {
   }
   mouseDownOnOverlay.value = false
 }
+
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && props.installation) {
+    emit('close')
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
+})
 </script>
 
 <template>

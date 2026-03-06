@@ -159,8 +159,9 @@
     "updateAvailable": "有可用更新",
     "upToDate": "已是最新",
     "noInfo": "选择此通道并检查更新以查看版本信息。",
-    "switchChannel": "切换通道",
-    "switching": "正在切换…"
+    "current": "当前",
+    "switchTo": "切换到 {channel}：",
+    "switchChannelPrefix": "这将把更新通道从 {from} 切换到 {to}。\n\n"
   },
 
   "track": {

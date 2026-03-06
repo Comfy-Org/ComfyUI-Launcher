@@ -275,6 +275,7 @@ describe('diffSnapshots', () => {
     const snap = makeSnapshot()
     const diff = diffSnapshots(snap, snap)
     expect(diff.comfyuiChanged).toBe(false)
+    expect(diff.updateChannelChanged).toBe(false)
     expect(diff.nodesAdded).toHaveLength(0)
     expect(diff.nodesRemoved).toHaveLength(0)
     expect(diff.nodesChanged).toHaveLength(0)
@@ -304,6 +305,32 @@ describe('diffSnapshots', () => {
     const diff = diffSnapshots(makeSnapshot({ comfyui }), makeSnapshot({ comfyui }))
     expect(diff.comfyuiChanged).toBe(false)
     expect(diff.comfyui).toBeUndefined()
+  })
+
+  // Update channel diffs
+
+  it('detects update channel change', () => {
+    const a = makeSnapshot({ updateChannel: 'stable' })
+    const b = makeSnapshot({ updateChannel: 'latest' })
+    const diff = diffSnapshots(a, b)
+    expect(diff.updateChannelChanged).toBe(true)
+    expect(diff.updateChannel).toEqual({ from: 'stable', to: 'latest' })
+  })
+
+  it('defaults missing updateChannel to stable', () => {
+    const a = makeSnapshot()
+    const b = makeSnapshot({ updateChannel: 'latest' })
+    const diff = diffSnapshots(a, b)
+    expect(diff.updateChannelChanged).toBe(true)
+    expect(diff.updateChannel).toEqual({ from: 'stable', to: 'latest' })
+  })
+
+  it('does not flag channel change when both are same', () => {
+    const a = makeSnapshot({ updateChannel: 'latest' })
+    const b = makeSnapshot({ updateChannel: 'latest' })
+    const diff = diffSnapshots(a, b)
+    expect(diff.updateChannelChanged).toBe(false)
+    expect(diff.updateChannel).toBeUndefined()
   })
 
   // Node diffs

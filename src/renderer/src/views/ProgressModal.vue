@@ -270,31 +270,10 @@ defineExpose({ startOperation, showOperation })
     @click="handleOverlayClick"
   >
     <div class="view-modal-content">
-      <div class="view-modal-header">
-        <div class="view-modal-title">{{ currentOp.title }}</div>
-        <div class="view-modal-header-actions">
-          <button
-            v-if="currentOp.finished && currentOp.result?.ok"
-            class="primary"
-            @click="handleDone"
-          >
-            {{ $t('common.done') }}
-          </button>
-          <button
-            v-else-if="!currentOp.finished"
-            class="danger"
-            :disabled="currentOp.cancelRequested"
-            @click="handleCancel"
-          >
-            {{
-              currentOp.cancelRequested
-                ? $t('progress.cancelling')
-                : $t('common.cancel')
-            }}
-          </button>
-        </div>
-        <button class="view-modal-close" @click="emit('close')">✕</button>
-      </div>
+    <div class="view-modal-header">
+      <div class="view-modal-title">{{ currentOp.title }}</div>
+      <button class="view-modal-close" @click="emit('close')">{{ currentOp.finished ? '✕' : '−' }}</button>
+    </div>
       <div class="view-modal-body">
         <!-- Status banner -->
         <div
@@ -427,6 +406,29 @@ defineExpose({ startOperation, showOperation })
           class="terminal-output"
           @scroll="handleTerminalScroll"
         >{{ currentOp.terminalOutput }}</div>
+
+        <!-- Bottom actions -->
+        <div class="view-bottom">
+          <button
+            v-if="currentOp.finished && currentOp.result?.ok"
+            class="primary"
+            @click="handleDone"
+          >
+            {{ $t('common.done') }}
+          </button>
+          <button
+            v-else-if="!currentOp.finished"
+            class="danger-solid"
+            :disabled="currentOp.cancelRequested"
+            @click="handleCancel"
+          >
+            {{
+              currentOp.cancelRequested
+                ? $t('progress.cancelling')
+                : $t('common.cancel')
+            }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

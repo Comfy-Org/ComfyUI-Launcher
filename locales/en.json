@@ -206,8 +206,10 @@
     "updateAvailable": "Update available",
     "upToDate": "Up to date",
     "noInfo": "Select this channel and check for updates to see version info.",
-    "switchChannel": "Switch Channel",
-    "switching": "Switching…"
+    "current": "Current",
+    "switchTo": "Switch to {channel}:",
+    "switchChannelOnly": "Switch Channel",
+    "switchChannelPrefix": "This will switch the update channel from {from} to {to}.\n\n"
   },
 
   "track": {

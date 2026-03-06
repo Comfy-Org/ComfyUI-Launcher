@@ -251,6 +251,8 @@ button.accent { color: var(--accent); border-color: var(--accent); font-weight: 
 button.accent:hover { background: var(--accent); color: var(--bg); }
 button.danger { color: var(--danger); border-color: var(--danger); }
 button.danger:hover { background: var(--danger); color: var(--bg); }
+button.danger-solid { background: var(--danger); color: var(--bg); border-color: var(--danger); }
+button.danger-solid:hover { background: color-mix(in srgb, var(--danger) 85%, #000); }
 button:disabled, button.looks-disabled { opacity: 0.4; cursor: default; }
 button.loading { opacity: 0.7; pointer-events: none; }
 button.loading::after {
@@ -369,7 +371,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .view { display: none; }
 .view.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .view-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 8px; }
-.view-bottom { flex-shrink: 0; display: flex; gap: 10px; padding-top: 12px; }
+.view-bottom { flex-shrink: 0; display: flex; justify-content: flex-end; gap: 10px; padding-top: 12px; }
 .view-list-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 8px; }
 
 /* Detail tabs */
@@ -428,6 +430,10 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   font-size: 11px; font-weight: 600; text-transform: uppercase;
   color: var(--accent); letter-spacing: 0.5px;
 }
+.channel-card-current {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  color: var(--success); letter-spacing: 0.5px;
+}
 .channel-card-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 .channel-preview {
   margin-top: 10px; padding: 10px 14px;
@@ -437,8 +443,8 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .channel-preview-row { display: flex; justify-content: space-between; padding: 3px 0; }
 .channel-preview-label { font-size: 13px; color: var(--text-muted); }
 .channel-preview-value { font-size: 13px; color: var(--text); }
-.channel-switch-btn { margin-top: 10px; }
-.channel-actions { display: flex; gap: 8px; margin-top: 10px; }
+.channel-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.channel-switch-hint { font-size: 13px; color: var(--text-muted); margin-right: 4px; }
 .dashboard-empty-hint { font-size: 14px; color: var(--text-muted); padding: 12px 0; }
 .detail-item-list {
   background: var(--surface); border: 1px solid var(--border);
@@ -897,18 +903,19 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 
 /* Wizard footer */
 .wizard-footer {
-  flex-shrink: 0; display: flex; align-items: center;
-  justify-content: space-between; padding-top: 16px; gap: 16px;
+  flex-shrink: 0; display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; padding-top: 16px; gap: 16px;
 }
 .wizard-back {
+  justify-self: start;
   background: none; border: 1px solid var(--border); border-radius: 6px;
   color: var(--text-muted); font-size: 14px; padding: 6px 16px;
   cursor: pointer; transition: color 0.15s, border-color 0.15s;
 }
 .wizard-back:hover { color: var(--text); border-color: var(--border-hover); }
-.wizard-back-placeholder { width: 80px; }
+.wizard-back-placeholder { }
 
-.wizard-dots { display: flex; gap: 6px; align-items: center; }
+.wizard-dots { display: flex; gap: 6px; align-items: center; justify-self: center; }
 .wizard-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--border); transition: all 0.2s;
@@ -917,6 +924,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   width: 24px; border-radius: 4px; background: var(--accent);
 }
 .wizard-dot.completed { background: var(--accent); }
+.wizard-footer > :last-child { justify-self: end; }
 
 /* Context menu */
 .context-menu {

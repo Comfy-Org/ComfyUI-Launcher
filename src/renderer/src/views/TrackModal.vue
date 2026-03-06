@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, toRaw } from 'vue'
+import { ref, computed, toRaw, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import type { ProbeResult } from '../types/ipc'
@@ -120,6 +120,18 @@ function handleOverlayClick(event: MouseEvent): void {
   }
   mouseDownOnOverlay.value = false
 }
+
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.key === 'Escape') emit('close')
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
+})
 
 defineExpose({ open })
 </script>

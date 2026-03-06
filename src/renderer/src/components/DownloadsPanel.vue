@@ -163,7 +163,7 @@ function dismiss(url: string): void {
           </button>
           <button
             v-if="d.status !== 'completed'"
-            class="danger"
+            class="danger-solid"
             @click="cancel(d.url)"
           >
             {{ t('downloads.cancel') }}

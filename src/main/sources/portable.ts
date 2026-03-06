@@ -136,14 +136,46 @@ export const portable: SourcePlugin = {
 
     // Updates section
     const channel = (installation.updateChannel as string | undefined) || 'stable'
-    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, channel, installation)
 
-    // Build per-channel preview info for cards
-    const channelOptions = [
+    // Build per-channel preview info and actions for cards
+    const channelDefs = [
       { value: 'stable', label: t('portable.channelStable'), description: t('portable.channelStableDesc'), recommended: true },
       { value: 'latest', label: t('portable.channelLatest'), description: t('portable.channelLatestDesc') },
-    ].map((opt) => {
+    ]
+    const channelLabelMap: Record<string, string> = {}
+    for (const def of channelDefs) channelLabelMap[def.value] = def.label
+
+    const channelOptions = channelDefs.map((opt) => {
       const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
+      const actions: Record<string, unknown>[] = []
+      if (channelInfo && releaseCache.isUpdateAvailable(installation, opt.value, channelInfo)) {
+        const isSwitching = opt.value !== channel
+        const msgKey = opt.value === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'
+        const notes = truncateNotes(channelInfo.releaseNotes || '', 2000)
+        const switchPrefix = isSwitching
+          ? t('channelCards.switchChannelPrefix', { from: channelLabelMap[channel] || channel, to: opt.label })
+          : ''
+        const confirmMessage = t(msgKey, {
+          installed: channelInfo.installedTag || installation.version || '',
+          latest: channelInfo.latestTag || '',
+          commit: notes || '',
+          notes: notes || '(none)',
+        })
+        actions.push({
+          id: 'update-comfyui', label: t('portable.updateNow'), style: 'primary', enabled: installed,
+          showProgress: true, progressTitle: t('portable.updatingTitle', { version: channelInfo.latestTag || '' }),
+          data: isSwitching ? { channel: opt.value } : undefined,
+          confirm: {
+            title: t('portable.updateConfirmTitle'),
+            message: switchPrefix + confirmMessage,
+          },
+        })
+      } else if (opt.value !== channel) {
+        actions.push({
+          id: 'switch-channel', label: t('channelCards.switchChannelOnly'), style: 'default', enabled: installed,
+          data: { channel: opt.value },
+        })
+      }
       return {
         ...opt,
         data: channelInfo ? {
@@ -151,32 +183,14 @@ export const portable: SourcePlugin = {
           latestVersion: channelInfo.releaseName || channelInfo.latestTag || '—',
           lastChecked: channelInfo.checkedAt ? new Date(channelInfo.checkedAt).toLocaleString() : '—',
           updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, channelInfo),
+          actions: actions.length ? actions : undefined,
         } : undefined,
       }
     })
 
-    const channelActions: Record<string, unknown>[] = []
-    if (info && releaseCache.isUpdateAvailable(installation, channel, info)) {
-      const msgKey = channel === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'
-      const notes = truncateNotes(info.releaseNotes || '', 2000)
-      channelActions.push({
-        id: 'update-comfyui', label: t('portable.updateNow'), style: 'primary', enabled: installed,
-        showProgress: true, progressTitle: t('portable.updatingTitle', { version: info.latestTag || '' }),
-        confirm: {
-          title: t('portable.updateConfirmTitle'),
-          message: t(msgKey, {
-            installed: info.installedTag || installation.version || '',
-            latest: info.latestTag || '',
-            commit: notes || '',
-            notes: notes || '(none)',
-          }),
-        },
-      })
-    }
     const updateFields: Record<string, unknown>[] = [
       { id: 'updateChannel', label: t('portable.updateChannel'), value: channel, editable: true,
-        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions,
-        channelActions: channelActions.length ? channelActions : undefined },
+        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions },
     ]
     const updateActions: Record<string, unknown>[] = [
       { id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed },
@@ -242,9 +256,16 @@ export const portable: SourcePlugin = {
   async handleAction(
     actionId: string,
     installation: InstallationRecord,
-    _actionData: Record<string, unknown> | undefined,
+    actionData: Record<string, unknown> | undefined,
     { update, sendProgress, sendOutput }: ActionTools,
   ): Promise<ActionResult> {
+    if (actionId === 'switch-channel') {
+      const targetChannel = actionData?.channel as string | undefined
+      if (!targetChannel) return { ok: false, message: 'No channel specified.' }
+      await update({ updateChannel: targetChannel })
+      return { ok: true, navigate: 'detail' }
+    }
+
     if (actionId === 'check-update') {
       const channel = (installation.updateChannel as string | undefined) || 'stable'
       return releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
@@ -264,7 +285,11 @@ export const portable: SourcePlugin = {
         return { ok: false, message: t('portable.noUpdateDir') }
       }
 
-      const channel = (installation.updateChannel as string | undefined) || 'stable'
+      const targetChannel = (actionData?.channel as string | undefined) ?? (installation.updateChannel as string | undefined) ?? 'stable'
+      if (targetChannel !== (installation.updateChannel as string | undefined)) {
+        await update({ updateChannel: targetChannel })
+      }
+      const channel = targetChannel
       const stableArgs = channel === 'stable' ? ['--stable'] : []
 
       sendProgress('steps', { steps: [
