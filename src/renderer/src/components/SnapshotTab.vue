@@ -362,7 +362,7 @@ function formatNodeVersion(node: { version?: string; commit?: string }): string 
 }
 
 function diffHasChanges(diff: SnapshotDiffResult): boolean {
-  return diff.comfyuiChanged || diff.nodesAdded.length > 0 || diff.nodesRemoved.length > 0 ||
+  return diff.comfyuiChanged || diff.updateChannelChanged || diff.nodesAdded.length > 0 || diff.nodesRemoved.length > 0 ||
          diff.nodesChanged.length > 0 || diff.pipsAdded.length > 0 || diff.pipsRemoved.length > 0 ||
          diff.pipsChanged.length > 0
 }

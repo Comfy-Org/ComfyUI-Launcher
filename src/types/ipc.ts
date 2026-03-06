@@ -99,7 +99,6 @@ export interface DetailField {
   editable?: boolean
   editType?: 'select' | 'boolean' | 'text' | 'channel-cards'
   options?: DetailFieldOption[]
-  channelActions?: ActionDef[]
   refreshSection?: boolean
   onChangeAction?: string
 }
@@ -440,6 +439,8 @@ export interface SnapshotDiffResult {
     from: { ref: string; commit: string | null; displayVersion?: string }
     to: { ref: string; commit: string | null; displayVersion?: string }
   }
+  updateChannelChanged: boolean
+  updateChannel?: { from: string; to: string }
   nodesAdded: SnapshotNodeInfo[]
   nodesRemoved: SnapshotNodeInfo[]
   nodesChanged: SnapshotDiffNodeChange[]

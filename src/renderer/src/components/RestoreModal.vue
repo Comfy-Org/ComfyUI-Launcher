@@ -65,6 +65,7 @@ onUnmounted(() => {
           <template v-else>
             <div class="restore-modal-summary">
               <span v-if="diffData.diff.comfyuiChanged" class="restore-badge restore-badge-changed">{{ t('snapshots.comfyuiUpdated') }}</span>
+              <span v-if="diffData.diff.updateChannelChanged && diffData.diff.updateChannel" class="restore-badge restore-badge-changed">{{ diffData.diff.updateChannel.from }} → {{ diffData.diff.updateChannel.to }}</span>
               <span v-if="diffData.diff.nodesAdded.length > 0" class="restore-badge restore-badge-added">+{{ diffData.diff.nodesAdded.length }} {{ t('snapshots.nodesLabel') }}</span>
               <span v-if="diffData.diff.nodesRemoved.length > 0" class="restore-badge restore-badge-removed">−{{ diffData.diff.nodesRemoved.length }} {{ t('snapshots.nodesLabel') }}</span>
               <span v-if="diffData.diff.nodesChanged.length > 0" class="restore-badge restore-badge-changed">~{{ diffData.diff.nodesChanged.length }} {{ t('snapshots.nodesLabel') }}</span>
