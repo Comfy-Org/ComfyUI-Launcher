@@ -695,9 +695,16 @@ export function register(callbacks: RegisterCallbacks = {}): void {
                 sendOutput, abort.signal)
             }
 
+            // Restore update channel from the snapshot
+            const targetChannel = targetSnapshot.updateChannel || 'stable'
+            if (targetChannel !== (freshInst.updateChannel as string | undefined)) {
+              await update({ updateChannel: targetChannel })
+            }
+
             // Save post-restore snapshot
             try {
-              const filename = await saveSnapshot(freshInst.installPath, freshInst, 'post-restore')
+              const updatedInst = { ...freshInst, updateChannel: targetChannel }
+              const filename = await saveSnapshot(freshInst.installPath, updatedInst, 'post-restore')
               const snapshotCount = await getSnapshotCount(freshInst.installPath)
               await update({ pendingSnapshotRestore: undefined, lastSnapshot: filename, snapshotCount })
             } catch {
@@ -883,7 +890,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     // mode === 'current'
     const target = await loadSnapshot(inst.installPath, filename)
     const diff = await diffAgainstCurrent(inst.installPath, inst, target)
-    const empty = !diff.comfyuiChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
+    const empty = !diff.comfyuiChanged && !diff.updateChannelChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
                   diff.nodesChanged.length === 0 && diff.pipsAdded.length === 0 && diff.pipsRemoved.length === 0 &&
                   diff.pipsChanged.length === 0
     return { mode: 'current' as const, baseLabel: 'Current state', diff, empty }
@@ -1446,6 +1453,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         ] })
 
         const { entry } = await performCopy(inst, name, sendProgress, abort.signal, 'copy-update')
+
+        // If a target channel was specified, persist it on the copy before updating
+        const targetChannel = actionData?.channel as string | undefined
+        if (targetChannel) {
+          await installations.update(entry.id, { updateChannel: targetChannel })
+        }
 
         const updateSendProgress = (phase: string, detail: Record<string, unknown>): void => {
           if (phase !== 'steps') sendProgress(phase, detail)

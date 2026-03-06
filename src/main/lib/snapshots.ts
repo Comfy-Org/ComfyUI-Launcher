@@ -47,6 +47,8 @@ export interface SnapshotDiff {
     from: { ref: string; commit: string | null; displayVersion?: string }
     to: { ref: string; commit: string | null; displayVersion?: string }
   }
+  updateChannelChanged: boolean
+  updateChannel?: { from: string; to: string }
   nodesAdded: ScannedNode[]
   nodesRemoved: ScannedNode[]
   nodesChanged: Array<{
@@ -168,7 +170,7 @@ async function captureState(installPath: string, installation: InstallationRecor
     customNodes,
     pipPackages,
     pythonVersion: (installation.pythonVersion as string | undefined) || undefined,
-    updateChannel: (installation.updateChannel as string | undefined) || undefined,
+    updateChannel: (installation.updateChannel as string | undefined) || 'stable',
   }
 }
 
@@ -456,6 +458,7 @@ export async function importSnapshots(
 export function diffSnapshots(a: Snapshot, b: Snapshot): SnapshotDiff {
   const diff: SnapshotDiff = {
     comfyuiChanged: false,
+    updateChannelChanged: false,
     nodesAdded: [],
     nodesRemoved: [],
     nodesChanged: [],
@@ -471,6 +474,14 @@ export function diffSnapshots(a: Snapshot, b: Snapshot): SnapshotDiff {
       from: { ref: a.comfyui.ref, commit: a.comfyui.commit, displayVersion: a.comfyui.displayVersion },
       to: { ref: b.comfyui.ref, commit: b.comfyui.commit, displayVersion: b.comfyui.displayVersion },
     }
+  }
+
+  // Update channel
+  const aChannel = a.updateChannel || 'stable'
+  const bChannel = b.updateChannel || 'stable'
+  if (aChannel !== bChannel) {
+    diff.updateChannelChanged = true
+    diff.updateChannel = { from: aChannel, to: bChannel }
   }
 
   // Custom nodes — keyed by (type, dirName)
@@ -1426,7 +1437,7 @@ export async function getSnapshotDiffVsPrevious(installPath: string, filename: s
     return {
       mode: 'previous',
       baseLabel: '',
-      diff: { comfyuiChanged: false, nodesAdded: [], nodesRemoved: [], nodesChanged: [], pipsAdded: [], pipsRemoved: [], pipsChanged: [] },
+      diff: { comfyuiChanged: false, updateChannelChanged: false, nodesAdded: [], nodesRemoved: [], nodesChanged: [], pipsAdded: [], pipsRemoved: [], pipsChanged: [] },
       empty: true,
     }
   }
@@ -1438,7 +1449,7 @@ export async function getSnapshotDiffVsPrevious(installPath: string, filename: s
     mode: 'previous',
     baseLabel: prevDate,
     diff,
-    empty: !diff.comfyuiChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
+    empty: !diff.comfyuiChanged && !diff.updateChannelChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
            diff.nodesChanged.length === 0 && diff.pipsAdded.length === 0 && diff.pipsRemoved.length === 0 &&
            diff.pipsChanged.length === 0,
   }
