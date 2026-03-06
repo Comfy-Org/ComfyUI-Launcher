@@ -28,7 +28,7 @@ import { formatTime } from './util'
 import { getActiveDownloads } from './comfyDownloadManager'
 import * as releaseCache from './release-cache'
 import * as i18n from './i18n'
-import { ensureModelPathsConfig } from './models'
+import { ensureModelPathsConfig, MODEL_FOLDER_TYPES } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
@@ -1259,6 +1259,43 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       ],
 
     }
+  })
+
+  ipcMain.handle('get-model-folders', () => {
+    return [...MODEL_FOLDER_TYPES]
+  })
+
+  ipcMain.handle('get-model-files', (_event, directory: string) => {
+    const modelsDirs = (settings.get('modelsDirs') as string[]) || settings.defaults.modelsDirs
+    const files: Array<{ name: string; directory: string; fullPath: string; sizeBytes: number; modifiedAt: number }> = []
+    const ALLOWED_EXTS = new Set(['.safetensors', '.sft', '.ckpt', '.pth', '.pt', '.bin', '.onnx'])
+
+    for (const baseDir of modelsDirs) {
+      const dirPath = path.join(baseDir, directory)
+      try {
+        if (!fs.existsSync(dirPath)) continue
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+        for (const entry of entries) {
+          if (!entry.isFile()) continue
+          const ext = path.extname(entry.name).toLowerCase()
+          if (!ALLOWED_EXTS.has(ext)) continue
+          try {
+            const filePath = path.join(dirPath, entry.name)
+            const stat = fs.statSync(filePath)
+            files.push({
+              name: entry.name,
+              directory,
+              fullPath: filePath,
+              sizeBytes: stat.size,
+              modifiedAt: stat.mtimeMs,
+            })
+          } catch {}
+        }
+      } catch {}
+    }
+
+    files.sort((a, b) => b.modifiedAt - a.modifiedAt)
+    return files
   })
 
   ipcMain.handle('get-media-sections', () => {

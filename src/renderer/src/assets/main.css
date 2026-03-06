@@ -644,6 +644,27 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .modal-select-item-label { flex: 1; font-weight: 500; }
 .modal-select-item-desc { color: var(--text-muted); font-size: 12px; }
 
+/* Modal layout (for structured dialogs with header/body/footer) */
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px; border-bottom: 1px solid var(--border);
+}
+.modal-body { padding: 16px 24px; }
+.modal-footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  padding: 12px 24px; border-top: 1px solid var(--border);
+}
+
+/* Form field inputs */
+.field-input {
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text); font-size: 14px;
+  outline: none; width: 100%;
+}
+.field-input:focus { border-color: var(--accent); }
+.field-input::placeholder { color: var(--text-faint); }
+select.field-input { cursor: pointer; }
+
 /* Update banner */
 .update-banner {
   display: flex; align-items: center; gap: 12px;
@@ -970,4 +991,38 @@ button.detail-header-btn.active:hover:not(:disabled) {
 }
 button.detail-header-btn:disabled {
   cursor: default; opacity: 0.4;
+}
+
+/* Downloads drawer */
+.downloads-drawer-backdrop {
+  position: fixed; inset: 0; z-index: 40;
+  background: var(--overlay-bg);
+  transition: opacity 0.2s ease;
+}
+.downloads-drawer {
+  position: fixed; top: 0; bottom: 0; left: 200px; z-index: 45;
+  width: 340px; background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  transition: transform 0.2s ease;
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.3);
+}
+.downloads-drawer-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 16px 12px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.downloads-drawer-title {
+  font-size: 15px; font-weight: 600; color: var(--text);
+}
+.downloads-drawer-actions {
+  display: flex; align-items: center; gap: 4px;
+}
+.downloads-drawer-body {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.downloads-drawer-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; color: var(--text-muted); font-size: 14px;
 }
