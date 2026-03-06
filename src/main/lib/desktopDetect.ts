@@ -51,7 +51,7 @@ export function detectDesktopInstall(): DesktopInstallInfo | null {
     const raw = fs.readFileSync(configPath, 'utf-8')
     const config = JSON.parse(raw) as Record<string, unknown>
     if (typeof config.basePath !== 'string' || !config.basePath) return null
-    basePath = path.isAbsolute(config.basePath) ? config.basePath : path.resolve(configDir, config.basePath)
+    basePath = path.resolve(configDir, config.basePath)
   } catch {
     return null
   }
