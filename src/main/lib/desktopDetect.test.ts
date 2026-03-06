@@ -155,7 +155,7 @@ describe('syncSharedModelPaths', () => {
     vi.restoreAllMocks()
     readFileSyncSpy = vi.spyOn(fs, 'readFileSync')
     writeFileSyncSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {})
-    mkdirSyncSpy = vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined as any)
+    mkdirSyncSpy = vi.spyOn(fs, 'mkdirSync').mockReturnValue(undefined)
   })
 
   it('creates config with launcher sections when file does not exist', () => {
