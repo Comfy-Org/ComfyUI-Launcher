@@ -135,11 +135,13 @@ export function gitFetchAndCheckout(
       proc.on('close', (code) => resolve(code ?? 1))
     })
 
-  // Try --unshallow first to handle shallow/grafted clones where the
-  // target commit may not exist locally. Falls back to a regular fetch
-  // if the repo is already complete (--unshallow exits non-zero).
-  return runGit(['fetch', '--unshallow', 'origin']).then((code) => {
-    if (code !== 0) return runGit(['fetch', 'origin'])
+  // Fetch all branches explicitly — grafted/archive-based repos may have
+  // no branch tracking configured, so a bare `git fetch origin` only
+  // pulls tags. Use --unshallow to handle shallow clones; fall back to
+  // a regular fetch if the repo is already complete.
+  const refspec = '+refs/heads/*:refs/remotes/origin/*'
+  return runGit(['fetch', '--unshallow', 'origin', refspec]).then((code) => {
+    if (code !== 0) return runGit(['fetch', 'origin', refspec])
     return code
   }).then((code) => {
     if (code !== 0) return code
