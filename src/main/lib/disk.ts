@@ -30,35 +30,64 @@ export async function getDiskSpace(targetPath: string): Promise<DiskSpaceInfo> {
 /**
  * Recursively calculate the total size of a directory in bytes.
  * Returns 0 if the directory doesn't exist.
+ * Limits concurrency to avoid EMFILE errors on large directory trees.
  */
 export async function getDirectorySize(dirPath: string): Promise<number> {
-  let entries: fs.Dirent[]
-  try {
-    entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
-  } catch {
-    return 0
+  const MAX_CONCURRENT = 64
+  let active = 0
+  let total = 0
+  const queue: string[] = [dirPath]
+  const waiting: Array<() => void> = []
+
+  function release(): void {
+    active--
+    const next = waiting.shift()
+    if (next) next()
   }
 
-  const sizes = await Promise.all(
-    entries.map(async (entry) => {
-      const fullPath = path.join(dirPath, entry.name)
-      try {
-        if (entry.isSymbolicLink()) {
-          // Count the symlink itself, not the target it points to
-          const stat = await fs.promises.lstat(fullPath)
-          return stat.size
-        }
-        if (entry.isDirectory()) {
-          return getDirectorySize(fullPath)
-        }
+  async function acquire(): Promise<void> {
+    if (active < MAX_CONCURRENT) {
+      active++
+      return
+    }
+    await new Promise<void>((resolve) => waiting.push(resolve))
+    active++
+  }
+
+  async function processEntry(fullPath: string, entry: fs.Dirent): Promise<void> {
+    try {
+      if (entry.isSymbolicLink()) {
         const stat = await fs.promises.lstat(fullPath)
-        return stat.size
-      } catch {
-        return 0
+        total += stat.size
+      } else if (entry.isDirectory()) {
+        queue.push(fullPath)
+      } else {
+        const stat = await fs.promises.lstat(fullPath)
+        total += stat.size
       }
-    })
-  )
-  return sizes.reduce((sum, s) => sum + s, 0)
+    } catch {
+      // Skip files/dirs that can't be read
+    }
+    release()
+  }
+
+  while (queue.length > 0) {
+    const dir = queue.shift()!
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    const pending: Promise<void>[] = []
+    for (const entry of entries) {
+      await acquire()
+      pending.push(processEntry(path.join(dir, entry.name), entry))
+    }
+    await Promise.all(pending)
+  }
+
+  return total
 }
 
 function normalizePath(p: string): string {

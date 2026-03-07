@@ -377,7 +377,8 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
           estimatedRequired = installationSize.value ?? 0
         }
       }
-      const threshold = estimatedRequired > 0 ? estimatedRequired : 1073741824
+      // Add 10% buffer for filesystem overhead (block alignment, journal, etc.)
+      const threshold = estimatedRequired > 0 ? Math.ceil(estimatedRequired * 1.1) : 1073741824
       if (space.free < threshold) {
         const freeStr = formatBytes(space.free)
         const message = estimatedRequired > 0

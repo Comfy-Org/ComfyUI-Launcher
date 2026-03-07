@@ -54,10 +54,13 @@ function formatBytes(bytes: number): string {
 }
 
 const estimatedInstallSize = computed(() => {
-  const downloadFiles = selections.value.variant?.data?.downloadFiles as
-    Array<{ size: number }> | undefined
-  if (!downloadFiles) return 0
-  const downloadBytes = downloadFiles.reduce((sum, f) => sum + f.size, 0)
+  let downloadBytes = 0
+  for (const selected of Object.values(selections.value)) {
+    const files = selected?.data?.downloadFiles as Array<{ size: number }> | undefined
+    if (files) {
+      downloadBytes += files.reduce((sum, f) => sum + f.size, 0)
+    }
+  }
   return downloadBytes > 0 ? downloadBytes * 2 : 0
 })
 
