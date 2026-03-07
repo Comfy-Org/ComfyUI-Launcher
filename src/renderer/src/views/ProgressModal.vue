@@ -30,6 +30,7 @@ const progressStore = useProgressStore()
 const currentId = ref<string | null>(null)
 const terminalRef = ref<HTMLDivElement | null>(null)
 const isTerminalAtBottom = ref(true)
+const resolvingConflict = ref(false)
 
 const currentOp = computed(() => {
   const id = currentId.value ?? props.installationId
@@ -81,6 +82,7 @@ function startOperation(opts: {
   returnTo?: string
 }): void {
   currentId.value = opts.installationId
+  resolvingConflict.value = false
   progressStore.startOperation(opts)
 }
 
@@ -120,10 +122,12 @@ function handleDone(): void {
 }
 
 function handleUseNextPort(nextPort: number): void {
+  if (resolvingConflict.value) return
   const id = displayId.value
   if (!id) return
   const op = progressStore.operations.get(id)
   if (!op) return
+  resolvingConflict.value = true
   startOperation({
     installationId: id,
     title: op.title,
@@ -133,11 +137,11 @@ function handleUseNextPort(nextPort: number): void {
 }
 
 async function handleKillProcess(port: number): Promise<void> {
+  if (resolvingConflict.value) return
   const id = displayId.value
   if (!id) return
   const op = progressStore.operations.get(id)
   if (!op) return
-
   const confirmed = await modal.confirm({
     title: t('errors.portConflictKillConfirmTitle'),
     message: t('errors.portConflictKillConfirmMessage'),
@@ -145,6 +149,7 @@ async function handleKillProcess(port: number): Promise<void> {
     confirmStyle: 'danger'
   })
   if (!confirmed) return
+  resolvingConflict.value = true
 
   const killResult: KillResult = await window.api.killPortProcess(port)
   if (killResult.ok) {
@@ -154,6 +159,8 @@ async function handleKillProcess(port: number): Promise<void> {
       apiCall: op.apiCall || (() => window.api.runAction(id, 'launch')),
       returnTo: op.returnTo
     })
+  } else {
+    resolvingConflict.value = false
   }
 }
 
@@ -352,6 +359,7 @@ defineExpose({ startOperation, showOperation })
         <!-- Flat progress -->
         <template v-else>
           <div v-if="currentOp.finished && currentOp.error" class="progress-status progress-error-message">{{ currentOp.error }}</div>
+          <div v-else-if="currentOp.finished && currentOp.result?.portConflict && !resolvingConflict" class="progress-status progress-error-message">{{ currentOp.result.message }}</div>
           <div v-else class="progress-status">{{ currentOp.flatStatus }}</div>
           <div
             v-if="!currentOp.finished"
@@ -374,7 +382,8 @@ defineExpose({ startOperation, showOperation })
           v-if="
             currentOp.finished &&
             currentOp.result?.portConflict &&
-            !currentOp.result.ok
+            !currentOp.result.ok &&
+            !resolvingConflict
           "
           class="progress-conflict-actions"
         >

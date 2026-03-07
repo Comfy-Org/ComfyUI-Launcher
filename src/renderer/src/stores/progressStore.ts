@@ -156,19 +156,15 @@ export const useProgressStore = defineStore('progress', () => {
     p
       .then((result) => {
         rop.finished = true
-        if (result.ok || result.cancelled) rop.result = result
+        if (result.ok || result.cancelled || result.portConflict) rop.result = result
         cleanupRop()
 
+        sessionStore.clearActiveSession(installationId)
+
         if (result.ok) {
-          sessionStore.clearActiveSession(installationId)
           if (rop.steps) rop.done = true
-        } else if (result.cancelled) {
-          sessionStore.clearActiveSession(installationId)
-        } else if (result.portConflict) {
-          sessionStore.clearActiveSession(installationId)
-        } else {
+        } else if (!result.cancelled && !result.portConflict) {
           rop.error = result.message || t('progress.unknownError')
-          sessionStore.clearActiveSession(installationId)
           sessionStore.errorInstances.set(installationId, {
             installationName: rop.title,
             message: rop.error,

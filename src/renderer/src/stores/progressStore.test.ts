@@ -259,6 +259,25 @@ describe('useProgressStore', () => {
       expect(store.operations.get('inst-1')?.title).toBe('Second')
     })
 
+    it('sets result on port conflict without error', async () => {
+      const portConflictInfo = { port: 8188, pids: [123], isComfy: true }
+      const apiCall = vi.fn().mockResolvedValue({ ok: false, portConflict: portConflictInfo } as ActionResult)
+      store.startOperation({
+        installationId: 'inst-1',
+        title: 'Launch',
+        apiCall,
+      })
+
+      await vi.waitFor(() => {
+        expect(store.operations.get('inst-1')?.finished).toBe(true)
+      })
+
+      const op = store.operations.get('inst-1')!
+      expect(op.error).toBeNull()
+      expect(op.result?.portConflict).toEqual(portConflictInfo)
+      expect(sessionStore.errorInstances.has('inst-1')).toBe(false)
+    })
+
     it('handles synchronous apiCall throw', () => {
       const apiCall = () => { throw new Error('Sync boom') }
       store.startOperation({

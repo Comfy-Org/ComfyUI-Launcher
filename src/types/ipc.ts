@@ -342,6 +342,15 @@ export interface ModelDownloadProgress {
   error?: string
 }
 
+// --- Model file browser types ---
+export interface ModelFileInfo {
+  name: string
+  directory: string
+  fullPath: string
+  sizeBytes: number
+  modifiedAt: number
+}
+
 // --- Track types ---
 export interface TrackResult {
   ok: boolean
@@ -563,6 +572,11 @@ export interface ElectronApi {
   resumeModelDownload(url: string): Promise<boolean>
   cancelModelDownload(url: string): Promise<boolean>
   showDownloadInFolder(savePath: string): Promise<void>
+  startModelDownload(url: string, filename: string, directory: string): Promise<boolean>
+
+  // Model file browser
+  getModelFolders(): Promise<string[]>
+  getModelFiles(directory: string): Promise<ModelFileInfo[]>
 
   // Event listeners (return unsubscribe functions)
   onInstallProgress(callback: (data: ProgressData) => void): Unsubscribe
