@@ -3,7 +3,7 @@ import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
 import { homedir } from 'os'
-import { MODEL_FOLDER_TYPES } from './models'
+
 import { scanCustomNodes } from './nodes'
 import { buildExportEnvelope } from './snapshots'
 import type { Snapshot, SnapshotExportEnvelope } from './snapshots'
@@ -70,57 +70,6 @@ export function detectDesktopInstall(): DesktopInstallInfo | null {
     executablePath: findDesktopExecutable(),
     hasVenv: fs.existsSync(path.join(basePath, '.venv')),
   }
-}
-
-const LAUNCHER_KEY_PREFIX = 'comfyui_launcher_'
-
-/**
- * Inject the Launcher's shared model directories into Desktop's
- * extra_models_config.yaml so Desktop's ComfyUI instance can find them.
- */
-export function syncSharedModelPaths(configDir: string, modelsDirs: string[]): void {
-  const configPath = path.join(configDir, 'extra_models_config.yaml')
-
-  // Read existing config, preserving Desktop's own sections
-  const lines: string[] = []
-  try {
-    const existing = fs.readFileSync(configPath, 'utf-8')
-    // Keep all lines that don't belong to comfyui_launcher_* sections
-    let inLauncherSection = false
-    for (const line of existing.split(/\r?\n/)) {
-      if (/^\S/.test(line)) {
-        // Top-level key — check if it's one of ours
-        inLauncherSection = line.startsWith(LAUNCHER_KEY_PREFIX)
-      }
-      if (!inLauncherSection) {
-        lines.push(line)
-      }
-    }
-    // Remove trailing blank lines left from stripping
-    while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') {
-      lines.pop()
-    }
-  } catch {
-    // Config doesn't exist yet — Desktop may not have run. Start fresh.
-    lines.push(`# ComfyUI extra_models_config.yaml`)
-  }
-
-  // Append Launcher shared model sections
-  if (modelsDirs.length > 0) {
-    lines.push('')
-    for (let i = 0; i < modelsDirs.length; i++) {
-      const escaped = path.resolve(modelsDirs[i]!).replace(/'/g, "''")
-      lines.push(`${LAUNCHER_KEY_PREFIX}${i}:`)
-      lines.push(`  base_path: '${escaped}'`)
-      for (const folder of MODEL_FOLDER_TYPES) {
-        lines.push(`  ${folder}: ${folder}/`)
-      }
-      lines.push('')
-    }
-  }
-
-  fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(configPath, lines.join('\n'), 'utf-8')
 }
 
 function getDesktopPythonPath(basePath: string): string | null {
