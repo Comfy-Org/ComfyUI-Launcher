@@ -36,4 +36,15 @@ describe('getModelDownloadContentScript', () => {
   it('contains the download tab element id', () => {
     expect(script).toContain('__comfy-dl-tab')
   })
+
+  it('guards model download interception behind __comfyLauncherRemote check', () => {
+    expect(script).toContain('__comfyLauncherRemote')
+    // The createElement override should be skipped for remote sessions
+    expect(script).toContain('if (!window.__comfyLauncherRemote)')
+  })
+
+  it('keeps download progress toast active regardless of remote flag', () => {
+    // onDownloadProgress listener should not be inside the remote guard
+    expect(script).toContain('onDownloadProgress')
+  })
 })

@@ -475,13 +475,12 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   // Download management: attach session handler and inject content script
   const isLocal = !url
   attachSessionDownloadHandler(comfyWindow.webContents.session)
-  if (isLocal) {
-    comfyWindow.webContents.on('dom-ready', () => {
-      comfyWindow.webContents
-        .executeJavaScript(getModelDownloadContentScript())
-        .catch(() => {})
-    })
-  }
+  comfyWindow.webContents.on('dom-ready', () => {
+    const preamble = isLocal ? '' : 'window.__comfyLauncherRemote = true;\n'
+    comfyWindow.webContents
+      .executeJavaScript(preamble + getModelDownloadContentScript())
+      .catch(() => {})
+  })
 
   attachContextMenu(comfyWindow)
 

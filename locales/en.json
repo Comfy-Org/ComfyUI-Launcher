@@ -58,7 +58,16 @@
     "completed": "Complete",
     "cancelled": "Cancelled",
     "error": "Failed",
-    "sizeProgress": "{received} / {total}"
+    "sizeProgress": "{received} / {total}",
+    "clearCompleted": "Clear completed",
+    "downloadModel": "Download Model",
+    "urlLabel": "URL",
+    "urlPlaceholder": "https://example.com/model.safetensors",
+    "filenameLabel": "Filename",
+    "filenamePlaceholder": "model.safetensors",
+    "directoryLabel": "Destination Folder",
+    "startDownload": "Download",
+    "downloadFailed": "Download failed. Please check the URL and try again."
   },
 
   "media": {
@@ -76,7 +85,14 @@
     "removeDir": "Remove",
     "primary": "primary",
     "default": "default",
-    "makePrimary": "Make Primary"
+    "makePrimary": "Make Primary",
+    "browse": "Browse",
+    "directoriesTab": "Directories",
+    "folderTypes": "Model Types",
+    "searchPlaceholder": "Search files…",
+    "noFiles": "No model files found",
+    "openFolder": "Open folder",
+    "fileCount": "{count} files"
   },
 
   "common": {
@@ -108,6 +124,7 @@
     "extract": "Extract",
     "useSharedPaths": "Use Shared Directories",
     "done": "Done",
+    "loading": "Loading…",
     "noItems": "No items available.",
     "advanced": "Advanced",
     "tabStatus": "Status",
@@ -273,6 +290,8 @@
     "closeQuitOperations": "In Progress",
     "closeQuitDownloads": "Downloading",
     "autoUpdate": "Check for updates on startup",
+    "checkForUpdates": "Check for updates",
+    "checkingForUpdates": "Checking…",
     "telemetry": "Telemetry",
     "telemetryEnabled": "Share anonymous usage telemetry",
     "models": "Shared Models",
@@ -303,7 +322,9 @@
     "checkFailed": "Update check failed",
     "details": "Details",
     "retry": "Retry",
-    "updateError": "Update Error"
+    "updateCheck": "Update Check",
+    "updateError": "Update Error",
+    "upToDate": "You are running the latest version of ComfyUI Launcher."
   },
 
   "modal": {
@@ -653,9 +674,9 @@
     "cannotOpenDir": "Could not open directory: {error}",
     "launchCancelled": "Launch cancelled.",
     "cannotConnect": "Could not connect to {url}. Make sure ComfyUI is running at that address.",
-    "portConflictLauncher": "Port {port} is already in use by \"{name}\", launched from another ComfyUI Launcher instance. Stop it first or change the port in Startup Arguments.",
-    "portConflictComfy": "Port {port} is already in use by {process}, which appears to be a ComfyUI instance. Stop it first or change the port in Startup Arguments.",
-    "portConflictOther": "Port {port} is already in use by {process}. Change the port in Startup Arguments to avoid conflicts.",
+    "portConflictLauncher": "Port {port} is already in use by \"{name}\", launched from another ComfyUI Launcher instance. You can use the next available port, stop it first, or change the port in Startup Arguments.",
+    "portConflictComfy": "Port {port} is already in use by {process}, which appears to be a ComfyUI instance. You can use the next available port, stop the process, or change the port in Startup Arguments.",
+    "portConflictOther": "Port {port} is already in use by {process}. You can use the next available port or change the port in Startup Arguments.",
     "portConflictUsePort": "Use port {port} instead",
     "portConflictKill": "Stop process and retry",
     "portConflictKillConfirmTitle": "Stop Existing Process",
@@ -663,7 +684,13 @@
     "portConflictKilling": "Stopping…",
     "portConflictKillFailed": "Could not free port {port}. The process may require manual termination.",
     "duplicateName": "An install named \"{name}\" already exists. Please choose a different name.",
-    "unknownSource": "This installation has an unrecognized source type. It may have been created by a different version. Delete it and reinstall."
+    "unknownSource": "This installation has an unrecognized source type. It may have been created by a different version. Delete it and reinstall.",
+    "operationInProgress": "\"{operation}\" is currently in progress for this installation. Would you like to cancel it?",
+    "operationInProgressGeneric": "Another operation is currently in progress for this installation. Would you like to cancel it?",
+    "cancelOperation": "Cancel Operation",
+    "stopRequired": "This installation is currently running and must be stopped first.",
+    "stopRequiredConfirm": "This installation is currently running. Would you like to stop it to continue?",
+    "stopRunning": "Stop Running"
   },
 
   "contextMenu": {

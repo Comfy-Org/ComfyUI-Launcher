@@ -43,6 +43,7 @@ export type {
   UpdateDownloadProgress,
   ModelDownloadStatus,
   ModelDownloadProgress,
+  ModelFileInfo,
   TrackResult,
   CopyEvent,
   SnapshotDiffSummary,
@@ -56,3 +57,4 @@ export type {
   SnapshotFilePreview,
   ElectronApi,
 } from '../../../types/ipc'
+export { REQUIRES_STOPPED } from '../../../types/ipc'

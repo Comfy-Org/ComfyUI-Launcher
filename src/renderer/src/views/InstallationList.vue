@@ -4,11 +4,13 @@ import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { useInstallationStore } from '../stores/installationStore'
 import { useModal } from '../composables/useModal'
+import { useActionGuard } from '../composables/useActionGuard'
 import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { useInstallContextMenu } from '../composables/useInstallContextMenu'
 import { useProgressStore } from '../stores/progressStore'
 import { DraggableList } from '../lib/draggableList'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
+import { REQUIRES_STOPPED } from '../types/ipc'
 import InstanceCard from '../components/InstanceCard.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import type { Installation, ListAction } from '../types/ipc'
@@ -18,6 +20,7 @@ const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
 const progressStore = useProgressStore()
 const modal = useModal()
+const actionGuard = useActionGuard()
 const localInstanceGuard = useLocalInstanceGuard()
 
 const filter = ref('all')
@@ -121,6 +124,10 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
     inst.seen = true
     window.api.updateInstallation(inst.id, { seen: true })
   }
+  // Pre-flight: check if the installation is busy or running
+  if (REQUIRES_STOPPED.has(action.id)) {
+    if (!await actionGuard.checkBeforeAction(inst.id, action.label)) return
+  }
   if (action.confirm) {
     const confirmed = await modal.confirm({
       title: action.confirm.title || 'Confirm',
@@ -152,6 +159,10 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
   }
   try {
     const result = await window.api.runAction(inst.id, action.id)
+    if (result.running) {
+      await actionGuard.checkBeforeAction(inst.id, action.label)
+      return
+    }
     const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
     emitTelemetryAction('launcher.action.result', { action_id: action.id, result: resultValue, ...telemetryContext })
     if (result.navigate === 'list') {

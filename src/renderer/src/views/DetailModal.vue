@@ -2,11 +2,13 @@
 import { ref, computed, watch, nextTick, toRaw, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
+import { useActionGuard } from '../composables/useActionGuard'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import DetailSectionComponent from '../components/DetailSection.vue'
 import SnapshotTab from '../components/SnapshotTab.vue'
 import { useInstallationStore } from '../stores/installationStore'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
+import { REQUIRES_STOPPED } from '../types/ipc'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
@@ -45,6 +47,7 @@ const { t } = useI18n()
 const modal = useModal()
 const prefs = useLauncherPrefs()
 const installationStore = useInstallationStore()
+const actionGuard = useActionGuard()
 
 const isLocal = computed(() => props.installation?.sourceCategory === 'local')
 const isDesktop = computed(() => props.installation?.sourceId === 'desktop')
@@ -162,6 +165,12 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     source_category: props.installation.sourceCategory || 'unknown',
     ui_surface: 'detail',
   }
+
+  // Pre-flight: check if the installation is busy or running
+  if (REQUIRES_STOPPED.has(action.id)) {
+    if (!await actionGuard.checkBeforeAction(props.installation.id, action.label)) return
+  }
+
   let mutableAction = { ...action }
 
   // fieldSelects chain
@@ -377,6 +386,11 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
       mutableAction.id,
       mutableAction.data ? toRaw(mutableAction.data) : undefined
     )
+    // Fallback: backend detected running instance (race condition)
+    if (result.running && props.installation) {
+      await actionGuard.checkBeforeAction(props.installation.id, mutableAction.label)
+      return
+    }
     const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
     emitTelemetryAction('launcher.action.result', { action_id: mutableAction.id, result: resultValue, ...telemetryContext })
     if (result.navigate === 'list') {

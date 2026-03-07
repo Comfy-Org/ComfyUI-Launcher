@@ -39,13 +39,18 @@ export function spawnProcess(cmd: string, args: string[], cwd: string, env?: Nod
   })
 }
 
-export function killProcessTree(proc: ChildProcess | null): void {
-  if (!proc || proc.killed) return
-  if (process.platform === "win32") {
-    execFile("taskkill", ["/T", "/F", "/PID", String(proc.pid)], { windowsHide: true }, () => {})
-  } else {
-    try { process.kill(-proc.pid!, "SIGKILL") } catch {}
-  }
+export function killProcessTree(proc: ChildProcess | null): Promise<void> {
+  if (!proc || proc.killed) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    // Resolve once the process actually exits, or after a timeout
+    const timeout = setTimeout(resolve, 5000)
+    proc.once('exit', () => { clearTimeout(timeout); resolve() })
+    if (process.platform === "win32") {
+      execFile("taskkill", ["/T", "/F", "/PID", String(proc.pid)], { windowsHide: true }, () => {})
+    } else {
+      try { process.kill(-proc.pid!, "SIGKILL") } catch {}
+    }
+  })
 }
 
 export function findPidsByPort(port: number): Promise<number[]> {

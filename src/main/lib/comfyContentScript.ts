@@ -99,36 +99,42 @@ export function getModelDownloadContentScript(): string {
     observer.observe(target, { childList: true, subtree: true });
   }
 
-  if (document.body) {
-    startObserver();
-  } else {
-    document.addEventListener('DOMContentLoaded', startObserver);
+  // Only observe the Missing Models dialog and intercept downloads for local sessions
+  if (!window.__comfyLauncherRemote) {
+    if (document.body) {
+      startObserver();
+    } else {
+      document.addEventListener('DOMContentLoaded', startObserver);
+    }
   }
 
   // ---- Override document.createElement to intercept <a>.click() ----
+  // For remote/cloud sessions model downloads should not be captured (no local models dir).
   var origCreate = document.createElement.bind(document);
-  document.createElement = function(tag, options) {
-    var el = origCreate(tag, options);
-    if (typeof tag === 'string' && tag.toLowerCase() === 'a' && Object.keys(modelCache).length > 0) {
-      var origClick = el.click;
-      el.click = function() {
-        if (this.download && this.href && window.__comfyLauncher) {
-          var directory = modelCache[this.href];
-          if (directory) {
-            var cleanName = this.download.split('?')[0];
-            window.__comfyLauncher.downloadModel(
-              this.href,
-              cleanName,
-              directory
-            ).catch(function() {});
-            return;
+  if (!window.__comfyLauncherRemote) {
+    document.createElement = function(tag, options) {
+      var el = origCreate(tag, options);
+      if (typeof tag === 'string' && tag.toLowerCase() === 'a' && Object.keys(modelCache).length > 0) {
+        var origClick = el.click;
+        el.click = function() {
+          if (this.download && this.href && window.__comfyLauncher) {
+            var directory = modelCache[this.href];
+            if (directory) {
+              var cleanName = this.download.split('?')[0];
+              window.__comfyLauncher.downloadModel(
+                this.href,
+                cleanName,
+                directory
+              ).catch(function() {});
+              return;
+            }
           }
-        }
-        return origClick.call(this);
-      };
-    }
-    return el;
-  };
+          return origClick.call(this);
+        };
+      }
+      return el;
+    };
+  }
 
   // ---- Theme integration ----
   // Read ComfyUI's CSS variables and derive toast colors
@@ -267,13 +273,14 @@ export function getModelDownloadContentScript(): string {
   var DOCK_LEFT = 62;
   var DOCK_BOTTOM = 4;
   var DOCK_SNAP_DIST = 80;
+  var tabFadeTimer = null;
 
   // ---- Persistent tab (bottom-left, visible when panel is closed) ----
   function ensureTab() {
     if (dlTab && document.body.contains(dlTab)) return dlTab;
     dlTab = origCreate('div');
     dlTab.id = '__comfy-dl-tab';
-    dlTab.style.cssText = 'position:fixed;bottom:-4px;left:' + DOCK_LEFT + 'px;z-index:99999;background:' + theme.panelBg + ';border:1px solid ' + theme.borderColor + ';border-bottom:none;border-radius:6px 6px 0 0;padding:4px 12px 8px 12px;cursor:pointer;user-select:none;transition:transform 0.15s ease;transform:translateY(0);pointer-events:auto;';
+    dlTab.style.cssText = 'position:fixed;bottom:-4px;left:' + DOCK_LEFT + 'px;z-index:99999;background:' + theme.panelBg + ';border:1px solid ' + theme.borderColor + ';border-bottom:none;border-radius:6px 6px 0 0;padding:4px 12px 8px 12px;cursor:pointer;user-select:none;transition:transform 0.15s ease,opacity 0.5s ease;transform:translateY(0);opacity:1;pointer-events:auto;';
     dlTab.onmouseenter = function() { dlTab.style.transform = 'translateY(-4px)'; };
     dlTab.onmouseleave = function() { dlTab.style.transform = 'translateY(0)'; };
     dlTab.onclick = function() { showPanel(); };
@@ -282,6 +289,7 @@ export function getModelDownloadContentScript(): string {
     tabTop.style.cssText = 'display:flex;align-items:center;gap:4px;';
 
     var tabIcon = origCreate('span');
+    tabIcon.id = '__comfy-dl-tab-icon';
     tabIcon.textContent = '\\u2193 ';
     tabIcon.style.cssText = 'color:#3b82f6;font-size:12px;';
 
@@ -310,6 +318,7 @@ export function getModelDownloadContentScript(): string {
     if (!dlTab) return;
     var label = dlTab.querySelector('#__comfy-dl-tab-label');
     var bar = dlTab.querySelector('#__comfy-dl-tab-bar');
+    var icon = dlTab.querySelector('#__comfy-dl-tab-icon');
     if (!label || !bar) return;
 
     var keys = Object.keys(dlCards);
@@ -325,10 +334,38 @@ export function getModelDownloadContentScript(): string {
     }
 
     if (activeCount === 0) {
-      label.textContent = 'Downloads';
-      bar.style.width = '0%';
-      bar.style.background = '#3b82f6';
+      var hasFinished = keys.length > 0;
+      if (hasFinished) {
+        label.textContent = 'Complete';
+        bar.style.width = '100%';
+        bar.style.background = '#3b82f6';
+        if (icon) { icon.textContent = '\\u2713 '; icon.style.color = '#3b82f6'; }
+      } else {
+        label.textContent = 'Downloads';
+        bar.style.width = '0%';
+        bar.style.background = '#3b82f6';
+        if (icon) { icon.textContent = '\\u2193 '; icon.style.color = '#3b82f6'; }
+      }
+      // Fade out the tab after a short delay when no downloads are active
+      if (!dlPanelOpen && dlTab && !tabFadeTimer) {
+        tabFadeTimer = setTimeout(function() {
+          if (dlTab) {
+            dlTab.style.opacity = '0';
+            dlTab.style.pointerEvents = 'none';
+            setTimeout(function() {
+              if (dlTab) { dlTab.style.display = 'none'; }
+              tabFadeTimer = null;
+            }, 500);
+          } else {
+            tabFadeTimer = null;
+          }
+        }, 2000);
+      }
     } else {
+      // Cancel any pending fade if new active downloads appear
+      if (tabFadeTimer) { clearTimeout(tabFadeTimer); tabFadeTimer = null; }
+      if (dlTab) { dlTab.style.opacity = '1'; dlTab.style.pointerEvents = 'auto'; }
+      if (icon) { icon.textContent = '\\u2193 '; icon.style.color = '#3b82f6'; }
       var avgPct = Math.round(totalProgress / activeCount);
       label.textContent = activeCount + ' download' + (activeCount > 1 ? 's' : '') + ' \\u00b7 ' + avgPct + '%';
       bar.style.width = avgPct + '%';
@@ -344,9 +381,12 @@ export function getModelDownloadContentScript(): string {
 
   function hidePanel() {
     dlPanelOpen = false;
+    if (tabFadeTimer) { clearTimeout(tabFadeTimer); tabFadeTimer = null; }
     if (dlContainer) dlContainer.style.display = 'none';
     var tab = ensureTab();
     tab.style.display = '';
+    tab.style.opacity = '1';
+    tab.style.pointerEvents = 'auto';
     tab.style.transform = 'translateY(0)';
   }
 
@@ -700,8 +740,9 @@ export function getModelDownloadContentScript(): string {
 
     // When a brand-new download appears, show the tab (not the full panel)
     if (isNew && !dlPanelOpen) {
+      if (tabFadeTimer) { clearTimeout(tabFadeTimer); tabFadeTimer = null; }
       ensureTab();
-      if (dlTab) dlTab.style.display = '';
+      if (dlTab) { dlTab.style.display = ''; dlTab.style.opacity = '1'; dlTab.style.pointerEvents = 'auto'; }
       if (dlContainer) dlContainer.style.display = 'none';
     }
 

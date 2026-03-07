@@ -28,7 +28,7 @@ import { formatTime } from './util'
 import { getActiveDownloads } from './comfyDownloadManager'
 import * as releaseCache from './release-cache'
 import * as i18n from './i18n'
-import { ensureModelPathsConfig } from './models'
+import { ensureModelPathsConfig, MODEL_FOLDER_TYPES } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
@@ -36,6 +36,7 @@ import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSna
 import type { SnapshotExportEnvelope } from './snapshots'
 import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
+import { REQUIRES_STOPPED } from '../../types/ipc'
 import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
 import type { LaunchCmd } from './process'
 
@@ -43,6 +44,7 @@ const MARKER_FILE = '.comfyui-launcher'
 const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
 const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000
 const IGNORE_FILES = new Set([MARKER_FILE, '.DS_Store', 'Thumbs.db', 'desktop.ini'])
+
 
 function isEffectivelyEmptyInstallDir(dirPath: string): boolean {
   if (!dirPath) return true
@@ -1194,6 +1196,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               { value: 'tray', label: i18n.t('settings.closeTray') },
             ] },
         ],
+        actions: [
+          { label: i18n.t('settings.checkForUpdates'), action: 'check-for-update' },
+        ],
       },
       {
         title: i18n.t('settings.telemetry'),
@@ -1249,6 +1254,43 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       ],
 
     }
+  })
+
+  ipcMain.handle('get-model-folders', () => {
+    return [...MODEL_FOLDER_TYPES]
+  })
+
+  ipcMain.handle('get-model-files', (_event, directory: string) => {
+    const modelsDirs = (settings.get('modelsDirs') as string[]) || settings.defaults.modelsDirs
+    const files: Array<{ name: string; directory: string; fullPath: string; sizeBytes: number; modifiedAt: number }> = []
+    const ALLOWED_EXTS = new Set(['.safetensors', '.sft', '.ckpt', '.pth', '.pt', '.bin', '.onnx'])
+
+    for (const baseDir of modelsDirs) {
+      const dirPath = path.join(baseDir, directory)
+      try {
+        if (!fs.existsSync(dirPath)) continue
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+        for (const entry of entries) {
+          if (!entry.isFile()) continue
+          const ext = path.extname(entry.name).toLowerCase()
+          if (!ALLOWED_EXTS.has(ext)) continue
+          try {
+            const filePath = path.join(dirPath, entry.name)
+            const stat = fs.statSync(filePath)
+            files.push({
+              name: entry.name,
+              directory,
+              fullPath: filePath,
+              sizeBytes: stat.size,
+              modifiedAt: stat.mtimeMs,
+            })
+          } catch {}
+        }
+      } catch {}
+    }
+
+    files.sort((a, b) => b.modifiedAt - a.modifiedAt)
+    return files
   })
 
   ipcMain.handle('get-media-sections', () => {
@@ -1351,6 +1393,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const maybeInst = await installations.get(installationId)
     if (!maybeInst) return { ok: false, message: 'Installation not found.' }
     const inst = maybeInst
+    if (REQUIRES_STOPPED.has(actionId) && _runningSessions.has(installationId)) {
+      return { ok: false, message: i18n.t('errors.stopRequired'), running: true }
+    }
+    if (REQUIRES_STOPPED.has(actionId) && _operationAborts.has(installationId)) {
+      return { ok: false, message: i18n.t('errors.operationInProgress') }
+    }
     if (actionId === 'remove') {
       await installations.remove(installationId)
       await autoAssignPrimary(installationId)
@@ -2108,10 +2156,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
       return { ok: true, mode, port: launchCmd.port }
     }
-    // Actions that modify the pip environment require ComfyUI to be stopped
-    if (actionId === 'snapshot-restore' && _runningSessions.has(installationId)) {
-      return { ok: false, message: i18n.t('standalone.snapshotRestoreStopRequired') }
-    }
     // Delegate to source plugin's handleAction
     const abort = new AbortController()
     _operationAborts.set(installationId, abort)
@@ -2146,16 +2190,18 @@ export async function stopRunning(installationId?: string): Promise<void> {
     if (!session) return
     _removeSession(installationId)
     if (session.proc && !session.proc.killed) {
-      killProcessTree(session.proc)
+      await killProcessTree(session.proc)
     }
   } else {
+    const kills: Promise<void>[] = []
     for (const [_id, session] of _runningSessions) {
       if (session.proc && !session.proc.killed) {
-        killProcessTree(session.proc)
+        kills.push(killProcessTree(session.proc))
       }
       if (session.port) removePortLock(session.port)
     }
     _runningSessions.clear()
+    await Promise.all(kills)
   }
 }
 

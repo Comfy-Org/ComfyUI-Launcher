@@ -217,6 +217,8 @@
     "closeQuitMessage": "ComfyUI 实例仍在运行。退出将停止所有实例。",
     "closeQuitConfirm": "退出",
     "autoUpdate": "启动时检查更新",
+    "checkForUpdates": "检查更新",
+    "checkingForUpdates": "检查中…",
     "telemetry": "遥测",
     "telemetryEnabled": "共享匿名使用遥测数据",
     "models": "共享模型",
@@ -241,7 +243,9 @@
     "checkFailed": "检查更新失败",
     "details": "详情",
     "retry": "重试",
-    "updateError": "更新错误"
+    "updateCheck": "检查更新",
+    "updateError": "更新错误",
+    "upToDate": "您正在使用最新版本的 ComfyUI Launcher。"
   },
 
   "modal": {

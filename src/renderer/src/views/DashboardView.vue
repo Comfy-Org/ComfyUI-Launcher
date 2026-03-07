@@ -4,10 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { useInstallationStore } from '../stores/installationStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useModal } from '../composables/useModal'
+import { useActionGuard } from '../composables/useActionGuard'
 import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import { useInstallContextMenu } from '../composables/useInstallContextMenu'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
+import { REQUIRES_STOPPED } from '../types/ipc'
 import { Download, Star, Clock, Cloud, Pin } from 'lucide-vue-next'
 import DashboardCard from '../components/DashboardCard.vue'
 import MigrationBanner from '../components/MigrationBanner.vue'
@@ -22,6 +24,7 @@ const { t } = useI18n()
 const installationStore = useInstallationStore()
 const sessionStore = useSessionStore()
 const modal = useModal()
+const actionGuard = useActionGuard()
 const localInstanceGuard = useLocalInstanceGuard()
 const prefs = useLauncherPrefs()
 
@@ -238,6 +241,11 @@ async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<
     return
   }
 
+  // Pre-flight: check if the installation is busy or running
+  if (REQUIRES_STOPPED.has(action.id)) {
+    if (!await actionGuard.checkBeforeAction(inst.id, action.label)) return
+  }
+
   if (action.confirm) {
     const confirmed = await modal.confirm({
       title: action.confirm.title || 'Confirm',
@@ -272,6 +280,10 @@ async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<
 
   try {
     const result = await window.api.runAction(inst.id, action.id)
+    if (result.running) {
+      await actionGuard.checkBeforeAction(inst.id, action.label)
+      return
+    }
     const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
     emitTelemetryAction('launcher.action.result', { action_id: action.id, result: resultValue, ...telemetryContext })
     if (result.message) {
