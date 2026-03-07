@@ -123,10 +123,13 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
     window.api.updateInstallation(inst.id, { seen: true })
   }
   // Pre-flight: block if an operation (launch/install) is already in progress
-  if (REQUIRES_STOPPED.has(action.id) && sessionStore.isLaunching(inst.id)) {
+  const activeSession = sessionStore.activeSessions.get(inst.id)
+  const isBusy = sessionStore.isLaunching(inst.id) || (activeSession && !sessionStore.isRunning(inst.id))
+  if (REQUIRES_STOPPED.has(action.id) && isBusy) {
+    const operation = activeSession?.label || t('running.title')
     const confirmed = await modal.confirm({
       title: action.label,
-      message: t('errors.operationInProgress'),
+      message: t('errors.operationInProgress', { operation }),
       confirmLabel: t('errors.cancelOperation'),
       confirmStyle: 'danger',
     })

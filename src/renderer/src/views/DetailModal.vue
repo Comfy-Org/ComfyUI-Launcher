@@ -181,15 +181,19 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
   }
 
   // Pre-flight: block if an operation (launch/install) is already in progress
-  if (REQUIRES_STOPPED.has(action.id) && sessionStore.isLaunching(props.installation.id)) {
+  const instId = props.installation.id
+  const activeSession = sessionStore.activeSessions.get(instId)
+  const isBusy = sessionStore.isLaunching(instId) || (activeSession && !sessionStore.isRunning(instId))
+  if (REQUIRES_STOPPED.has(action.id) && isBusy) {
+    const operation = activeSession?.label || t('running.title')
     const confirmed = await modal.confirm({
       title: action.label,
-      message: t('errors.operationInProgress'),
+      message: t('errors.operationInProgress', { operation }),
       confirmLabel: t('errors.cancelOperation'),
       confirmStyle: 'danger',
     })
     if (!confirmed) return
-    await window.api.cancelOperation(props.installation.id)
+    await window.api.cancelOperation(instId)
     await new Promise((r) => setTimeout(r, 500))
   }
 
