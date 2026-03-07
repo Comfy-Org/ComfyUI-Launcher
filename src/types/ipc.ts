@@ -488,6 +488,7 @@ export interface ElectronApi {
   openExternal(url: string): Promise<void>
   getDiskSpace(targetPath: string): Promise<DiskSpaceInfo>
   validateInstallPath(targetPath: string): Promise<PathIssue[]>
+  getInstallationSize(installationId: string): Promise<{ sizeBytes: number }>
 
   // Locale
   getLocaleMessages(): Promise<Record<string, unknown>>

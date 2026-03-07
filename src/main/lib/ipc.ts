@@ -22,7 +22,7 @@ import {
 import { detectGPU, validateHardware, checkNvidiaDriver } from './gpu'
 import { detectDesktopInstall, syncSharedModelPaths, stageDesktopSnapshot } from './desktopDetect'
 import { performDesktopMigration } from './desktopMigration'
-import { getDiskSpace, validateInstallPath } from './disk'
+import { getDiskSpace, getDirectorySize, validateInstallPath } from './disk'
 import type { GpuInfo } from './gpu'
 import { formatTime } from './util'
 import { getActiveDownloads } from './comfyDownloadManager'
@@ -551,6 +551,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
   ipcMain.handle('get-disk-space', (_event, targetPath: string) => getDiskSpace(targetPath))
   ipcMain.handle('validate-install-path', (_event, targetPath: string) => validateInstallPath(targetPath))
+  ipcMain.handle('get-installation-size', async (_event, installationId: string) => {
+    const inst = await installations.get(installationId)
+    if (!inst?.installPath) return { sizeBytes: 0 }
+    const sizeBytes = await getDirectorySize(inst.installPath)
+    return { sizeBytes }
+  })
 
   // Installations
   ipcMain.handle('get-installations', async () => {

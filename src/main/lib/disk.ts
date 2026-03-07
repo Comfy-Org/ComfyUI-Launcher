@@ -27,6 +27,40 @@ export async function getDiskSpace(targetPath: string): Promise<DiskSpaceInfo> {
   }
 }
 
+/**
+ * Recursively calculate the total size of a directory in bytes.
+ * Returns 0 if the directory doesn't exist.
+ */
+export async function getDirectorySize(dirPath: string): Promise<number> {
+  let entries: fs.Dirent[]
+  try {
+    entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
+  } catch {
+    return 0
+  }
+
+  const sizes = await Promise.all(
+    entries.map(async (entry) => {
+      const fullPath = path.join(dirPath, entry.name)
+      try {
+        if (entry.isSymbolicLink()) {
+          // Count the symlink itself, not the target it points to
+          const stat = await fs.promises.lstat(fullPath)
+          return stat.size
+        }
+        if (entry.isDirectory()) {
+          return getDirectorySize(fullPath)
+        }
+        const stat = await fs.promises.lstat(fullPath)
+        return stat.size
+      } catch {
+        return 0
+      }
+    })
+  )
+  return sizes.reduce((sum, s) => sum + s, 0)
+}
+
 function normalizePath(p: string): string {
   const resolved = path.resolve(p)
   // Case-insensitive on Windows and macOS

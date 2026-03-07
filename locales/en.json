@@ -186,7 +186,12 @@
     "warningTitle": "Low Disk Space",
     "warningMessage": "The target drive only has {free} free. This operation may require approximately {required}. You may run out of space during the process.",
     "warningMessageGeneric": "The target drive only has {free} free. You may run out of space during the process.",
-    "continueAnyway": "Continue Anyway"
+    "continueAnyway": "Continue Anyway",
+    "calculatingSize": "Calculating…",
+    "sizeLabel": "Disk Usage",
+    "sizeValue": "{size}",
+    "sizeUnavailable": "—",
+    "estimatedRequired": "~{size} required"
   },
 
   "pathValidation": {

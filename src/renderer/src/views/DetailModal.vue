@@ -57,6 +57,8 @@ const scrollRef = ref<HTMLDivElement | null>(null)
 const mouseDownOnOverlay = ref(false)
 
 const sections = ref<DetailSection[]>([])
+const installationSize = ref<number | null>(null)
+const installationSizeLoading = ref(false)
 
 const tabLabels = computed<Record<string, string>>(() => ({
   status: t('common.tabStatus'),
@@ -84,6 +86,28 @@ const mainSections = computed(() =>
 const bottomSection = computed(() => sections.value.find((s) => s.pinBottom) ?? null)
 
 const previousInstId = ref<string | null>(null)
+let sizeGeneration = 0
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`
+  return `${(bytes / 1048576).toFixed(0)} MB`
+}
+
+async function fetchInstallationSize(installationId: string): Promise<void> {
+  const gen = ++sizeGeneration
+  installationSize.value = null
+  installationSizeLoading.value = true
+  try {
+    const result = await window.api.getInstallationSize(installationId)
+    if (gen !== sizeGeneration) return
+    installationSize.value = result.sizeBytes
+  } catch {
+    if (gen !== sizeGeneration) return
+    installationSize.value = null
+  } finally {
+    if (gen === sizeGeneration) installationSizeLoading.value = false
+  }
+}
 
 watch(
   () => props.installation,
@@ -91,6 +115,8 @@ watch(
     if (!inst) {
       sections.value = []
       previousInstId.value = null
+      installationSize.value = null
+      installationSizeLoading.value = false
       return
     }
     if (!inst.seen) {
@@ -104,6 +130,7 @@ watch(
       activeTab.value = tabExists ? props.initialTab : 'status'
       await nextTick()
       if (scrollRef.value) scrollRef.value.scrollTop = 0
+      if (inst.installPath) fetchInstallationSize(inst.id)
     }
   },
   { immediate: true }
@@ -327,11 +354,29 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
   if (diskCheckActions.has(mutableAction.id) && props.installation?.installPath) {
     try {
       const space: DiskSpaceInfo = await window.api.getDiskSpace(props.installation.installPath)
-      if (space.free < 1073741824) {
-        const freeStr = `${(space.free / 1048576).toFixed(0)} MB`
+      let estimatedRequired = 0
+      if (mutableAction.id === 'copy' || mutableAction.id === 'copy-update') {
+        if (installationSizeLoading.value) {
+          // Size still calculating — fetch it now before proceeding
+          try {
+            const result = await window.api.getInstallationSize(props.installation.id)
+            estimatedRequired = result.sizeBytes
+          } catch {
+            // Fall through to generic check
+          }
+        } else {
+          estimatedRequired = installationSize.value ?? 0
+        }
+      }
+      const threshold = estimatedRequired > 0 ? estimatedRequired : 1073741824
+      if (space.free < threshold) {
+        const freeStr = formatBytes(space.free)
+        const message = estimatedRequired > 0
+          ? t('diskSpace.warningMessage', { free: freeStr, required: formatBytes(estimatedRequired) })
+          : t('diskSpace.warningMessageGeneric', { free: freeStr })
         const ok = await modal.confirm({
           title: t('diskSpace.warningTitle'),
-          message: t('diskSpace.warningMessageGeneric', { free: freeStr }),
+          message,
           confirmLabel: t('diskSpace.continueAnyway'),
           confirmStyle: 'primary',
         })
@@ -511,6 +556,18 @@ onUnmounted(() => {
               @refresh="refreshSection"
               @refresh-all="refreshAllSections"
             />
+            <div v-if="activeTab === 'status' && (installationSizeLoading || installationSize !== null)" class="detail-section">
+              <div class="detail-section-body">
+                <div class="detail-fields">
+                  <div>
+                    <div class="detail-field-label">{{ $t('diskSpace.sizeLabel') }}</div>
+                    <div class="detail-field-value">
+                      {{ installationSizeLoading ? $t('diskSpace.calculatingSize') : (installationSize !== null ? formatBytes(installationSize) : $t('diskSpace.sizeUnavailable')) }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </template>
         </div>
 

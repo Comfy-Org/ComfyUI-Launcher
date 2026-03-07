@@ -53,6 +53,14 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1048576).toFixed(0)} MB`
 }
 
+const estimatedInstallSize = computed(() => {
+  const downloadFiles = selections.value.variant?.data?.downloadFiles as
+    Array<{ size: number }> | undefined
+  if (!downloadFiles) return 0
+  const downloadBytes = downloadFiles.reduce((sum, f) => sum + f.size, 0)
+  return downloadBytes > 0 ? downloadBytes * 2 : 0
+})
+
 function toPathGuardrail(issue: PathIssue): string {
   switch (issue) {
     case 'insideAppBundle': return 'path_inside_bundle'
@@ -934,6 +942,9 @@ defineExpose({ open })
                 </template>
                 <template v-else-if="diskSpace">
                   {{ $t('diskSpace.free', { size: formatBytes(diskSpace.free) }) }}
+                  <template v-if="estimatedInstallSize > 0">
+                    · {{ $t('diskSpace.estimatedRequired', { size: formatBytes(estimatedInstallSize) }) }}
+                  </template>
                 </template>
               </div>
             </div>

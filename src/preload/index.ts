@@ -20,6 +20,7 @@ const api: ElectronApi = {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   getDiskSpace: (targetPath) => ipcRenderer.invoke('get-disk-space', targetPath),
   validateInstallPath: (targetPath) => ipcRenderer.invoke('validate-install-path', targetPath),
+  getInstallationSize: (installationId) => ipcRenderer.invoke('get-installation-size', installationId),
 
   // Locale
   getLocaleMessages: () => ipcRenderer.invoke('get-locale-messages'),
