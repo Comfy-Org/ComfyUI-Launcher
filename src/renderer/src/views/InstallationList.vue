@@ -4,12 +4,13 @@ import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { useInstallationStore } from '../stores/installationStore'
 import { useModal } from '../composables/useModal'
+import { useActionGuard } from '../composables/useActionGuard'
 import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { useInstallContextMenu } from '../composables/useInstallContextMenu'
 import { useProgressStore } from '../stores/progressStore'
 import { DraggableList } from '../lib/draggableList'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
-import { REQUIRES_STOPPED } from '../lib/actionGuards'
+import { REQUIRES_STOPPED } from '../types/ipc'
 import InstanceCard from '../components/InstanceCard.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import type { Installation, ListAction } from '../types/ipc'
@@ -19,6 +20,7 @@ const sessionStore = useSessionStore()
 const installationStore = useInstallationStore()
 const progressStore = useProgressStore()
 const modal = useModal()
+const actionGuard = useActionGuard()
 const localInstanceGuard = useLocalInstanceGuard()
 
 const filter = ref('all')
@@ -122,32 +124,9 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
     inst.seen = true
     window.api.updateInstallation(inst.id, { seen: true })
   }
-  // Pre-flight: block if an operation (launch/install) is already in progress
-  const activeSession = sessionStore.activeSessions.get(inst.id)
-  const isBusy = sessionStore.isLaunching(inst.id) || (activeSession && !sessionStore.isRunning(inst.id))
-  if (REQUIRES_STOPPED.has(action.id) && isBusy) {
-    const operation = activeSession?.label || t('running.title')
-    const confirmed = await modal.confirm({
-      title: action.label,
-      message: t('errors.operationInProgress', { operation }),
-      confirmLabel: t('errors.cancelOperation'),
-      confirmStyle: 'danger',
-    })
-    if (!confirmed) return
-    await window.api.cancelOperation(inst.id)
-    await new Promise((r) => setTimeout(r, 500))
-  }
-  // Pre-flight: if the action requires the install to be stopped, offer to stop it
-  if (REQUIRES_STOPPED.has(action.id) && sessionStore.isRunning(inst.id)) {
-    const confirmed = await modal.confirm({
-      title: t('errors.stopRunning'),
-      message: t('errors.stopRequiredConfirm'),
-      confirmLabel: t('errors.stopRunning'),
-      confirmStyle: 'primary',
-    })
-    if (!confirmed) return
-    await window.api.stopComfyUI(inst.id)
-    await new Promise((r) => setTimeout(r, 500))
+  // Pre-flight: check if the installation is busy or running
+  if (REQUIRES_STOPPED.has(action.id)) {
+    if (!await actionGuard.checkBeforeAction(inst.id, action.label)) return
   }
   if (action.confirm) {
     const confirmed = await modal.confirm({
@@ -181,7 +160,7 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
   try {
     const result = await window.api.runAction(inst.id, action.id)
     if (result.running) {
-      await modal.alert({ title: action.label, message: result.message || t('errors.stopRequired') })
+      await actionGuard.checkBeforeAction(inst.id, action.label)
       return
     }
     const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')

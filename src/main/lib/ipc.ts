@@ -36,6 +36,7 @@ import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSna
 import type { SnapshotExportEnvelope } from './snapshots'
 import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
+import { REQUIRES_STOPPED } from '../../types/ipc'
 import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
 import type { LaunchCmd } from './process'
 
@@ -44,17 +45,6 @@ const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
 const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000
 const IGNORE_FILES = new Set([MARKER_FILE, '.DS_Store', 'Thumbs.db', 'desktop.ini'])
 
-/** Action IDs that require the installation to be stopped before running. */
-const REQUIRES_STOPPED = new Set([
-  'delete',
-  'copy',
-  'copy-update',
-  'release-update',
-  'migrate-to-standalone',
-  'snapshot-restore',
-  'update-comfyui',
-  'migrate-from',
-])
 
 function isEffectivelyEmptyInstallDir(dirPath: string): boolean {
   if (!dirPath) return true
@@ -2194,16 +2184,18 @@ export async function stopRunning(installationId?: string): Promise<void> {
     if (!session) return
     _removeSession(installationId)
     if (session.proc && !session.proc.killed) {
-      killProcessTree(session.proc)
+      await killProcessTree(session.proc)
     }
   } else {
+    const kills: Promise<void>[] = []
     for (const [_id, session] of _runningSessions) {
       if (session.proc && !session.proc.killed) {
-        killProcessTree(session.proc)
+        kills.push(killProcessTree(session.proc))
       }
       if (session.port) removePortLock(session.port)
     }
     _runningSessions.clear()
+    await Promise.all(kills)
   }
 }
 

@@ -2,13 +2,13 @@
 import { ref, computed, watch, nextTick, toRaw, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
+import { useActionGuard } from '../composables/useActionGuard'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import DetailSectionComponent from '../components/DetailSection.vue'
 import SnapshotTab from '../components/SnapshotTab.vue'
 import { useInstallationStore } from '../stores/installationStore'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
-import { REQUIRES_STOPPED } from '../lib/actionGuards'
-import { useSessionStore } from '../stores/sessionStore'
+import { REQUIRES_STOPPED } from '../types/ipc'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
@@ -47,7 +47,7 @@ const { t } = useI18n()
 const modal = useModal()
 const prefs = useLauncherPrefs()
 const installationStore = useInstallationStore()
-const sessionStore = useSessionStore()
+const actionGuard = useActionGuard()
 
 const isLocal = computed(() => props.installation?.sourceCategory === 'local')
 const isDesktop = computed(() => props.installation?.sourceId === 'desktop')
@@ -159,20 +159,6 @@ function handleActionClick(action: ActionDef, event: MouseEvent): void {
   runAction(action, event.target as HTMLButtonElement)
 }
 
-async function stopAndRetry(installationId: string): Promise<boolean> {
-  const confirmed = await modal.confirm({
-    title: t('errors.stopRunning'),
-    message: t('errors.stopRequiredConfirm'),
-    confirmLabel: t('errors.stopRunning'),
-    confirmStyle: 'primary',
-  })
-  if (!confirmed) return false
-  await window.api.stopComfyUI(installationId)
-  // Wait briefly for the session to clear
-  await new Promise((r) => setTimeout(r, 500))
-  return true
-}
-
 async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Promise<void> {
   if (!props.installation) return
   const telemetryContext = {
@@ -180,26 +166,9 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     ui_surface: 'detail',
   }
 
-  // Pre-flight: block if an operation (launch/install) is already in progress
-  const instId = props.installation.id
-  const activeSession = sessionStore.activeSessions.get(instId)
-  const isBusy = sessionStore.isLaunching(instId) || (activeSession && !sessionStore.isRunning(instId))
-  if (REQUIRES_STOPPED.has(action.id) && isBusy) {
-    const operation = activeSession?.label || t('running.title')
-    const confirmed = await modal.confirm({
-      title: action.label,
-      message: t('errors.operationInProgress', { operation }),
-      confirmLabel: t('errors.cancelOperation'),
-      confirmStyle: 'danger',
-    })
-    if (!confirmed) return
-    await window.api.cancelOperation(instId)
-    await new Promise((r) => setTimeout(r, 500))
-  }
-
-  // Pre-flight: if the action requires the install to be stopped, offer to stop it
-  if (REQUIRES_STOPPED.has(action.id) && sessionStore.isRunning(props.installation.id)) {
-    if (!await stopAndRetry(props.installation.id)) return
+  // Pre-flight: check if the installation is busy or running
+  if (REQUIRES_STOPPED.has(action.id)) {
+    if (!await actionGuard.checkBeforeAction(props.installation.id, action.label)) return
   }
 
   let mutableAction = { ...action }
@@ -419,7 +388,7 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     )
     // Fallback: backend detected running instance (race condition)
     if (result.running && props.installation) {
-      await stopAndRetry(props.installation.id)
+      await actionGuard.checkBeforeAction(props.installation.id, mutableAction.label)
       return
     }
     const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
