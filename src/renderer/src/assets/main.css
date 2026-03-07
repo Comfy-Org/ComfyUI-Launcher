@@ -721,7 +721,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .dashboard-welcome-desc { font-size: 16px; color: var(--text-muted); margin-bottom: 28px; max-width: 400px; }
 .dashboard-cta-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 24px; font-size: 14px; }
 .dashboard-telemetry-notice {
-  margin-top: 14px;
+  margin-top: 28px;
   max-width: 460px;
   font-size: 13px;
   color: var(--text-muted);

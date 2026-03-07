@@ -20,7 +20,11 @@
     "pinToDashboard": "Pin to Dashboard",
     "unpinFromDashboard": "Unpin from Dashboard",
     "telemetryNotice": "Anonymous telemetry is collected to improve ComfyUI Launcher.",
-    "telemetrySettings": "Manage in Settings"
+    "telemetrySettings": "Manage in Settings",
+    "migrateBannerTitle": "Migrate to Standalone",
+    "migrateBannerDesc": "Your Desktop installation was detected. Migrate to a Standalone install for better performance, easier updates, and full Launcher management.",
+    "migrateBannerAction": "Migrate Now",
+    "migrateBannerLaunch": "Launch Desktop"
   },
 
   "sidebar": {
