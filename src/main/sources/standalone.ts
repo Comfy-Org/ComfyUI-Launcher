@@ -11,6 +11,7 @@ import { deleteAction, untrackAction } from '../lib/actions'
 import { downloadAndExtract, downloadAndExtractMulti } from '../lib/installer'
 import { copyDirWithProgress } from '../lib/copy'
 import { parseArgs, formatTime } from '../lib/util'
+import { PYTORCH_RE, installFilteredRequirements } from '../lib/pip'
 import { t } from '../lib/i18n'
 import * as installations from '../installations'
 import { listCustomNodes, findComfyUIDir, backupDir, mergeDirFlat } from '../lib/migrate'
@@ -849,6 +850,10 @@ export const standalone: SourcePlugin = {
       let preReqs = ''
       try { preReqs = await fs.promises.readFile(reqPath, 'utf-8') } catch {}
 
+      const mgrReqPath = path.join(comfyuiDir, 'manager_requirements.txt')
+      let preMgrReqs = ''
+      try { preMgrReqs = await fs.promises.readFile(mgrReqPath, 'utf-8') } catch {}
+
       sendProgress('steps', { steps: [
         { phase: 'prepare', label: t('standalone.updatePrepare') },
         { phase: 'run', label: t('standalone.updateRun') },
@@ -922,7 +927,6 @@ export const standalone: SourcePlugin = {
         const activeEnvPython = getActivePythonPath(installation)
 
         if (fs.existsSync(uvPath) && activeEnvPython) {
-          const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;[#]|$)/i
           const filteredReqs = postReqs.split('\n').filter((l) => !PYTORCH_RE.test(l.trim())).join('\n')
           const filteredReqPath = path.join(installPath, '.comfyui-reqs-filtered.txt')
           await fs.promises.writeFile(filteredReqPath, filteredReqs, 'utf-8')
@@ -987,6 +991,24 @@ export const standalone: SourcePlugin = {
         }
       } else {
         sendProgress('deps', { percent: -1, status: t('standalone.updateDepsUpToDate') })
+      }
+
+      // Check for manager_requirements.txt changes (comfyui-manager pip package)
+      let postMgrReqs = ''
+      try { postMgrReqs = await fs.promises.readFile(mgrReqPath, 'utf-8') } catch {}
+
+      if (preMgrReqs !== postMgrReqs && postMgrReqs.length > 0) {
+        const uvPath = getUvPath(installPath)
+        const activeEnvPython = getActivePythonPath(installation)
+
+        if (fs.existsSync(uvPath) && activeEnvPython) {
+          sendProgress('deps', { percent: -1, status: t('standalone.updateDepsInstalling') })
+          sendOutput('\nInstalling manager requirements…\n')
+          const mgrResult = await installFilteredRequirements(mgrReqPath, uvPath, activeEnvPython, installPath, '.manager-reqs-filtered.txt', sendOutput, signal)
+          if (mgrResult !== 0) {
+            sendOutput(`\nWarning: manager requirements install exited with code ${mgrResult}\n`)
+          }
+        }
       }
 
       const cachedRelease = releaseCache.get(COMFYUI_REPO, channel) || {}
@@ -1221,7 +1243,6 @@ export const standalone: SourcePlugin = {
             sendOutput(t('migrate.noUvOrPython') + '\n')
             sendProgress('deps', { percent: 100, status: t('migrate.depsSkipped') })
           } else {
-            const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;[#]|$)/i
             let depsInstalled = 0
 
             for (const node of nodesWithReqs) {
@@ -1232,32 +1253,9 @@ export const standalone: SourcePlugin = {
               })
 
               try {
-                const reqContent = await fs.promises.readFile(nodReqPath, 'utf-8')
-                const filtered = reqContent.split('\n').filter((l) => !PYTORCH_RE.test(l.trim())).join('\n')
-                const filteredReqPath = path.join(installation.installPath, `.migrate-reqs-${node.name}.txt`)
-                await fs.promises.writeFile(filteredReqPath, filtered, 'utf-8')
-
-                try {
-                  const procResult = await new Promise<number>((resolve) => {
-                    const proc = spawn(uvPath, ['pip', 'install', '-r', filteredReqPath, '--python', activePython], {
-                      cwd: installation.installPath,
-                      stdio: ['ignore', 'pipe', 'pipe'],
-                      windowsHide: true,
-                    })
-                    proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
-                    proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
-                    proc.on('error', (err) => {
-                      sendOutput(`Error: ${err.message}\n`)
-                      resolve(1)
-                    })
-                    proc.on('exit', (code) => resolve(code ?? 1))
-                  })
-
-                  if (procResult !== 0) {
-                    sendOutput(`\n⚠ ${node.name}: dependency install exited with code ${procResult}\n`)
-                  }
-                } finally {
-                  try { await fs.promises.unlink(filteredReqPath) } catch {}
+                const procResult = await installFilteredRequirements(nodReqPath, uvPath, activePython, installation.installPath, `.migrate-reqs-${node.name}.txt`, sendOutput)
+                if (procResult !== 0) {
+                  sendOutput(`\n⚠ ${node.name}: dependency install exited with code ${procResult}\n`)
                 }
               } catch (err) {
                 sendOutput(`⚠ ${node.name}: ${(err as Error).message}\n`)
@@ -1268,6 +1266,24 @@ export const standalone: SourcePlugin = {
 
             sendProgress('deps', { percent: 100, status: t('migrate.depsComplete') })
             summary.push(t('migrate.summaryDeps', { count: nodesWithReqs.length }))
+          }
+        }
+      }
+
+      // Install manager_requirements.txt from destination ComfyUI if present
+      {
+        const dstComfyUIDir = path.join(installation.installPath, 'ComfyUI')
+        const mgrReqPath = path.join(dstComfyUIDir, 'manager_requirements.txt')
+        if (fs.existsSync(mgrReqPath)) {
+          const uvPath = getUvPath(installation.installPath)
+          const activePython = getActivePythonPath(installation)
+
+          if (fs.existsSync(uvPath) && activePython) {
+            sendOutput('\nInstalling manager requirements…\n')
+            const procResult = await installFilteredRequirements(mgrReqPath, uvPath, activePython, installation.installPath, '.migrate-mgr-reqs.txt', sendOutput)
+            if (procResult !== 0) {
+              sendOutput(`\n⚠ manager requirements install exited with code ${procResult}\n`)
+            }
           }
         }
       }
