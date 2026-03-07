@@ -799,6 +799,9 @@ export async function restoreComfyUIVersion(
   if (!targetCommit) {
     return { changed: false, commit: null }
   }
+  if (!/^[a-f0-9]{7,40}$/.test(targetCommit)) {
+    return { changed: false, commit: null, error: 'Invalid commit hash in snapshot' }
+  }
 
   const currentHead = readGitHead(comfyuiDir)
   if (currentHead && (currentHead.startsWith(targetCommit) || targetCommit.startsWith(currentHead))) {
