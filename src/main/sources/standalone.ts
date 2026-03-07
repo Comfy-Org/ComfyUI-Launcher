@@ -5,6 +5,8 @@ import { spawn, execFile } from 'child_process'
 import { fetchJSON } from '../lib/fetch'
 import { fetchLatestRelease, truncateNotes } from '../lib/comfyui-releases'
 import * as releaseCache from '../lib/release-cache'
+import { buildChannelCards, buildChannelLabelMap } from '../lib/channel-cards'
+import type { ChannelDef } from '../lib/channel-cards'
 import { deleteAction, untrackAction } from '../lib/actions'
 import { downloadAndExtract, downloadAndExtractMulti } from '../lib/installer'
 import { copyDirWithProgress } from '../lib/copy'
@@ -366,27 +368,27 @@ export const standalone: SourcePlugin = {
     const channel = (installation.updateChannel as string | undefined) || 'stable'
 
     // Build per-channel preview info and actions for cards
-    const channelDefs = [
+    const channelDefs: ChannelDef[] = [
       { value: 'stable', label: t('standalone.channelStable'), description: t('standalone.channelStableDesc'), recommended: true },
       { value: 'latest', label: t('standalone.channelLatest'), description: t('standalone.channelLatestDesc') },
     ]
-    const channelLabelMap: Record<string, string> = {}
-    for (const def of channelDefs) channelLabelMap[def.value] = def.label
+    const channelLabelMap = buildChannelLabelMap(channelDefs)
+    const baseCards = buildChannelCards(COMFYUI_REPO, channelDefs, installation)
 
-    const channelOptions = channelDefs.map((opt) => {
-      const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
+    const channelOptions = baseCards.map((card) => {
       const actions: Record<string, unknown>[] = []
-      if (channelInfo && releaseCache.isUpdateAvailable(installation, opt.value, channelInfo) && hasGit) {
+      if (card.data?.updateAvailable && hasGit) {
+        const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, card.value, installation)!
         const installedDisplay = (installation.version as string | undefined) || channelInfo.installedTag || 'unknown'
         const latestDisplay = channelInfo.releaseName || channelInfo.latestTag || '—'
-        const isSwitching = opt.value !== channel
-        const isDowngrade = opt.value === 'stable' && installedDisplay.includes(latestDisplay + ' +')
+        const isSwitching = card.value !== channel
+        const isDowngrade = card.value === 'stable' && installedDisplay.includes(latestDisplay + ' +')
         const msgKey = isDowngrade ? 'standalone.updateConfirmMessageDowngrade'
-          : opt.value === 'latest' ? 'standalone.updateConfirmMessageLatest'
+          : card.value === 'latest' ? 'standalone.updateConfirmMessageLatest'
           : 'standalone.updateConfirmMessage'
         const notes = truncateNotes(channelInfo.releaseNotes || '', 2000)
         const switchPrefix = isSwitching
-          ? t('channelCards.switchChannelPrefix', { from: channelLabelMap[channel] || channel, to: opt.label })
+          ? t('channelCards.switchChannelPrefix', { from: channelLabelMap[channel] || channel, to: card.label })
           : ''
         const confirmMessage = t(msgKey, {
           installed: installedDisplay,
@@ -397,7 +399,7 @@ export const standalone: SourcePlugin = {
         actions.push({
           id: 'update-comfyui', label: t('standalone.updateNow'), style: 'primary', enabled: installed,
           showProgress: true, progressTitle: t('standalone.updatingTitle', { version: latestDisplay }),
-          data: isSwitching ? { channel: opt.value } : undefined,
+          data: isSwitching ? { channel: card.value } : undefined,
           confirm: {
             title: t('standalone.updateConfirmTitle'),
             message: switchPrefix + confirmMessage,
@@ -407,7 +409,7 @@ export const standalone: SourcePlugin = {
           id: 'copy-update', label: t('standalone.copyAndUpdate'), style: 'default', enabled: installed,
           showProgress: true, progressTitle: t('standalone.copyUpdatingTitle', { version: latestDisplay }),
           cancellable: true,
-          data: isSwitching ? { channel: opt.value } : undefined,
+          data: isSwitching ? { channel: card.value } : undefined,
           prompt: {
             title: t('standalone.copyAndUpdateTitle'),
             message: (isSwitching ? switchPrefix : '') + t('standalone.copyAndUpdateMessage', { installed: installedDisplay, latest: latestDisplay }),
@@ -417,23 +419,13 @@ export const standalone: SourcePlugin = {
             field: 'name',
           },
         })
-      } else if (opt.value !== channel && hasGit) {
-        // No update available but user can still switch to this channel
+      } else if (card.value !== channel && hasGit) {
         actions.push({
           id: 'switch-channel', label: t('channelCards.switchChannelOnly'), style: 'default', enabled: installed,
-          data: { channel: opt.value },
+          data: { channel: card.value },
         })
       }
-      return {
-        ...opt,
-        data: channelInfo ? {
-          installedVersion: (installation.version as string | undefined) || channelInfo.installedTag || 'unknown',
-          latestVersion: channelInfo.releaseName || channelInfo.latestTag || '—',
-          lastChecked: channelInfo.checkedAt ? new Date(channelInfo.checkedAt).toLocaleString() : '—',
-          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, channelInfo),
-          actions: actions.length ? actions : undefined,
-        } : undefined,
-      }
+      return { ...card, data: card.data ? { ...card.data, actions: actions.length ? actions : undefined } : undefined }
     })
 
     const updateFields: Record<string, unknown>[] = [

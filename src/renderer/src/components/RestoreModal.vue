@@ -33,6 +33,7 @@ function handleOverlayClick(event: MouseEvent): void {
 
 function handleKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
+    event.stopImmediatePropagation()
     emit('cancel')
   }
 }

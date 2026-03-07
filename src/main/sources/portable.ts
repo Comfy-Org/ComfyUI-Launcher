@@ -8,6 +8,8 @@ import * as releaseCache from '../lib/release-cache'
 import { parseArgs } from '../lib/util'
 import { t } from '../lib/i18n'
 import { fetchLatestRelease, truncateNotes } from '../lib/comfyui-releases'
+import { buildChannelCards, buildChannelLabelMap } from '../lib/channel-cards'
+import type { ChannelDef } from '../lib/channel-cards'
 import type { InstallationRecord } from '../installations'
 import type {
   SourcePlugin,
@@ -138,22 +140,22 @@ export const portable: SourcePlugin = {
     const channel = (installation.updateChannel as string | undefined) || 'stable'
 
     // Build per-channel preview info and actions for cards
-    const channelDefs = [
+    const channelDefs: ChannelDef[] = [
       { value: 'stable', label: t('portable.channelStable'), description: t('portable.channelStableDesc'), recommended: true },
       { value: 'latest', label: t('portable.channelLatest'), description: t('portable.channelLatestDesc') },
     ]
-    const channelLabelMap: Record<string, string> = {}
-    for (const def of channelDefs) channelLabelMap[def.value] = def.label
+    const channelLabelMap = buildChannelLabelMap(channelDefs)
+    const baseCards = buildChannelCards(COMFYUI_REPO, channelDefs, installation)
 
-    const channelOptions = channelDefs.map((opt) => {
-      const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
+    const channelOptions = baseCards.map((card) => {
       const actions: Record<string, unknown>[] = []
-      if (channelInfo && releaseCache.isUpdateAvailable(installation, opt.value, channelInfo)) {
-        const isSwitching = opt.value !== channel
-        const msgKey = opt.value === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'
+      if (card.data?.updateAvailable) {
+        const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, card.value, installation)!
+        const isSwitching = card.value !== channel
+        const msgKey = card.value === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'
         const notes = truncateNotes(channelInfo.releaseNotes || '', 2000)
         const switchPrefix = isSwitching
-          ? t('channelCards.switchChannelPrefix', { from: channelLabelMap[channel] || channel, to: opt.label })
+          ? t('channelCards.switchChannelPrefix', { from: channelLabelMap[channel] || channel, to: card.label })
           : ''
         const confirmMessage = t(msgKey, {
           installed: channelInfo.installedTag || installation.version || '',
@@ -164,28 +166,19 @@ export const portable: SourcePlugin = {
         actions.push({
           id: 'update-comfyui', label: t('portable.updateNow'), style: 'primary', enabled: installed,
           showProgress: true, progressTitle: t('portable.updatingTitle', { version: channelInfo.latestTag || '' }),
-          data: isSwitching ? { channel: opt.value } : undefined,
+          data: isSwitching ? { channel: card.value } : undefined,
           confirm: {
             title: t('portable.updateConfirmTitle'),
             message: switchPrefix + confirmMessage,
           },
         })
-      } else if (opt.value !== channel) {
+      } else if (card.value !== channel) {
         actions.push({
           id: 'switch-channel', label: t('channelCards.switchChannelOnly'), style: 'default', enabled: installed,
-          data: { channel: opt.value },
+          data: { channel: card.value },
         })
       }
-      return {
-        ...opt,
-        data: channelInfo ? {
-          installedVersion: channelInfo.installedTag || (installation.version as string | undefined) || 'unknown',
-          latestVersion: channelInfo.releaseName || channelInfo.latestTag || '—',
-          lastChecked: channelInfo.checkedAt ? new Date(channelInfo.checkedAt).toLocaleString() : '—',
-          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, channelInfo),
-          actions: actions.length ? actions : undefined,
-        } : undefined,
-      }
+      return { ...card, data: card.data ? { ...card.data, actions: actions.length ? actions : undefined } : undefined }
     })
 
     const updateFields: Record<string, unknown>[] = [

@@ -647,12 +647,13 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 /* Update banner */
 .update-banner {
   display: flex; align-items: center; gap: 12px;
-  padding: 10px 14px; margin-top: 16px;
+  padding: 10px 14px; margin-bottom: 16px;
   border: 1px solid var(--accent); border-radius: 8px;
   background: var(--surface); font-size: 14px;
 }
 .update-banner .update-text { flex: 1; color: var(--text); }
 .update-banner .update-text strong { color: var(--accent); }
+.update-banner-actions { display: flex; gap: 8px; }
 .update-banner button { flex-shrink: 0; }
 
 /* Zoom banner */
