@@ -636,7 +636,7 @@ export const standalone: SourcePlugin = {
       if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
 
       sendProgress('steps', { steps: [
-        { phase: 'restore-comfyui', label: t('standalone.snapshotRestoreComfyUIPhase', { defaultValue: 'Restore ComfyUI version' }) },
+        { phase: 'restore-comfyui', label: t('standalone.snapshotRestoreComfyUIPhase') },
         { phase: 'restore-nodes', label: t('standalone.snapshotRestoreNodesPhase') },
         { phase: 'restore-pip', label: t('standalone.snapshotRestorePipPhase') },
       ] })

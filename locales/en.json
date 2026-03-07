@@ -565,6 +565,7 @@
     "snapshotRestoringTitle": "Restoring Snapshot",
     "snapshotRestoreNodesPhase": "Restore Nodes",
     "snapshotRestorePipPhase": "Restore Packages",
+    "snapshotRestoreComfyUIPhase": "Restore ComfyUI version",
     "snapshotRestoreComplete": "Snapshot restore complete",
     "snapshotRestoreReverted": "Pip restore failed — reverted to pre-restore state",
     "snapshotRestoreNothingToDo": "No changes needed — environment already matches snapshot.",
