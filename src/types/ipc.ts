@@ -182,6 +182,7 @@ export interface ActionResult {
   mode?: 'console' | 'window'
   portConflict?: PortConflictInfo
   cancelled?: boolean
+  running?: boolean
 }
 
 export interface PortConflictInfo {

@@ -44,6 +44,18 @@ const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
 const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000
 const IGNORE_FILES = new Set([MARKER_FILE, '.DS_Store', 'Thumbs.db', 'desktop.ini'])
 
+/** Action IDs that require the installation to be stopped before running. */
+const REQUIRES_STOPPED = new Set([
+  'delete',
+  'copy',
+  'copy-update',
+  'release-update',
+  'migrate-to-standalone',
+  'snapshot-restore',
+  'update-comfyui',
+  'migrate-from',
+])
+
 function isEffectivelyEmptyInstallDir(dirPath: string): boolean {
   if (!dirPath) return true
   try {
@@ -1345,6 +1357,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const maybeInst = await installations.get(installationId)
     if (!maybeInst) return { ok: false, message: 'Installation not found.' }
     const inst = maybeInst
+    if (REQUIRES_STOPPED.has(actionId) && _runningSessions.has(installationId)) {
+      return { ok: false, message: i18n.t('errors.stopRequired'), running: true }
+    }
     if (actionId === 'remove') {
       await installations.remove(installationId)
       await autoAssignPrimary(installationId)
@@ -2101,10 +2116,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         _onLaunch({ port: launchCmd.port!, process: proc, installation: inst, mode })
       }
       return { ok: true, mode, port: launchCmd.port }
-    }
-    // Actions that modify the pip environment require ComfyUI to be stopped
-    if (actionId === 'snapshot-restore' && _runningSessions.has(installationId)) {
-      return { ok: false, message: i18n.t('standalone.snapshotRestoreStopRequired') }
     }
     // Delegate to source plugin's handleAction
     const abort = new AbortController()

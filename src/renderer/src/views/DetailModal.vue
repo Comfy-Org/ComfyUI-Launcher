@@ -7,6 +7,8 @@ import DetailSectionComponent from '../components/DetailSection.vue'
 import SnapshotTab from '../components/SnapshotTab.vue'
 import { useInstallationStore } from '../stores/installationStore'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
+import { REQUIRES_STOPPED } from '../lib/actionGuards'
+import { useSessionStore } from '../stores/sessionStore'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
@@ -45,6 +47,7 @@ const { t } = useI18n()
 const modal = useModal()
 const prefs = useLauncherPrefs()
 const installationStore = useInstallationStore()
+const sessionStore = useSessionStore()
 
 const isLocal = computed(() => props.installation?.sourceCategory === 'local')
 const isDesktop = computed(() => props.installation?.sourceId === 'desktop')
@@ -156,12 +159,32 @@ function handleActionClick(action: ActionDef, event: MouseEvent): void {
   runAction(action, event.target as HTMLButtonElement)
 }
 
+async function stopAndRetry(installationId: string): Promise<boolean> {
+  const confirmed = await modal.confirm({
+    title: t('errors.stopRunning'),
+    message: t('errors.stopRequiredConfirm'),
+    confirmLabel: t('errors.stopRunning'),
+    confirmStyle: 'primary',
+  })
+  if (!confirmed) return false
+  await window.api.stopComfyUI(installationId)
+  // Wait briefly for the session to clear
+  await new Promise((r) => setTimeout(r, 500))
+  return true
+}
+
 async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Promise<void> {
   if (!props.installation) return
   const telemetryContext = {
     source_category: props.installation.sourceCategory || 'unknown',
     ui_surface: 'detail',
   }
+
+  // Pre-flight: if the action requires the install to be stopped, offer to stop it
+  if (REQUIRES_STOPPED.has(action.id) && sessionStore.isRunning(props.installation.id)) {
+    if (!await stopAndRetry(props.installation.id)) return
+  }
+
   let mutableAction = { ...action }
 
   // fieldSelects chain
@@ -377,6 +400,13 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
       mutableAction.id,
       mutableAction.data ? toRaw(mutableAction.data) : undefined
     )
+    // Fallback: backend detected running instance (race condition)
+    if (result.running && props.installation) {
+      if (await stopAndRetry(props.installation.id)) {
+        return runAction(action, btn)
+      }
+      return
+    }
     const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
     emitTelemetryAction('launcher.action.result', { action_id: mutableAction.id, result: resultValue, ...telemetryContext })
     if (result.navigate === 'list') {

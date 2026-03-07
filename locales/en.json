@@ -663,7 +663,10 @@
     "portConflictKilling": "Stopping…",
     "portConflictKillFailed": "Could not free port {port}. The process may require manual termination.",
     "duplicateName": "An install named \"{name}\" already exists. Please choose a different name.",
-    "unknownSource": "This installation has an unrecognized source type. It may have been created by a different version. Delete it and reinstall."
+    "unknownSource": "This installation has an unrecognized source type. It may have been created by a different version. Delete it and reinstall.",
+    "stopRequired": "This installation is currently running and must be stopped first.",
+    "stopRequiredConfirm": "This installation is currently running. Would you like to stop it to continue?",
+    "stopRunning": "Stop Running"
   },
 
   "contextMenu": {
