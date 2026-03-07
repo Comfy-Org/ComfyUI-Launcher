@@ -97,7 +97,7 @@ export interface DetailField {
   label: string
   value: string | boolean | number | null
   editable?: boolean
-  editType?: 'select' | 'boolean' | 'text' | 'channel-cards'
+  editType?: 'select' | 'boolean' | 'text' | 'path' | 'channel-cards'
   options?: DetailFieldOption[]
   refreshSection?: boolean
   onChangeAction?: string

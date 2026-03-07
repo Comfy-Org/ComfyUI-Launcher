@@ -89,6 +89,14 @@ function handleAction(action: ActionDef, event: MouseEvent): void {
   const button = event.currentTarget as HTMLButtonElement | null
   emit('run-action', action, button)
 }
+
+async function handleBrowseField(field: DetailField): Promise<void> {
+  const current = field.value ? String(field.value) : undefined
+  const dir = await window.api.browseFolder(current)
+  if (dir) {
+    await handleFieldChange(field, dir)
+  }
+}
 </script>
 
 <template>
@@ -187,6 +195,13 @@ v-if="f.editable && f.editType === 'select'" class="detail-field-input"
             <input
 v-else-if="f.editable && f.editType === 'boolean'" type="checkbox" class="detail-field-toggle"
                    :checked="f.value !== false" @change="handleFieldChange(f, ($event.target as HTMLInputElement).checked)">
+            <!-- Path with browse -->
+            <div v-else-if="f.editable && f.editType === 'path'" class="path-input">
+              <input
+type="text" class="detail-field-input"
+                     :value="f.value ?? ''" @change="handleFieldChange(f, ($event.target as HTMLInputElement).value)">
+              <button @click="handleBrowseField(f)">{{ $t('common.browse') }}</button>
+            </div>
             <!-- Text editable -->
             <input
 v-else-if="f.editable" type="text" class="detail-field-input"

@@ -84,6 +84,7 @@ export const gitSource: SourcePlugin = {
   get label() { return t('git.label') },
   get description() { return t('git.desc') },
   category: 'local',
+  hidden: true,
   hasConsole: true,
 
   fields: [
@@ -176,7 +177,7 @@ export const gitSource: SourcePlugin = {
         tab: 'settings',
         title: t('common.launchSettings'),
         fields: [
-          { id: 'venvPath', label: t('git.venv'), value: venvPath || '', editable: true },
+          { id: 'venvPath', label: t('git.venv'), value: venvPath || '', editable: true, editType: 'path' },
           { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true },
           { id: 'launchMode', label: t('common.launchMode'), value: (installation.launchMode as string | undefined) || 'console', editable: true,
             editType: 'select', options: [
@@ -226,7 +227,10 @@ export const gitSource: SourcePlugin = {
       // ignore — partial info is fine
     }
     const venv = findVenv(dirPath)
-    if (venv) info.venvPath = venv
+    if (venv) {
+      info.venvPath = venv
+      info.venvName = path.basename(venv)
+    }
     return info
   },
 
