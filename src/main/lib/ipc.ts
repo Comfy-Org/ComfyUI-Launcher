@@ -20,7 +20,7 @@ import {
   findAvailablePort, writePortLock, readPortLock, removePortLock,
 } from './process'
 import { detectGPU, validateHardware, checkNvidiaDriver } from './gpu'
-import { detectDesktopInstall, syncSharedModelPaths, stageDesktopSnapshot } from './desktopDetect'
+import { detectDesktopInstall, stageDesktopSnapshot } from './desktopDetect'
 import { performDesktopMigration } from './desktopMigration'
 import { getDiskSpace, getDirectorySize, validateInstallPath } from './disk'
 import type { GpuInfo } from './gpu'
@@ -408,14 +408,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         desktopExePath: desktopInfo.executablePath || undefined,
         status: 'installed',
       })
-
-      // Sync Launcher's shared model directories into Desktop's config
-      const modelsDirs = settings.get('modelsDirs') as string[] | undefined
-      if (modelsDirs && modelsDirs.length > 0) {
-        try {
-          syncSharedModelPaths(desktopInfo.configDir, modelsDirs)
-        } catch {}
-      }
     }
   }
 
@@ -1328,15 +1320,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         if (!win.isDestroyed()) win.webContents.send('locale-changed', msgs)
       })
       if (_onLocaleChanged) _onLocaleChanged()
-    }
-    if (key === 'modelsDirs') {
-      // Re-sync shared model paths into Desktop's config if Desktop is tracked
-      const desktopInfo = detectDesktopInstall()
-      if (desktopInfo) {
-        try {
-          syncSharedModelPaths(desktopInfo.configDir, value as string[])
-        } catch {}
-      }
     }
     if (key === 'telemetryEnabled') {
       BrowserWindow.getAllWindows().forEach((win) => {
