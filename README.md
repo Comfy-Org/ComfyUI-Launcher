@@ -151,7 +151,14 @@ The workflow enforces `tag == package.json version`. Once the build finishes, go
 
 ## Data Locations
 
-On **Windows** and **macOS**, all app data lives under the standard Electron `userData` path (`%APPDATA%\comfyui-launcher` / `~/Library/Application Support/comfyui-launcher`).
+On **Windows** and **macOS**, all app data lives under the standard Electron `userData` path.
+
+> **Dev vs. production path difference:** Electron derives the `userData` directory name from the app's name. In development (`pnpm run dev`), it uses the `name` field from `package.json` (`comfyui-launcher`), while packaged builds use the `productName` from `electron-builder.yml` (`ComfyUI Launcher`). This means the two environments use separate data directories:
+>
+> | | Windows | macOS | Linux |
+> |---|---|---|---|
+> | **Dev** | `%APPDATA%\comfyui-launcher` | `~/Library/Application Support/comfyui-launcher` | `~/.config/comfyui-launcher` |
+> | **Production** | `%APPDATA%\ComfyUI Launcher` | `~/Library/Application Support/ComfyUI Launcher` | `~/.config/ComfyUI Launcher` |
 
 On **Linux**, the app follows the [XDG Base Directory Specification](https://wiki.archlinux.org/title/XDG_Base_Directory):
 

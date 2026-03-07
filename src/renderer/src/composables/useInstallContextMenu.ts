@@ -22,7 +22,7 @@ export function useInstallContextMenu(onShowDetail: (inst: Installation) => void
       })
     }
 
-    if (inst.sourceCategory === 'local') {
+    if (inst.sourceCategory === 'local' && inst.sourceId !== 'desktop') {
       items.push({
         id: 'set-primary',
         label: t('dashboard.setPrimary'),

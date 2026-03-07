@@ -1,10 +1,12 @@
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
 import { execFile } from 'child_process'
 import { homedir } from 'os'
 import { MODEL_FOLDER_TYPES } from './models'
 import { scanCustomNodes } from './nodes'
-import type { Snapshot } from './snapshots'
+import { buildExportEnvelope } from './snapshots'
+import type { Snapshot, SnapshotExportEnvelope } from './snapshots'
 
 export interface DesktopInstallInfo {
   configDir: string
@@ -206,4 +208,24 @@ export async function captureDesktopSnapshot(info: DesktopInstallInfo): Promise<
     pipPackages,
     skipPipSync: true,
   }
+}
+
+/**
+ * Capture a Desktop snapshot, wrap it in an export envelope, and write it to a
+ * temp file.  Returns the envelope (for preview) and the staged file path.
+ */
+export async function stageDesktopSnapshot(
+  info: DesktopInstallInfo
+): Promise<{ envelope: SnapshotExportEnvelope; stagedFile: string }> {
+  const snapshot = await captureDesktopSnapshot(info)
+  const envelope = buildExportEnvelope('Desktop Migration', [
+    { filename: 'desktop-migration.json', snapshot },
+  ])
+
+  const stagingDir = path.join(os.tmpdir(), 'comfyui-launcher-snapshots')
+  await fs.promises.mkdir(stagingDir, { recursive: true })
+  const stagedFile = path.join(stagingDir, `desktop-migrate-${Date.now()}.json`)
+  await fs.promises.writeFile(stagedFile, JSON.stringify(envelope, null, 2))
+
+  return { envelope, stagedFile }
 }

@@ -10,6 +10,7 @@ import { useInstallContextMenu } from '../composables/useInstallContextMenu'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import { Download, Star, Clock, Cloud, Pin } from 'lucide-vue-next'
 import DashboardCard from '../components/DashboardCard.vue'
+import MigrationBanner from '../components/MigrationBanner.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import type { Installation, ListAction } from '../types/ipc'
 
@@ -54,10 +55,16 @@ const primaryInstall = computed(() => {
   return localInstalls.value[0] ?? null
 })
 
-// --- Latest install ---
+const desktopOnlyInstall = computed(() => {
+  if (localInstalls.value.length !== 1) return null
+  const only = localInstalls.value[0]!
+  return only.sourceId === 'desktop' ? only : null
+})
+
+// --- Latest install (exclude desktop) ---
 const latestInstall = computed(() => {
   const withTimestamp = installationStore.installations.filter(
-    (i) => i.sourceCategory !== 'cloud' && typeof i.lastLaunchedAt === 'number'
+    (i) => i.sourceCategory !== 'cloud' && i.sourceId !== 'desktop' && typeof i.lastLaunchedAt === 'number'
   )
   if (withTimestamp.length === 0) return null
   return withTimestamp.reduce((a, b) =>
@@ -283,7 +290,7 @@ async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<
 
 // --- Change primary ---
 async function changePrimary(): Promise<void> {
-  const items = localInstalls.value.map((i) => ({
+  const items = localInstalls.value.filter((i) => i.sourceId !== 'desktop').map((i) => ({
     value: i.id,
     label: i.name,
     description: [i.sourceLabel, i.version].filter(Boolean).join(' · '),
@@ -322,8 +329,16 @@ async function changePrimary(): Promise<void> {
         </p>
       </div>
 
+      <!-- Desktop-only migration banner -->
+      <MigrationBanner
+        v-if="desktopOnlyInstall"
+        :installation="desktopOnlyInstall"
+        @show-progress="(opts) => emit('show-progress', opts)"
+        @show-settings="emit('show-settings')"
+      />
+
       <!-- Quick Launch section -->
-      <div v-if="primaryInstall" class="dashboard-section">
+      <div v-else-if="primaryInstall" class="dashboard-section">
         <div class="dashboard-section-label">{{ $t('dashboard.quickLaunch') }}</div>
         <div class="dashboard-quick-launch">
           <!-- Latest card -->
