@@ -636,15 +636,25 @@ export const standalone: SourcePlugin = {
       if (!file) return { ok: false, message: t('standalone.snapshotNoFile') }
 
       sendProgress('steps', { steps: [
+        { phase: 'restore-comfyui', label: t('standalone.snapshotRestoreComfyUIPhase', { defaultValue: 'Restore ComfyUI version' }) },
         { phase: 'restore-nodes', label: t('standalone.snapshotRestoreNodesPhase') },
         { phase: 'restore-pip', label: t('standalone.snapshotRestorePipPhase') },
       ] })
-      sendProgress('restore-nodes', { percent: 0, status: 'Loading snapshot…' })
+      sendProgress('restore-comfyui', { percent: 0, status: 'Loading snapshot…' })
       sendOutput('Loading snapshot…\n')
 
       const targetSnapshot = await snapshots.loadSnapshot(installation.installPath, file)
 
-      // Phase 3: Restore custom nodes first (node installs may add pip dependencies)
+      // Phase 1: Restore ComfyUI version (checkout target commit)
+      sendOutput('\n── Restore ComfyUI Version ──\n')
+      const comfyResult = await snapshots.restoreComfyUIVersion(
+        installation.installPath, targetSnapshot, sendOutput
+      )
+      sendProgress('restore-comfyui', { percent: 100, status: comfyResult.changed ? 'Restored' : 'Up to date' })
+
+      if (signal?.aborted) return { ok: false, message: 'Cancelled' }
+
+      // Phase 2: Restore custom nodes first (node installs may add pip dependencies)
       sendOutput('\n── Restore Nodes ──\n')
       const nodeResult = await snapshots.restoreCustomNodes(
         installation.installPath, installation, targetSnapshot, sendProgress, sendOutput, signal
@@ -652,7 +662,7 @@ export const standalone: SourcePlugin = {
 
       if (signal?.aborted) return { ok: false, message: 'Cancelled' }
 
-      // Phase 2: Restore pip packages (syncs to exact target state)
+      // Phase 3: Restore pip packages (syncs to exact target state)
       sendOutput('\n── Restore Packages ──\n')
       const pipResult = await snapshots.restorePipPackages(
         installation.installPath, installation, targetSnapshot,
@@ -662,6 +672,12 @@ export const standalone: SourcePlugin = {
 
       // Build combined summary
       const summary: string[] = []
+
+      if (comfyResult.changed) {
+        summary.push(`ComfyUI: checked out ${(comfyResult.commit || targetSnapshot.comfyui.commit || '').slice(0, 7)}`)
+      }
+      if (comfyResult.error) summary.push(`ComfyUI restore failed: ${comfyResult.error}`)
+
       const nodeActions = nodeResult.installed.length + nodeResult.switched.length +
         nodeResult.enabled.length + nodeResult.disabled.length + nodeResult.removed.length
       if (nodeActions > 0) {
@@ -686,7 +702,7 @@ export const standalone: SourcePlugin = {
       if (pipResult.protectedSkipped.length > 0) summary.push(`${pipResult.protectedSkipped.length} protected (skipped)`)
       if (pipResult.failed.length > 0) summary.push(`${pipResult.failed.length} package(s) failed`)
 
-      const totalFailures = nodeResult.failed.length + pipResult.failed.length
+      const totalFailures = nodeResult.failed.length + pipResult.failed.length + (comfyResult.error ? 1 : 0)
 
       if (summary.length === 0) {
         sendOutput(`\n✓ ${t('standalone.snapshotRestoreNothingToDo')}\n`)
@@ -700,15 +716,21 @@ export const standalone: SourcePlugin = {
         return { ok: false, message: t('standalone.snapshotRestoreReverted') }
       }
 
-      // Restore update channel from the snapshot (default to stable if not set)
-      const targetChannel = targetSnapshot.updateChannel || 'stable'
-      if (targetChannel !== (installation.updateChannel as string | undefined)) {
-        await update({ updateChannel: targetChannel })
-      }
+      // Restore update channel and version/lastRollback state so the
+      // release cache sees accurate state for the restored channel.
+      const restoreState = snapshots.buildPostRestoreState(
+        targetSnapshot, comfyResult,
+        installation.updateInfoByChannel as Record<string, Record<string, unknown>> | undefined,
+        installation.version as string | undefined
+      )
+      await update(restoreState)
 
       // Capture a new snapshot reflecting the restored state
       try {
-        const updatedInstallation = { ...installation, updateChannel: targetChannel }
+        const updatedInstallation = {
+          ...installation,
+          ...restoreState,
+        }
         const filename = await snapshots.saveSnapshot(installation.installPath, updatedInstallation, 'post-restore')
         const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
         await update({ lastSnapshot: filename, snapshotCount })

@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   net: { fetch: vi.fn() },
 }))
 
-import { buildExportEnvelope, validateExportEnvelope, importSnapshots, diffSnapshots, listSnapshots } from './snapshots'
+import { buildExportEnvelope, validateExportEnvelope, importSnapshots, diffSnapshots, listSnapshots, restoreComfyUIVersion, buildPostRestoreState } from './snapshots'
 import type { Snapshot, SnapshotEntry, SnapshotExportEnvelope } from './snapshots'
 import type { ScannedNode } from './nodes'
 
@@ -558,5 +558,82 @@ describe('importSnapshots', () => {
     const result = await importSnapshots(tmpDir, envelope)
     expect(result.imported).toBe(1)
     expect(result.skipped).toBe(1)
+  })
+})
+
+// --- restoreComfyUIVersion ---
+
+describe('restoreComfyUIVersion', () => {
+  let restoreTmpDir: string
+
+  beforeEach(() => {
+    restoreTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'snap-restore-'))
+  })
+
+  afterEach(() => {
+    fs.rmSync(restoreTmpDir, { recursive: true, force: true })
+  })
+
+  it('returns changed: false when snapshot has no commit', async () => {
+    const snapshot = makeSnapshot({ comfyui: { ref: 'v0.3.10', commit: null, releaseTag: 'v0.2.1', variant: 'win-nvidia-cu128' } })
+    const output: string[] = []
+    const result = await restoreComfyUIVersion('/fake/path', snapshot, (t) => output.push(t))
+    expect(result.changed).toBe(false)
+    expect(result.commit).toBeNull()
+  })
+
+  it('returns error when .git directory does not exist', async () => {
+    const snapshot = makeSnapshot({ comfyui: { ref: 'v0.3.10', commit: 'deadbeef1234', releaseTag: 'v0.2.1', variant: 'win-nvidia-cu128' } })
+    const output: string[] = []
+    const result = await restoreComfyUIVersion(restoreTmpDir, snapshot, (t) => output.push(t))
+    expect(result.changed).toBe(false)
+    expect(result.error).toContain('.git directory not found')
+    expect(output.some((l) => l.includes('.git directory not found'))).toBe(true)
+  })
+})
+
+// --- buildPostRestoreState ---
+
+describe('buildPostRestoreState', () => {
+  it('includes version and lastRollback when comfyResult has no error', () => {
+    const snapshot = makeSnapshot({ updateChannel: 'stable', comfyui: { ref: 'v0.3.10', commit: 'abc1234', releaseTag: 'v0.2.1', variant: 'win-nvidia-cu128' } })
+    const comfyResult = { changed: true, commit: 'abc1234' }
+    const state = buildPostRestoreState(snapshot, comfyResult, undefined)
+    expect(state.updateChannel).toBe('stable')
+    expect(state.version).toBe('v0.2.1')
+    expect(state.lastRollback).toBeDefined()
+    expect((state.lastRollback as Record<string, unknown>).channel).toBe('stable')
+    expect((state.lastRollback as Record<string, unknown>).postUpdateHead).toBe('abc1234')
+    expect(state.updateInfoByChannel).toBeDefined()
+  })
+
+  it('uses current version when comfyResult has an error', () => {
+    const snapshot = makeSnapshot({ updateChannel: 'latest', comfyui: { ref: 'v0.3.10', commit: 'abc1234', releaseTag: 'v0.2.1', variant: 'win-nvidia-cu128' } })
+    const comfyResult = { changed: false, commit: null, error: 'git checkout failed' }
+    const state = buildPostRestoreState(snapshot, comfyResult, undefined, 'v0.1.0')
+    expect(state.updateChannel).toBe('latest')
+    expect(state.version).toBe('v0.1.0')
+    expect(state.lastRollback).toBeDefined()
+    expect((state.lastRollback as Record<string, unknown>).channel).toBe('latest')
+    expect(state.updateInfoByChannel).toBeDefined()
+    const info = state.updateInfoByChannel as Record<string, Record<string, unknown>>
+    expect(info.latest!.installedTag).toBe('v0.1.0')
+  })
+
+  it('uses displayVersion over releaseTag when available', () => {
+    const snapshot = makeSnapshot({ comfyui: { ref: 'v0.3.10', commit: 'abc1234', releaseTag: 'v0.2.1', variant: 'win-nvidia-cu128', displayVersion: 'v0.2.1-custom' } })
+    const comfyResult = { changed: true, commit: 'abc1234' }
+    const state = buildPostRestoreState(snapshot, comfyResult, undefined)
+    expect(state.version).toBe('v0.2.1-custom')
+  })
+
+  it('merges with existing updateInfoByChannel', () => {
+    const snapshot = makeSnapshot({ updateChannel: 'stable' })
+    const comfyResult = { changed: false, commit: 'abc1234' }
+    const existing = { latest: { installedTag: 'xyz' } }
+    const state = buildPostRestoreState(snapshot, comfyResult, existing)
+    const info = state.updateInfoByChannel as Record<string, Record<string, unknown>>
+    expect(info.latest).toEqual({ installedTag: 'xyz' })
+    expect(info.stable).toBeDefined()
   })
 })

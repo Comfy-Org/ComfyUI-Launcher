@@ -135,8 +135,27 @@ export function gitFetchAndCheckout(
       proc.on('close', (code) => resolve(code ?? 1))
     })
 
-  return runGit(['fetch', 'origin']).then((code) => {
+  // Fetch master explicitly — grafted/archive-based repos may have no
+  // branch tracking configured, so a bare `git fetch origin` only pulls
+  // tags. Use --unshallow to handle shallow clones; fall back to a
+  // regular fetch if the repo is already complete.
+  const refspec = '+refs/heads/master:refs/remotes/origin/master'
+  return runGit(['fetch', '--unshallow', 'origin', refspec]).then((code) => {
+    if (code !== 0) return runGit(['fetch', 'origin', refspec])
+    return code
+  }).then((code) => {
     if (code !== 0) return code
-    return runGit(['checkout', commit])
+    // Ensure a local master branch exists (mirroring the pygit2 update
+    // script) so future updates via update_comfyui.py work correctly.
+    // Detach HEAD first so `branch -f` can't fail due to master being
+    // the currently checked-out branch.
+    return runGit(['checkout', '--detach', 'HEAD']).then(() => {
+      // Detach may fail if HEAD is invalid (fresh archive with no commits
+      // checked out); that's fine — branch -f will still succeed.
+      return runGit(['branch', '-f', 'master', 'refs/remotes/origin/master'])
+    }).then((branchCode) => {
+      if (branchCode !== 0) return branchCode
+      return runGit(['checkout', commit])
+    })
   })
 }
