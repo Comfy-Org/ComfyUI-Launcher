@@ -82,11 +82,11 @@ function statusClass(d: ModelDownloadProgress): string {
 function barClass(d: ModelDownloadProgress): string {
   switch (d.status) {
     case 'paused':
-      return 'dl-bar-paused'
+      return 'paused'
     case 'error':
-      return 'dl-bar-error'
+      return 'error'
     case 'completed':
-      return 'dl-bar-success'
+      return 'success'
     default:
       return ''
   }
@@ -120,7 +120,7 @@ function dismiss(url: string): void {
 
 <template>
   <div v-if="downloadStore.hasDownloads">
-    <div class="detail-section-title" style="margin-top: 18px">
+    <div class="detail-section-title spaced">
       {{ t('downloads.title') }}
     </div>
     <div class="instance-list">
@@ -163,7 +163,7 @@ function dismiss(url: string): void {
           </button>
           <button
             v-if="d.status !== 'completed'"
-            class="danger"
+            class="danger-solid"
             @click="cancel(d.url)"
           >
             {{ t('downloads.cancel') }}
@@ -210,14 +210,5 @@ function dismiss(url: string): void {
 }
 .dl-card .card-progress {
   margin-top: 6px;
-}
-.dl-bar-paused {
-  background: var(--warning) !important;
-}
-.dl-bar-error {
-  background: var(--danger) !important;
-}
-.dl-bar-success {
-  background: var(--success) !important;
 }
 </style>

@@ -1,5 +1,6 @@
 import { reactive, readonly } from 'vue'
 import { i18n } from '../main'
+import type { SnapshotDetailData } from '../types/ipc'
 
 export type ModalType = 'alert' | 'confirm' | 'confirmWithOptions' | 'prompt' | 'select'
 
@@ -26,6 +27,7 @@ export interface ModalState {
   title: string
   message: string
   messageDetails: ModalDetailGroup[]
+  snapshotPreview: SnapshotDetailData | null
   buttonLabel: string
   confirmLabel: string
   confirmStyle: string
@@ -43,6 +45,7 @@ const state = reactive<ModalState>({
   title: '',
   message: '',
   messageDetails: [],
+  snapshotPreview: null,
   buttonLabel: 'OK',
   confirmLabel: 'Confirm',
   confirmStyle: 'danger',
@@ -60,6 +63,7 @@ function reset(): void {
   state.title = ''
   state.message = ''
   state.messageDetails = []
+  state.snapshotPreview = null
   state.buttonLabel = 'OK'
   state.confirmLabel = 'Confirm'
   state.confirmStyle = 'danger'
@@ -98,6 +102,7 @@ export function useModal() {
     title: string
     message: string
     messageDetails?: ModalDetailGroup[]
+    snapshotPreview?: SnapshotDetailData | null
     confirmLabel?: string
     confirmStyle?: string
   }): Promise<boolean> {
@@ -108,6 +113,7 @@ export function useModal() {
       state.title = opts.title
       state.message = opts.message
       state.messageDetails = opts.messageDetails ?? []
+      state.snapshotPreview = opts.snapshotPreview ?? null
       state.confirmLabel = opts.confirmLabel ?? i18n.global.t('modal.confirm')
       state.confirmStyle = opts.confirmStyle ?? 'danger'
       state.resolve = resolve as (value: unknown) => void

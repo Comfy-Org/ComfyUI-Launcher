@@ -9,10 +9,29 @@ const error = ref('')
 const inputRef = ref<HTMLInputElement | null>(null)
 const overlayRef = ref<HTMLDivElement | null>(null)
 const mouseDownOnOverlay = ref(false)
+const spNodesExpanded = ref(true)
+const spPipExpanded = ref(false)
 
 const localOptions = reactive<(ModalOption & { checked: boolean })[]>([])
 
 const anyChecked = computed(() => localOptions.some((o) => o.checked))
+
+function formatNodeVersion(node: { version?: string; commit?: string }): string {
+  if (node.version) return node.version
+  if (node.commit) return node.commit.slice(0, 7)
+  return '—'
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
+const confirmClass = computed(() =>
+  state.confirmStyle === 'danger' ? 'danger-solid' : state.confirmStyle
+)
 
 function escapeHtml(text: string): string {
   const div = document.createElement('div')
@@ -97,6 +116,11 @@ watch(
       inputRef.value?.select()
     }
 
+    if (state.type === 'confirm' && state.snapshotPreview) {
+      spNodesExpanded.value = true
+      spPipExpanded.value = false
+    }
+
     if (state.type === 'confirmWithOptions') {
       localOptions.length = 0
       for (const opt of state.options) {
@@ -138,7 +162,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Confirm -->
-      <div v-else-if="state.type === 'confirm'" class="modal-box">
+      <div v-else-if="state.type === 'confirm'" class="modal-box" :class="{ 'modal-box-wide': state.snapshotPreview }">
         <div class="modal-title">{{ state.title }}</div>
         <div class="modal-body">
           <div
@@ -146,6 +170,63 @@ onUnmounted(() => {
             @click="handleMessageClick"
             v-html="linkifiedMessage"
           ></div>
+
+          <!-- Snapshot preview -->
+          <template v-if="state.snapshotPreview">
+            <div class="sp-grid">
+              <div class="sp-field">
+                <span class="sp-label">{{ $t('snapshots.comfyuiVersion') }}</span>
+                <span class="sp-value">{{ state.snapshotPreview.comfyui.displayVersion || state.snapshotPreview.comfyui.ref }}</span>
+              </div>
+              <div class="sp-field">
+                <span class="sp-label">{{ $t('snapshots.variant') }}</span>
+                <span class="sp-value">{{ state.snapshotPreview.comfyui.variant || '—' }}</span>
+              </div>
+              <div v-if="state.snapshotPreview.pythonVersion" class="sp-field">
+                <span class="sp-label">{{ $t('snapshots.pythonVersion') }}</span>
+                <span class="sp-value">{{ state.snapshotPreview.pythonVersion }}</span>
+              </div>
+              <div class="sp-field">
+                <span class="sp-label">{{ $t('snapshots.capturedAt') }}</span>
+                <span class="sp-value">{{ formatDate(state.snapshotPreview.createdAt) }}</span>
+              </div>
+            </div>
+
+            <div class="sp-subsection">
+              <div class="sp-subsection-title" @click="spNodesExpanded = !spNodesExpanded">
+                <span>{{ $t('snapshots.customNodes') }} ({{ state.snapshotPreview.customNodes.length }})</span>
+                <span class="sp-collapse">{{ spNodesExpanded ? '▾' : '▸' }}</span>
+              </div>
+              <template v-if="spNodesExpanded">
+                <div v-if="state.snapshotPreview.customNodes.length > 0" class="sp-recessed-list">
+                  <div v-for="node in state.snapshotPreview.customNodes" :key="node.id" class="sp-node-row">
+                    <span class="sp-node-status" :class="node.enabled ? 'sp-node-enabled' : 'sp-node-disabled'" />
+                    <span class="sp-node-name">{{ node.id }}</span>
+                    <span class="sp-node-type">{{ node.type }}</span>
+                    <span class="sp-node-version">{{ formatNodeVersion(node) }}</span>
+                  </div>
+                </div>
+                <div v-else class="sp-empty">—</div>
+              </template>
+            </div>
+
+            <div class="sp-subsection">
+              <div class="sp-subsection-title" @click="spPipExpanded = !spPipExpanded">
+                <span>{{ $t('snapshots.pipPackages') }} ({{ state.snapshotPreview.pipPackageCount }})</span>
+                <span class="sp-collapse">{{ spPipExpanded ? '▾' : '▸' }}</span>
+              </div>
+              <template v-if="spPipExpanded">
+                <div v-if="state.snapshotPreview.pipPackageCount > 0" class="sp-recessed-list">
+                  <div v-for="(version, name) in state.snapshotPreview.pipPackages" :key="name" class="sp-pip-row">
+                    <span class="sp-pip-name">{{ name }}</span>
+                    <span class="sp-pip-version" :title="version">{{ version }}</span>
+                  </div>
+                </div>
+                <div v-else class="sp-empty">—</div>
+              </template>
+            </div>
+          </template>
+
           <div v-if="state.messageDetails.length" class="modal-details">
             <div v-for="(group, gi) in state.messageDetails" :key="gi" class="modal-detail-group">
               <span class="modal-detail-label">{{ group.label }}</span>
@@ -157,7 +238,7 @@ onUnmounted(() => {
         </div>
         <div class="modal-actions">
           <button @click="close(false)">{{ $t('common.cancel') }}</button>
-          <button :class="state.confirmStyle" @click="close(true)">
+          <button :class="confirmClass" @click="close(true)">
             {{ state.confirmLabel }}
           </button>
         </div>
@@ -176,7 +257,7 @@ onUnmounted(() => {
         <div class="modal-actions">
           <button @click="close(null)">{{ $t('common.cancel') }}</button>
           <button
-            :class="state.confirmStyle"
+            :class="confirmClass"
             :disabled="!anyChecked"
             @click="submitOptions()"
           >

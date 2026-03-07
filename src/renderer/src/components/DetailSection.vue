@@ -32,7 +32,6 @@ const sectionRef = ref<HTMLDivElement | null>(null)
 
 // Channel-cards draft state: local selection before committing
 const draftValues = reactive<Record<string, string>>({})
-const switchingChannel = ref(false)
 
 function getDraft(f: DetailField): string {
   return draftValues[f.id] ?? String(f.value)
@@ -43,6 +42,12 @@ function getSelectedOption(f: DetailField): DetailFieldOption | undefined {
   return f.options?.find((o) => o.value === draft)
 }
 
+function getSelectedActions(f: DetailField): ActionDef[] | undefined {
+  const opt = getSelectedOption(f)
+  const data = opt?.data as Record<string, unknown> | undefined
+  return data?.actions as ActionDef[] | undefined
+}
+
 // Reset draft when the committed value changes (e.g., after refresh)
 watch(() => props.fields, () => {
   for (const f of props.fields ?? []) {
@@ -51,18 +56,6 @@ watch(() => props.fields, () => {
     }
   }
 }, { deep: true })
-
-async function switchChannel(field: DetailField): Promise<void> {
-  const draft = draftValues[field.id]
-  if (!draft || draft === String(field.value)) return
-  switchingChannel.value = true
-  try {
-    await handleFieldChange(field, draft)
-  } finally {
-    switchingChannel.value = false
-    delete draftValues[field.id]
-  }
-}
 
 async function toggleCollapse(): Promise<void> {
   if (props.collapsed != null) {
@@ -140,7 +133,8 @@ v-for="a in item.actions" :key="a.id"
               >
                 <div class="channel-card-header">
                   <span class="channel-card-label">{{ opt.label }}</span>
-                  <span v-if="opt.recommended" class="channel-card-badge">{{ $t('newInstall.recommended') }}</span>
+                  <span v-if="String(f.value) === opt.value" class="channel-card-current">{{ $t('channelCards.current') }}</span>
+                  <span v-else-if="opt.recommended" class="channel-card-badge">{{ $t('newInstall.recommended') }}</span>
                 </div>
                 <div v-if="opt.description" class="channel-card-desc">{{ opt.description }}</div>
               </button>
@@ -166,19 +160,13 @@ v-for="a in item.actions" :key="a.id"
             <div v-else-if="getDraft(f) !== String(f.value)" class="channel-preview channel-preview-empty">
               {{ $t('channelCards.noInfo') }}
             </div>
-            <!-- Switch Channel: shown when a different channel is selected -->
-            <button
-              v-if="getDraft(f) !== String(f.value)"
-              class="primary channel-switch-btn"
-              :disabled="switchingChannel"
-              @click="switchChannel(f)"
-            >
-              {{ switchingChannel ? $t('channelCards.switching') : $t('channelCards.switchChannel') }}
-            </button>
-            <!-- Channel actions (e.g. Update Now): shown when current channel is selected -->
-            <div v-else-if="f.channelActions?.length" class="channel-actions">
+            <!-- Channel actions (e.g. Update Now): shown for the selected channel -->
+            <div v-if="getSelectedActions(f)?.length" class="channel-actions">
+              <span v-if="getDraft(f) !== String(f.value)" class="channel-switch-hint">
+                {{ $t('channelCards.switchTo', { channel: getSelectedOption(f)?.label }) }}
+              </span>
               <button
-                v-for="a in f.channelActions" :key="a.id"
+                v-for="a in getSelectedActions(f)" :key="a.id"
                 :class="[a.style, { 'looks-disabled': a.enabled === false && a.disabledMessage }]"
                 :disabled="a.enabled === false && !a.disabledMessage"
                 @click="handleAction(a, $event)"

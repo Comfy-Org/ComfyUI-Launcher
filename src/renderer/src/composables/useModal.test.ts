@@ -51,6 +51,24 @@ describe('useModal', () => {
 
       await expect(promise).resolves.toBe(false)
     })
+
+    it('sets messageDetails on state when provided', () => {
+      const details = [
+        { label: 'Group A', items: ['item 1', 'item 2'] },
+        { label: 'Group B', items: ['item 3'] },
+      ]
+      modal.confirm({ title: 'T', message: 'M', messageDetails: details })
+
+      expect(modal.state.messageDetails).toHaveLength(2)
+      expect(modal.state.messageDetails[0]).toEqual({ label: 'Group A', items: ['item 1', 'item 2'] })
+      expect(modal.state.messageDetails[1]).toEqual({ label: 'Group B', items: ['item 3'] })
+    })
+
+    it('defaults messageDetails to empty array when not provided', () => {
+      modal.confirm({ title: 'T', message: 'M' })
+
+      expect(modal.state.messageDetails).toEqual([])
+    })
   })
 
   describe('prompt', () => {

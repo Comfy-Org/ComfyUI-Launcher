@@ -99,7 +99,6 @@ export interface DetailField {
   editable?: boolean
   editType?: 'select' | 'boolean' | 'text' | 'channel-cards'
   options?: DetailFieldOption[]
-  channelActions?: ActionDef[]
   refreshSection?: boolean
   onChangeAction?: string
 }
@@ -357,6 +356,14 @@ export interface TrackResult {
   message?: string
 }
 
+export interface DatadogForwardedError {
+  source: string
+  message: string
+  stack?: string
+  level?: 'debug' | 'info' | 'warn' | 'error' | 'critical'
+  context?: Record<string, unknown>
+}
+
 // --- Snapshot tab types ---
 export interface CopyEvent {
   installationId: string
@@ -441,6 +448,8 @@ export interface SnapshotDiffResult {
     from: { ref: string; commit: string | null; displayVersion?: string }
     to: { ref: string; commit: string | null; displayVersion?: string }
   }
+  updateChannelChanged: boolean
+  updateChannel?: { from: string; to: string }
   nodesAdded: SnapshotNodeInfo[]
   nodesRemoved: SnapshotNodeInfo[]
   nodesChanged: SnapshotDiffNodeChange[]
@@ -530,8 +539,9 @@ export interface ElectronApi {
   exportAllSnapshots(installationId: string): Promise<{ ok: boolean; message?: string }>
   importSnapshots(installationId: string): Promise<{ ok: boolean; imported?: number; skipped?: number; message?: string }>
   previewSnapshotFile(): Promise<{ ok: boolean; preview?: SnapshotFilePreview; message?: string }>
+  previewDesktopMigration(): Promise<{ ok: boolean; message?: string; preview?: SnapshotFilePreview; snapshotPath?: string }>
   previewSnapshotPath(filePath: string): Promise<{ ok: boolean; preview?: SnapshotFilePreview; message?: string }>
-  createFromSnapshot(filePath: string, name?: string): Promise<{ ok: boolean; entry?: { id: string; name: string }; message?: string }>
+  createFromSnapshot(filePath: string, name?: string, releaseTag?: string, variantId?: string): Promise<{ ok: boolean; entry?: { id: string; name: string }; message?: string }>
   getPathForFile(file: File): string
 
   // Settings
@@ -585,4 +595,6 @@ export interface ElectronApi {
   onUpdateError(callback: (err: { message: string }) => void): Unsubscribe
   onZoomChanged(callback: (level: number) => void): Unsubscribe
   onModelDownloadProgress(callback: (progress: ModelDownloadProgress) => void): Unsubscribe
+  onTelemetrySettingChanged(callback: (enabled: boolean | undefined) => void): Unsubscribe
+  onDatadogError(callback: (payload: DatadogForwardedError) => void): Unsubscribe
 }

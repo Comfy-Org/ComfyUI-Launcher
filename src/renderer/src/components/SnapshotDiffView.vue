@@ -29,6 +29,14 @@ function formatNodeVersion(node: { version?: string; commit?: string }): string 
     </div>
   </div>
 
+  <!-- Update channel change -->
+  <div v-if="diff.updateChannelChanged && diff.updateChannel" class="diff-section">
+    <div class="diff-section-title">{{ t('snapshots.updateChannel') }}</div>
+    <div class="diff-line diff-changed">
+      {{ diff.updateChannel.from }} → {{ diff.updateChannel.to }}
+    </div>
+  </div>
+
   <!-- Node changes -->
   <div v-if="diff.nodesAdded.length > 0 || diff.nodesRemoved.length > 0 || diff.nodesChanged.length > 0" class="diff-section">
     <div class="diff-section-title">{{ t('snapshots.customNodes') }}</div>
@@ -71,7 +79,7 @@ function formatNodeVersion(node: { version?: string; commit?: string }): string 
 }
 
 .diff-section-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -88,7 +96,7 @@ function formatNodeVersion(node: { version?: string; commit?: string }): string 
   text-overflow: ellipsis;
   user-select: text;
 }
-.diff-added { color: var(--success, #00cd72); }
+.diff-added { color: var(--success); }
 .diff-removed { color: var(--danger); }
-.diff-changed { color: var(--warning, #fd9903); }
+.diff-changed { color: var(--warning); }
 </style>

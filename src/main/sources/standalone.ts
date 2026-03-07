@@ -3,8 +3,10 @@ import path from 'path'
 import { app } from 'electron'
 import { spawn, execFile } from 'child_process'
 import { fetchJSON } from '../lib/fetch'
-import { truncateNotes } from '../lib/comfyui-releases'
+import { fetchLatestRelease, truncateNotes } from '../lib/comfyui-releases'
 import * as releaseCache from '../lib/release-cache'
+import { buildChannelCards, buildChannelLabelMap } from '../lib/channel-cards'
+import type { ChannelDef } from '../lib/channel-cards'
 import { deleteAction, untrackAction } from '../lib/actions'
 import { downloadAndExtract, downloadAndExtractMulti } from '../lib/installer'
 import { copyDirWithProgress } from '../lib/copy'
@@ -364,65 +366,71 @@ export const standalone: SourcePlugin = {
     // Updates section
     const hasGit = installed && installation.installPath && fs.existsSync(path.join(installation.installPath, 'ComfyUI', '.git'))
     const channel = (installation.updateChannel as string | undefined) || 'stable'
-    const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, channel, installation)
 
-    // Build per-channel preview info for cards
-    const channelOptions = [
+    // Build per-channel preview info and actions for cards
+    const channelDefs: ChannelDef[] = [
       { value: 'stable', label: t('standalone.channelStable'), description: t('standalone.channelStableDesc'), recommended: true },
       { value: 'latest', label: t('standalone.channelLatest'), description: t('standalone.channelLatestDesc') },
-    ].map((opt) => {
-      const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, opt.value, installation)
-      return {
-        ...opt,
-        data: channelInfo ? {
-          installedVersion: (installation.version as string | undefined) || channelInfo.installedTag || 'unknown',
-          latestVersion: channelInfo.releaseName || channelInfo.latestTag || '—',
-          lastChecked: channelInfo.checkedAt ? new Date(channelInfo.checkedAt).toLocaleString() : '—',
-          updateAvailable: releaseCache.isUpdateAvailable(installation, opt.value, channelInfo),
-        } : undefined,
+    ]
+    const channelLabelMap = buildChannelLabelMap(channelDefs)
+    const baseCards = buildChannelCards(COMFYUI_REPO, channelDefs, installation)
+
+    const channelOptions = baseCards.map((card) => {
+      const actions: Record<string, unknown>[] = []
+      if (card.data?.updateAvailable && hasGit) {
+        const channelInfo = releaseCache.getEffectiveInfo(COMFYUI_REPO, card.value, installation)!
+        const installedDisplay = (installation.version as string | undefined) || channelInfo.installedTag || 'unknown'
+        const latestDisplay = channelInfo.releaseName || channelInfo.latestTag || '—'
+        const isSwitching = card.value !== channel
+        const isDowngrade = card.value === 'stable' && installedDisplay.includes(latestDisplay + ' +')
+        const msgKey = isDowngrade ? 'standalone.updateConfirmMessageDowngrade'
+          : card.value === 'latest' ? 'standalone.updateConfirmMessageLatest'
+          : 'standalone.updateConfirmMessage'
+        const notes = truncateNotes(channelInfo.releaseNotes || '', 2000)
+        const switchPrefix = isSwitching
+          ? t('channelCards.switchChannelPrefix', { from: channelLabelMap[channel] || channel, to: card.label })
+          : ''
+        const confirmMessage = t(msgKey, {
+          installed: installedDisplay,
+          latest: latestDisplay,
+          commit: notes || '',
+          notes: notes || '(none)',
+        })
+        actions.push({
+          id: 'update-comfyui', label: t('standalone.updateNow'), style: 'primary', enabled: installed,
+          showProgress: true, progressTitle: t('standalone.updatingTitle', { version: latestDisplay }),
+          data: isSwitching ? { channel: card.value } : undefined,
+          confirm: {
+            title: t('standalone.updateConfirmTitle'),
+            message: switchPrefix + confirmMessage,
+          },
+        })
+        actions.push({
+          id: 'copy-update', label: t('standalone.copyAndUpdate'), style: 'default', enabled: installed,
+          showProgress: true, progressTitle: t('standalone.copyUpdatingTitle', { version: latestDisplay }),
+          cancellable: true,
+          data: isSwitching ? { channel: card.value } : undefined,
+          prompt: {
+            title: t('standalone.copyAndUpdateTitle'),
+            message: (isSwitching ? switchPrefix : '') + t('standalone.copyAndUpdateMessage', { installed: installedDisplay, latest: latestDisplay }),
+            defaultValue: `${installation.name} (${latestDisplay})`,
+            confirmLabel: t('standalone.copyAndUpdateConfirm'),
+            required: true,
+            field: 'name',
+          },
+        })
+      } else if (card.value !== channel && hasGit) {
+        actions.push({
+          id: 'switch-channel', label: t('channelCards.switchChannelOnly'), style: 'default', enabled: installed,
+          data: { channel: card.value },
+        })
       }
+      return { ...card, data: card.data ? { ...card.data, actions: actions.length ? actions : undefined } : undefined }
     })
 
-    const channelActions: Record<string, unknown>[] = []
-    if (info && releaseCache.isUpdateAvailable(installation, channel, info) && hasGit) {
-      const installedDisplay = (installation.version as string | undefined) || info.installedTag || 'unknown'
-      const latestDisplay = info.releaseName || info.latestTag || '—'
-      const isDowngrade = channel === 'stable' && installedDisplay.includes(latestDisplay + ' +')
-      const msgKey = isDowngrade ? 'standalone.updateConfirmMessageDowngrade'
-        : channel === 'latest' ? 'standalone.updateConfirmMessageLatest'
-        : 'standalone.updateConfirmMessage'
-      const notes = truncateNotes(info.releaseNotes || '', 2000)
-      channelActions.push({
-        id: 'update-comfyui', label: t('standalone.updateNow'), style: 'primary', enabled: installed,
-        showProgress: true, progressTitle: t('standalone.updatingTitle', { version: latestDisplay }),
-        confirm: {
-          title: t('standalone.updateConfirmTitle'),
-          message: t(msgKey, {
-            installed: installedDisplay,
-            latest: latestDisplay,
-            commit: notes || '',
-            notes: notes || '(none)',
-          }),
-        },
-      })
-      channelActions.push({
-        id: 'copy-update', label: t('standalone.copyAndUpdate'), style: 'default', enabled: installed,
-        showProgress: true, progressTitle: t('standalone.copyUpdatingTitle', { version: latestDisplay }),
-        cancellable: true,
-        prompt: {
-          title: t('standalone.copyAndUpdateTitle'),
-          message: t('standalone.copyAndUpdateMessage', { installed: installedDisplay, latest: latestDisplay }),
-          defaultValue: `${installation.name} (${latestDisplay})`,
-          confirmLabel: t('standalone.copyAndUpdateConfirm'),
-          required: true,
-          field: 'name',
-        },
-      })
-    }
     const updateFields: Record<string, unknown>[] = [
       { id: 'updateChannel', label: t('standalone.updateChannel'), value: channel, editable: true,
-        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions,
-        channelActions: channelActions.length ? channelActions : undefined },
+        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions },
     ]
     const updateActions: Record<string, unknown>[] = [
       { id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed },
@@ -692,9 +700,16 @@ export const standalone: SourcePlugin = {
         return { ok: false, message: t('standalone.snapshotRestoreReverted') }
       }
 
+      // Restore update channel from the snapshot (default to stable if not set)
+      const targetChannel = targetSnapshot.updateChannel || 'stable'
+      if (targetChannel !== (installation.updateChannel as string | undefined)) {
+        await update({ updateChannel: targetChannel })
+      }
+
       // Capture a new snapshot reflecting the restored state
       try {
-        const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'post-restore')
+        const updatedInstallation = { ...installation, updateChannel: targetChannel }
+        const filename = await snapshots.saveSnapshot(installation.installPath, updatedInstallation, 'post-restore')
         const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
         await update({ lastSnapshot: filename, snapshotCount })
       } catch {}
@@ -780,8 +795,32 @@ export const standalone: SourcePlugin = {
       return { ok: true, message: lines.join('\n') }
     }
 
+    if (actionId === 'switch-channel') {
+      const targetChannel = actionData?.channel as string | undefined
+      if (!targetChannel) return { ok: false, message: 'No channel specified.' }
+      await update({ updateChannel: targetChannel })
+      return { ok: true, navigate: 'detail' }
+    }
+
     if (actionId === 'check-update') {
       const channel = (installation.updateChannel as string | undefined) || 'stable'
+      const otherChannels = ['stable', 'latest'].filter((ch) => ch !== channel)
+      await Promise.allSettled(
+        otherChannels.map((ch) =>
+          releaseCache.getOrFetch(COMFYUI_REPO, ch, async () => {
+            const release = await fetchLatestRelease(ch)
+            if (!release) return null
+            return {
+              checkedAt: Date.now(),
+              latestTag: release.tag_name as string,
+              releaseName: (release.name as string) || (release.tag_name as string),
+              releaseNotes: truncateNotes(release.body as string, 4000),
+              releaseUrl: release.html_url as string,
+              publishedAt: release.published_at as string,
+            }
+          }, true)
+        )
+      )
       return releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
     }
 
@@ -799,7 +838,11 @@ export const standalone: SourcePlugin = {
         return { ok: false, message: 'Master Python not found.' }
       }
 
-      const channel = (installation.updateChannel as string | undefined) || 'stable'
+      const targetChannel = (actionData?.channel as string | undefined) ?? (installation.updateChannel as string | undefined) ?? 'stable'
+      if (targetChannel !== (installation.updateChannel as string | undefined)) {
+        await update({ updateChannel: targetChannel })
+      }
+      const channel = targetChannel
       const stableArgs = channel === 'stable' ? ['--stable'] : []
 
       const reqPath = path.join(comfyuiDir, 'requirements.txt')
@@ -969,7 +1012,7 @@ export const standalone: SourcePlugin = {
 
       // Capture post-update snapshot so the history reflects the new state immediately
       try {
-        const updatedInstallation = { ...installation, version: displayVersion }
+        const updatedInstallation = { ...installation, version: displayVersion, updateChannel: targetChannel }
         const filename = await snapshots.saveSnapshot(installPath, updatedInstallation, 'post-update')
         const snapshotCount = await snapshots.getSnapshotCount(installPath)
         await update({ lastSnapshot: filename, snapshotCount })

@@ -8,6 +8,7 @@ import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { useInstallContextMenu } from '../composables/useInstallContextMenu'
 import { useProgressStore } from '../stores/progressStore'
 import { DraggableList } from '../lib/draggableList'
+import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import InstanceCard from '../components/InstanceCard.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import type { Installation, ListAction } from '../types/ipc'
@@ -74,6 +75,10 @@ interface MetaPart {
   wrapClass?: string
 }
 
+function isInProgress(id: string): boolean {
+  return sessionStore.activeSessions.has(id) && !sessionStore.isRunning(id)
+}
+
 function getMetaParts(inst: Installation): MetaPart[] {
   const parts: MetaPart[] = [{ text: inst.sourceLabel }]
   if (inst.version) parts.push({ text: inst.version })
@@ -86,7 +91,7 @@ function getMetaParts(inst: Installation): MetaPart[] {
   if (!sessionStore.isRunning(inst.id) && activeSession) {
     parts.push({ text: activeSession.label, class: 'status-in-progress' })
   }
-  if (inst.statusTag) {
+  if (inst.statusTag && inst.statusTag.style !== 'update') {
     parts.push({ text: inst.statusTag.label, class: `status-${inst.statusTag.style}` })
   }
   if (inst.seen === false) {
@@ -104,6 +109,10 @@ function getLaunchMeta(inst: Installation): string {
 }
 
 async function handleListAction(inst: Installation, action: ListAction): Promise<void> {
+  const telemetryContext = {
+    source_category: inst.sourceCategory || 'unknown',
+    ui_surface: 'list',
+  }
   if (action.enabled === false && action.disabledMessage) {
     await modal.alert({ title: action.label, message: action.disabledMessage })
     return
@@ -119,12 +128,19 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
       confirmLabel: action.label,
       confirmStyle: action.style || 'danger',
     })
-    if (!confirmed) return
+    if (!confirmed) {
+      emitTelemetryAction('launcher.action.result', { action_id: action.id, result: 'cancelled', ...telemetryContext })
+      return
+    }
   }
   if (action.id === 'launch') {
     const canLaunch = await localInstanceGuard.checkBeforeLaunch(inst.id)
-    if (!canLaunch) return
+    if (!canLaunch) {
+      emitTelemetryAction('launcher.action.result', { action_id: action.id, result: 'cancelled', ...telemetryContext })
+      return
+    }
   }
+  emitTelemetryAction('launcher.action.invoked', { action_id: action.id, ...telemetryContext })
   if (action.showProgress) {
     emit('show-progress', {
       installationId: inst.id,
@@ -134,11 +150,23 @@ async function handleListAction(inst: Installation, action: ListAction): Promise
     })
     return
   }
-  const result = await window.api.runAction(inst.id, action.id)
-  if (result.navigate === 'list') {
-    await refresh()
-  } else if (result.message) {
-    await modal.alert({ title: action.label, message: result.message })
+  try {
+    const result = await window.api.runAction(inst.id, action.id)
+    const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
+    emitTelemetryAction('launcher.action.result', { action_id: action.id, result: resultValue, ...telemetryContext })
+    if (result.navigate === 'list') {
+      await refresh()
+    } else if (result.message) {
+      await modal.alert({ title: action.label, message: result.message })
+    }
+  } catch (error: unknown) {
+    emitTelemetryAction('launcher.action.result', {
+      action_id: action.id,
+      result: 'failed',
+      error_bucket: toErrorBucket(error),
+      ...telemetryContext,
+    })
+    throw error
   }
 }
 
@@ -217,7 +245,7 @@ const filterStats = computed(() => {
 })
 
 const emit = defineEmits<{
-  'show-detail': [inst: Installation]
+  'show-detail': [inst: Installation, tab?: string]
   'show-console': [installationId: string]
   'show-progress': [opts: {
     installationId: string
@@ -273,9 +301,9 @@ defineExpose({ refresh })
 
         <!-- Empty: no installations at all -->
         <div v-else-if="filteredInstallations.length === 0" class="empty-state">
-          <div style="font-weight: 700; color: var(--text-muted)">{{ $t('list.empty') }}</div>
-          <div style="margin-top: 4px">{{ $t('list.emptyHint') }}</div>
-          <button class="accent add-btn" style="margin-top: 8px" @click="emit('show-new-install')">
+          <div class="empty-state-title">{{ $t('list.empty') }}</div>
+          <div class="empty-state-hint">{{ $t('list.emptyHint') }}</div>
+          <button class="accent add-btn empty-state-action" @click="emit('show-new-install')">
             + {{ $t('list.newInstall') }}
           </button>
         </div>
@@ -288,6 +316,8 @@ defineExpose({ refresh })
           :name="inst.name"
           :source-category="inst.sourceCategory"
           :draggable="true"
+          :running="sessionStore.isRunning(inst.id)"
+          :in-progress="isInProgress(inst.id)"
           @mousedown="markSeen(inst)"
           @contextmenu.prevent="openCardMenu($event, inst)"
         >
@@ -297,6 +327,10 @@ defineExpose({ refresh })
               <span v-if="part.wrapClass" :class="part.wrapClass"><span :class="part.class">{{ part.text }}</span></span>
               <span v-else-if="part.class" :class="part.class">{{ part.text }}</span>
               <template v-else>{{ part.text }}</template>
+            </template>
+            <template v-if="inst.statusTag?.style === 'update'">
+              <template v-if="getMetaParts(inst).length > 0"> · </template>
+              <span class="update-pill" role="button" tabindex="0" @click.stop="emit('show-detail', inst, 'update')" @keydown.enter.stop="emit('show-detail', inst, 'update')" @keydown.space.prevent.stop="emit('show-detail', inst, 'update')">{{ inst.statusTag.label }}</span>
             </template>
           </template>
 
@@ -346,7 +380,7 @@ defineExpose({ refresh })
               <button v-if="inst.hasConsole" @click="emit('show-console', inst.id)">
                 {{ $t('list.console') }}
               </button>
-              <button class="danger" @click="stopComfyUI(inst.id)">
+              <button class="danger-solid" @click="stopComfyUI(inst.id)">
                 {{ $t('console.stop') }}
               </button>
             </template>
@@ -378,16 +412,14 @@ defineExpose({ refresh })
           v-if="filteredInstallations.length > 0 && !hasLocal && (filter === 'all' || filter === 'local')"
           class="empty-state"
         >
-          <div style="font-weight: 700; color: var(--text-muted)">{{ $t('list.empty') }}</div>
-          <div style="margin-top: 4px">{{ $t('list.emptyHint') }}</div>
-          <button class="accent add-btn" style="margin-top: 8px" @click="emit('show-new-install')">
+          <div class="empty-state-title">{{ $t('list.empty') }}</div>
+          <div class="empty-state-hint">{{ $t('list.emptyHint') }}</div>
+          <button class="accent add-btn empty-state-action" @click="emit('show-new-install')">
             + {{ $t('list.newInstall') }}
           </button>
         </div>
       </div>
     </div>
-
-    <slot name="update-banner" />
 
     <ContextMenu
       :open="ctxMenu.open"
@@ -399,5 +431,4 @@ defineExpose({ refresh })
     />
   </div>
 </template>
-
 

@@ -1,6 +1,6 @@
 {
   "name": "comfyui-launcher",
-  "version": "0.3.4",
+  "version": "0.3.6",
   "description": "ComfyUI Launcher",
   "author": {
     "name": "Jedrzej Kosinski",
@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "7zip-bin": "^5.2.0",
+    "@datadog/browser-rum": "6.28.1",
     "@todesktop/runtime": "^2.1.3",
     "electron-updater": "^6.7.3",
     "smol-toml": "^1.6.0"

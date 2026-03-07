@@ -10,6 +10,7 @@ import { useTheme } from './composables/useTheme'
 import { useLauncherPrefs } from './composables/useLauncherPrefs'
 import type { Installation, ActionResult, QuitActiveItem } from './types/ipc'
 import type { ModalDetailGroup } from './composables/useModal'
+import { emitTelemetryAction } from './lib/telemetry'
 
 import ModalDialog from './components/ModalDialog.vue'
 import UpdateBanner from './components/UpdateBanner.vue'
@@ -46,6 +47,7 @@ const activeView = ref<TabView>('dashboard')
 
 // --- Modal views ---
 const detailInstallation = ref<Installation | null>(null)
+const detailInitialTab = ref<string>('status')
 const consoleInstallationId = ref<string | null>(null)
 const progressInstallationId = ref<string | null>(null)
 const showNewInstall = ref(false)
@@ -75,7 +77,14 @@ const sidebarItems = computed(() => [
 ])
 
 function switchView(view: TabView): void {
+  const fromView = activeView.value
   activeView.value = view
+  if (view !== fromView) {
+    emitTelemetryAction('launcher.view.opened', {
+      view,
+      from_view: fromView,
+    })
+  }
   if (view === 'list') listRef.value?.refresh()
   else if (view === 'settings') settingsRef.value?.loadSettings()
   else if (view === 'models') modelsRef.value?.loadModels()
@@ -83,7 +92,8 @@ function switchView(view: TabView): void {
 }
 
 // --- Modal handlers ---
-function openDetail(inst: Installation): void {
+function openDetail(inst: Installation, tab?: string): void {
+  detailInitialTab.value = tab ?? 'status'
   detailInstallation.value = inst
 }
 
@@ -100,6 +110,10 @@ function closeConsole(): void {
 }
 
 async function openNewInstall(): Promise<void> {
+  emitTelemetryAction('launcher.install.flow.opened', {
+    flow: 'new_install',
+    entrypoint: activeView.value,
+  })
   showNewInstall.value = true
   await nextTick()
   newInstallRef.value?.open()
@@ -110,6 +124,10 @@ function closeNewInstall(): void {
 }
 
 async function openQuickInstall(): Promise<void> {
+  emitTelemetryAction('launcher.install.flow.opened', {
+    flow: 'quick_install',
+    entrypoint: activeView.value,
+  })
   showQuickInstall.value = true
   await nextTick()
   quickInstallRef.value?.open()
@@ -120,6 +138,10 @@ function closeQuickInstall(): void {
 }
 
 async function openTrack(): Promise<void> {
+  emitTelemetryAction('launcher.install.flow.opened', {
+    flow: 'track_existing',
+    entrypoint: activeView.value,
+  })
   showTrack.value = true
   await nextTick()
   trackRef.value?.open()
@@ -130,6 +152,10 @@ function closeTrack(): void {
 }
 
 async function openLoadSnapshot(): Promise<void> {
+  emitTelemetryAction('launcher.install.flow.opened', {
+    flow: 'load_snapshot',
+    entrypoint: activeView.value,
+  })
   showLoadSnapshot.value = true
   await nextTick()
   loadSnapshotRef.value?.open()
@@ -267,12 +293,14 @@ onMounted(async () => {
 
     <!-- Content Area -->
     <main class="content">
+      <UpdateBanner />
       <ZoomBanner />
       <DashboardView
         v-show="activeView === 'dashboard'"
         :visible="activeView === 'dashboard'"
         @show-quick-install="openQuickInstall"
-        @show-detail="openDetail"
+        @show-settings="switchView('settings')"
+        @show-detail="(inst, tab) => openDetail(inst, tab)"
         @show-console="openConsole"
         @show-progress="showProgress"
       />
@@ -280,17 +308,13 @@ onMounted(async () => {
       <InstallationList
         v-show="activeView === 'list'"
         ref="listRef"
-        @show-detail="openDetail"
+        @show-detail="(inst, tab) => openDetail(inst, tab)"
         @show-console="openConsole"
         @show-progress="showProgress"
         @show-new-install="openNewInstall"
         @show-track="openTrack"
         @show-load-snapshot="openLoadSnapshot"
-      >
-        <template #update-banner>
-          <UpdateBanner />
-        </template>
-      </InstallationList>
+      />
 
       <RunningView
         v-show="activeView === 'running'"
@@ -319,6 +343,7 @@ onMounted(async () => {
   <!-- Modal views -->
   <DetailModal
     :installation="detailInstallation"
+    :initial-tab="detailInitialTab"
     @close="closeDetail"
     @show-progress="showProgress"
     @navigate-list="handleNavigateList"

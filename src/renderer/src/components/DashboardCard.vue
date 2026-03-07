@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useSessionStore } from '../stores/sessionStore'
 import { useProgressStore } from '../stores/progressStore'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
-import { Play, ExternalLink, Square, Star, Pin, TriangleAlert } from 'lucide-vue-next'
+import { Play, ExternalLink, Star, Pin, TriangleAlert } from 'lucide-vue-next'
 import type { Installation, ListAction } from '../types/ipc'
 
 const props = defineProps<{
@@ -14,6 +14,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   launch: [inst: Installation, actions: ListAction[]]
   'show-detail': [inst: Installation]
+  'show-update': [inst: Installation]
   'show-console': [installationId: string]
   'show-progress': [opts: {
     installationId: string
@@ -75,6 +76,10 @@ function stopComfyUI(): void {
         <span> · </span>
         <span class="status-danger">{{ $t('running.crashed') }}</span>
       </template>
+      <template v-if="installation.statusTag?.style === 'update'">
+        <span> · </span>
+        <span class="update-pill" role="button" tabindex="0" @click.stop="emit('show-update', installation)" @keydown.enter.stop="emit('show-update', installation)" @keydown.space.prevent.stop="emit('show-update', installation)">{{ installation.statusTag.label }}</span>
+      </template>
     </div>
     <slot name="detail" />
 
@@ -104,8 +109,7 @@ function stopComfyUI(): void {
       <button v-if="installation.hasConsole" @click="emit('show-console', installation.id)">
         {{ $t('list.console') }}
       </button>
-      <button class="danger dashboard-cta-btn" @click="stopComfyUI()">
-        <Square :size="16" />
+      <button class="danger-solid dashboard-cta-btn" @click="stopComfyUI()">
         {{ $t('console.stop') }}
       </button>
     </template>

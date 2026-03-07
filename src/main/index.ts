@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard, screen } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { execFile } from 'child_process'
 import type { ChildProcess } from 'child_process'
 import todesktop from '@todesktop/runtime'
 import * as ipc from './lib/ipc'
@@ -9,7 +10,9 @@ import * as settings from './settings'
 import * as i18n from './lib/i18n'
 import { configDir, migrateXdgPaths } from './lib/paths'
 import { waitForPort } from './lib/process'
+import { isQuitInProgress, setQuitReason } from './lib/quit-state'
 import type { InstallationRecord } from './installations'
+import type { DatadogForwardedError } from '../types/ipc'
 import {
   attachSessionDownloadHandler,
   cleanupTempDownloads,
@@ -137,7 +140,94 @@ function attachContextMenu(comfyWindow: BrowserWindow): void {
 let launcherWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 const comfyWindows = new Map<string, BrowserWindow>()
-let isQuitting = false
+
+function focusExternalProcessWindow(pid: number): void {
+  if (process.platform === 'win32') {
+    // AppActivate accepts a numeric PID to bring the process window to the foreground.
+    // wscript is near-instant compared to PowerShell.
+    const vbsPath = path.join(app.getPath('temp'), `comfy-focus-${pid}.vbs`)
+    fs.writeFileSync(vbsPath, `CreateObject("WScript.Shell").AppActivate ${pid}`)
+    execFile('wscript.exe', ['//Nologo', '//B', vbsPath], { windowsHide: true }, () => {
+      fs.unlink(vbsPath, () => {})
+    })
+  } else if (process.platform === 'darwin') {
+    execFile('osascript', ['-e',
+      `tell application "System Events" to set frontmost of (first process whose unix id is ${pid}) to true`,
+    ], () => {})
+  }
+}
+let processErrorHandlersRegistered = false
+
+function serializeUnknownError(error: unknown): { message: string; stack?: string } {
+  if (error instanceof Error) {
+    return {
+      message: error.message || error.name || 'Error',
+      stack: error.stack,
+    }
+  }
+  if (typeof error === 'string') {
+    return { message: error }
+  }
+  if (error === null || error === undefined) {
+    return { message: 'Unknown error' }
+  }
+  try {
+    return { message: JSON.stringify(error) }
+  } catch {
+    return { message: String(error) }
+  }
+}
+
+function forwardDatadogError(payload: DatadogForwardedError): void {
+  if (!launcherWindow || launcherWindow.isDestroyed()) return
+  try {
+    launcherWindow.webContents.send('dd-error', payload)
+  } catch {}
+}
+
+function registerProcessErrorHandlers(): void {
+  if (processErrorHandlersRegistered) return
+  processErrorHandlersRegistered = true
+
+  process.on('uncaughtExceptionMonitor', (error) => {
+    const serialized = serializeUnknownError(error)
+    forwardDatadogError({
+      source: 'main-uncaught-exception',
+      message: serialized.message,
+      stack: serialized.stack,
+      level: 'critical',
+      context: { origin: 'main-process' },
+    })
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    const serialized = serializeUnknownError(reason)
+    forwardDatadogError({
+      source: 'main-unhandled-rejection',
+      message: serialized.message,
+      stack: serialized.stack,
+      level: 'error',
+      context: { origin: 'main-process' },
+    })
+  })
+
+  app.on('child-process-gone', (_event, details) => {
+    const extra = details as unknown as Record<string, unknown>
+    forwardDatadogError({
+      source: 'main-child-process-gone',
+      message: `Child process ${details.type} exited: ${details.reason}`,
+      level: 'error',
+      context: {
+        origin: 'main-process',
+        type: details.type,
+        reason: details.reason,
+        exitCode: details.exitCode,
+        name: extra['name'],
+        serviceName: extra['serviceName'],
+      },
+    })
+  })
+}
 
 function createLauncherWindow(): void {
   launcherWindow = new BrowserWindow({
@@ -156,7 +246,9 @@ function createLauncherWindow(): void {
   })
   launcherWindow.once('ready-to-show', () => {
     launcherWindow?.show()
+    if (process.platform === 'win32') launcherWindow?.moveTop()
     launcherWindow?.focus()
+    createTray()
   })
 
   attachContextMenu(launcherWindow)
@@ -165,6 +257,18 @@ function createLauncherWindow(): void {
     if (launcherWindow && !launcherWindow.isDestroyed()) {
       launcherWindow.webContents.setZoomLevel(0)
     }
+  })
+  launcherWindow.webContents.on('render-process-gone', (_event, details) => {
+    forwardDatadogError({
+      source: 'launcher-render-process-gone',
+      message: `Launcher renderer process exited (${details.reason})`,
+      level: 'critical',
+      context: {
+        origin: 'main-process',
+        reason: details.reason,
+        exitCode: details.exitCode,
+      },
+    })
   })
 
   function notifyZoomLevel(): void {
@@ -200,7 +304,7 @@ function createLauncherWindow(): void {
   }
 
   launcherWindow.on('close', (e) => {
-    if (isQuitting) return
+    if (isQuitInProgress()) return
 
     const onClose = (settings.get('onLauncherClose') as string | undefined) || 'tray'
     if (onClose === 'tray') {
@@ -251,7 +355,7 @@ function showLauncher(): void {
 }
 
 function quitApp(): void {
-  isQuitting = true
+  setQuitReason('user-quit')
   ipc.cancelAll()
   for (const [_id, win] of comfyWindows) {
     if (!win.isDestroyed()) win.destroy()
@@ -325,12 +429,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   const comfyUrl = url || `http://127.0.0.1:${port}`
   const installationId = installation.id
 
-  if (mode === 'console') {
-    if (proc) {
-      proc.on('exit', () => {
-        comfyWindows.delete(installationId)
-      })
-    }
+  if (mode === 'console' || mode === 'external') {
     return
   }
 
@@ -417,7 +516,18 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     }, 2000)
   })
 
-  comfyWindow.webContents.on('render-process-gone', () => {
+  comfyWindow.webContents.on('render-process-gone', (_event, details) => {
+    forwardDatadogError({
+      source: 'comfy-window-render-process-gone',
+      message: `Comfy window renderer process exited (${details.reason})`,
+      level: 'error',
+      context: {
+        origin: 'main-process',
+        installationId,
+        reason: details.reason,
+        exitCode: details.exitCode,
+      },
+    })
     reloadComfy()
   })
 
@@ -456,6 +566,14 @@ ipcMain.handle('focus-comfy-window', (_event, installationId: string) => {
     win.focus()
     return true
   }
+
+  // For external processes (e.g. Desktop), bring the child process window to front
+  const proc = ipc.getSessionProcess(installationId)
+  if (proc?.pid) {
+    focusExternalProcessWindow(proc.pid)
+    return true
+  }
+
   return false
 })
 
@@ -467,6 +585,7 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
       if (launcherWindow && !launcherWindow.isDestroyed()) {
         launcherWindow.show()
         if (launcherWindow.isMinimized()) launcherWindow.restore()
+        if (process.platform === 'win32') launcherWindow.moveTop()
         launcherWindow.focus()
       }
     })
@@ -474,6 +593,7 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     migrateXdgPaths()
+    registerProcessErrorHandlers()
 
     const locale = (settings.get('language') as string | undefined) || app.getLocale().split('-')[0]
     i18n.init(locale)
@@ -481,12 +601,18 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
     cleanupTempDownloads()
     ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
     updater.register()
-    createTray()
     createLauncherWindow()
   })
 
+  app.on('activate', () => {
+    if (launcherWindow && !launcherWindow.isDestroyed()) {
+      launcherWindow.show()
+      launcherWindow.focus()
+    }
+  })
+
   app.on('before-quit', () => {
-    isQuitting = true
+    if (!isQuitInProgress()) setQuitReason('user-quit')
     cleanupTempDownloads()
   })
 

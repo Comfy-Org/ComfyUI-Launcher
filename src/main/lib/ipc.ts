@@ -20,6 +20,8 @@ import {
   findAvailablePort, writePortLock, readPortLock, removePortLock,
 } from './process'
 import { detectGPU, validateHardware, checkNvidiaDriver } from './gpu'
+import { detectDesktopInstall, syncSharedModelPaths, stageDesktopSnapshot } from './desktopDetect'
+import { performDesktopMigration } from './desktopMigration'
 import { getDiskSpace, validateInstallPath } from './disk'
 import type { GpuInfo } from './gpu'
 import { formatTime } from './util'
@@ -87,21 +89,22 @@ async function uniqueName(baseName: string): Promise<string> {
 }
 
 /** Re-assign primary to the first remaining local install, or clear it. */
+function isPromotableLocal(sourceId: string): boolean {
+  const source = sourceMap[sourceId]
+  return !!source && source.category === 'local' && sourceId !== 'desktop'
+}
+
 async function autoAssignPrimary(removedId: string): Promise<void> {
-  const currentPrimary = settings.get('primaryInstallId') as string | undefined
+  const currentPrimary = settings.get('primaryInstallId')
   if (currentPrimary !== removedId) return
   const all = (await installations.list()).filter((i) => i.id !== removedId)
-  const firstLocal = all.find((i) => {
-    const source = sourceMap[i.sourceId]
-    return source && source.category === 'local'
-  })
-  settings.set('primaryInstallId', firstLocal?.id ?? null)
+  const firstLocal = all.find((i) => isPromotableLocal(i.sourceId))
+  settings.set('primaryInstallId', firstLocal?.id)
 }
 
 /** Set as primary if this is the first local install and no primary is set. */
 function ensureDefaultPrimary(entry: InstallationRecord): void {
-  const source = sourceMap[entry.sourceId]
-  if (source && source.category === 'local' && !settings.get('primaryInstallId')) {
+  if (isPromotableLocal(entry.sourceId) && !settings.get('primaryInstallId')) {
     settings.set('primaryInstallId', entry.id)
   }
 }
@@ -339,20 +342,12 @@ function resolveTheme(): ResolvedTheme {
   return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
 }
 
+const ALL_UPDATE_CHANNELS = ['stable', 'latest']
+
 async function checkInstallationUpdates(): Promise<void> {
   try {
-    const all = await installations.list()
-    const channels = new Set<string>()
-    for (const inst of all) {
-      const source = sourceMap[inst.sourceId]
-      if (!source || source.skipInstall) continue
-      if (inst.status !== 'installed') continue
-      const channel = (inst.updateChannel as string | undefined) || 'stable'
-      channels.add(channel)
-    }
-    if (channels.size === 0) return
     await Promise.allSettled(
-      [...channels].map((channel) =>
+      ALL_UPDATE_CHANNELS.map((channel) =>
         releaseCache.getOrFetch(COMFYUI_REPO, channel, async () => {
           const release = await fetchLatestRelease(channel)
           if (!release) return null
@@ -397,6 +392,31 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     browserPartition: 'shared',
     status: 'installed',
   })
+
+  // Auto-track Desktop install if detected
+  {
+    const desktopInfo = detectDesktopInstall()
+    if (desktopInfo) {
+      installations.ensureExists('desktop', {
+        name: 'ComfyUI Desktop',
+        sourceId: 'desktop',
+        installPath: desktopInfo.basePath,
+        version: 'desktop',
+        launchMode: 'external',
+        desktopExePath: desktopInfo.executablePath || undefined,
+        status: 'installed',
+      })
+
+      // Sync Launcher's shared model directories into Desktop's config
+      const modelsDirs = settings.get('modelsDirs') as string[] | undefined
+      if (modelsDirs && modelsDirs.length > 0) {
+        try {
+          syncSharedModelPaths(desktopInfo.configDir, modelsDirs)
+        } catch {}
+      }
+    }
+  }
+
   migrateDefaults()
 
   // Sweep empty/broken local installations on startup, then clean stale settings references
@@ -419,7 +439,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const validIds = new Set(remaining.map((i) => i.id))
       let settingsChanged = false
 
-      const currentPrimary = settings.get('primaryInstallId') as string | undefined
+      const currentPrimary = settings.get('primaryInstallId')
       if (currentPrimary && !validIds.has(currentPrimary)) {
         await autoAssignPrimary(currentPrimary)
         settingsChanged = true
@@ -536,14 +556,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   ipcMain.handle('get-installations', async () => {
     const list = await installations.list()
 
-    // Ensure a primary is always set when local installs exist
-    const currentPrimary = settings.get('primaryInstallId') as string | undefined
+    // Ensure a primary is always set when promotable local installs exist
+    const currentPrimary = settings.get('primaryInstallId')
     if (!currentPrimary || !list.some((i) => i.id === currentPrimary)) {
-      const firstLocal = list.find((i) => {
-        const s = sourceMap[i.sourceId]
-        return s && s.category === 'local'
-      })
-      const newPrimary = firstLocal?.id ?? null
+      const firstLocal = list.find((i) => isPromotableLocal(i.sourceId))
+      const newPrimary = firstLocal?.id
       if (currentPrimary !== newPrimary) {
         settings.set('primaryInstallId', newPrimary)
       }
@@ -649,7 +666,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       fs.mkdirSync(inst.installPath, { recursive: true })
       fs.writeFileSync(path.join(inst.installPath, MARKER_FILE), installationId)
       if (source.installSteps) {
-        sendProgress('steps', { steps: source.installSteps })
+        const steps = [...source.installSteps]
+        if (inst.pendingSnapshotRestore) {
+          steps.push(
+            { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
+            { phase: 'restore-pip', label: i18n.t('standalone.snapshotRestorePipPhase') },
+          )
+        }
+        sendProgress('steps', { steps })
       }
       const abort = new AbortController()
       _operationAborts.set(installationId, abort)
@@ -673,11 +697,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             installations.update(installationId, data).then(() => {})
 
           try {
-            sendProgress('steps', { steps: [
-              { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
-              { phase: 'restore-pip', label: i18n.t('standalone.snapshotRestorePipPhase') },
-            ] })
-
             const fileContent = await fs.promises.readFile(pendingFile, 'utf-8')
             const envelope = validateExportEnvelope(JSON.parse(fileContent))
             await importSnapshots(freshInst.installPath, envelope)
@@ -686,16 +705,23 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             sendOutput('\n── Restore Nodes ──\n')
             await restoreCustomNodes(freshInst.installPath, freshInst, targetSnapshot, sendProgress, sendOutput, abort.signal)
 
-            if (!abort.signal.aborted) {
+            if (!abort.signal.aborted && !targetSnapshot.skipPipSync) {
               sendOutput('\n── Restore Packages ──\n')
               await restorePipPackages(freshInst.installPath, freshInst, targetSnapshot,
                 (phase, data) => sendProgress(phase === 'restore' ? 'restore-pip' : phase, data),
                 sendOutput, abort.signal)
             }
 
+            // Restore update channel from the snapshot
+            const targetChannel = targetSnapshot.updateChannel || 'stable'
+            if (targetChannel !== (freshInst.updateChannel as string | undefined)) {
+              await update({ updateChannel: targetChannel })
+            }
+
             // Save post-restore snapshot
             try {
-              const filename = await saveSnapshot(freshInst.installPath, freshInst, 'post-restore')
+              const updatedInst = { ...freshInst, updateChannel: targetChannel }
+              const filename = await saveSnapshot(freshInst.installPath, updatedInst, 'post-restore')
               const snapshotCount = await getSnapshotCount(freshInst.installPath)
               await update({ pendingSnapshotRestore: undefined, lastSnapshot: filename, snapshotCount })
             } catch {
@@ -881,7 +907,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     // mode === 'current'
     const target = await loadSnapshot(inst.installPath, filename)
     const diff = await diffAgainstCurrent(inst.installPath, inst, target)
-    const empty = !diff.comfyuiChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
+    const empty = !diff.comfyuiChanged && !diff.updateChannelChanged && diff.nodesAdded.length === 0 && diff.nodesRemoved.length === 0 &&
                   diff.nodesChanged.length === 0 && diff.pipsAdded.length === 0 && diff.pipsRemoved.length === 0 &&
                   diff.pipsChanged.length === 0
     return { mode: 'current' as const, baseLabel: 'Current state', diff, empty }
@@ -986,6 +1012,29 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     }
   }
 
+  let _lastDesktopPreviewFile: string | null = null
+
+  ipcMain.handle('preview-desktop-migration', async () => {
+    try {
+      // Clean up previous preview file if user is re-previewing
+      if (_lastDesktopPreviewFile) {
+        fs.promises.unlink(_lastDesktopPreviewFile).catch(() => {})
+        _lastDesktopPreviewFile = null
+      }
+
+      const desktopInfo = detectDesktopInstall()
+      if (!desktopInfo) return { ok: false, message: i18n.t('desktop.notFound') }
+
+      const { envelope, stagedFile } = await stageDesktopSnapshot(desktopInfo)
+
+      _lastDesktopPreviewFile = stagedFile
+      return { ok: true, preview: buildSnapshotPreview(stagedFile, envelope), snapshotPath: stagedFile }
+    } catch (err) {
+      console.warn('preview-desktop-migration failed:', err)
+      return { ok: false, message: (err as Error)?.message ?? String(err) }
+    }
+  })
+
   ipcMain.handle('preview-snapshot-file', async (_event) => {
     const win = BrowserWindow.fromWebContents(_event.sender)
     if (!win) return { ok: false, message: 'No window.' }
@@ -1017,7 +1066,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     return { ok: true, preview: buildSnapshotPreview(filePath, envelope) }
   })
 
-  ipcMain.handle('create-from-snapshot', async (_event, filePath: string, customName?: string) => {
+  ipcMain.handle('create-from-snapshot', async (_event, filePath: string, customName?: string, releaseTag?: string, variantId?: string) => {
     if (!filePath || !fs.existsSync(filePath)) return { ok: false, message: 'Snapshot file not found.' }
 
     const content = await fs.promises.readFile(filePath, 'utf-8')
@@ -1026,7 +1075,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     let envelope: SnapshotExportEnvelope
     try { envelope = validateExportEnvelope(parsed) } catch (err) { return { ok: false, message: (err as Error).message } }
 
-    // 3. Extract variant from newest snapshot
+    // 3. Extract variant from newest snapshot (used as fallback for matching)
     const targetSnapshot = envelope.snapshots[0]!
     const snapshotVariant = targetSnapshot.comfyui.variant || ''
 
@@ -1037,33 +1086,48 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const strippedVariant = snapshotVariant.replace(/^(win|mac|linux)-/, '')
     const baseGpu = strippedVariant.replace(/-.*$/, '') // e.g. "nvidia" from "nvidia-cu128"
 
-    // 5. Fetch latest release and find matching variant
+    // 5. Fetch releases and find matching release
     const source = sourceMap['standalone']!
     const releaseOptions = await source.getFieldOptions('release', {}, {})
     if (releaseOptions.length === 0) return { ok: false, message: 'No releases available.' }
-    const latestRelease = releaseOptions[0]!
+
+    let selectedRelease: FieldOption
+    if (releaseTag) {
+      const match = releaseOptions.find((r) => r.value === releaseTag)
+      if (!match) return { ok: false, message: `Release "${releaseTag}" is no longer available.` }
+      selectedRelease = match
+    } else {
+      console.warn('No releaseTag specified for create-from-snapshot, falling back to latest release.')
+      selectedRelease = releaseOptions[0]!
+    }
 
     const gpu = await detectGPU()
-    const variantOptions = await source.getFieldOptions('variant', { release: latestRelease }, { gpu: gpu?.id })
+    const variantOptions = await source.getFieldOptions('variant', { release: selectedRelease }, { gpu: gpu?.id })
     if (variantOptions.length === 0) return { ok: false, message: 'No compatible variants found for this platform.' }
 
-    // Match: exact re-prefixed variant, then base GPU type, then recommended, then first
-    const localVariant = prefix + strippedVariant
-    let matched = variantOptions.find((v) => (v.data?.variantId as string) === localVariant)
-    if (!matched) {
-      matched = variantOptions.find((v) => {
-        const vid = ((v.data?.variantId as string) || '').replace(/^(win|mac|linux)-/, '')
-        return vid === baseGpu || vid.startsWith(baseGpu + '-')
-      })
+    let matched: FieldOption | undefined
+    if (variantId) {
+      matched = variantOptions.find((v) => (v.data?.variantId as string) === variantId)
+      if (!matched) return { ok: false, message: `Variant "${variantId}" is not available for the selected release.` }
+    } else {
+      // Match: exact re-prefixed variant, then base GPU type, then recommended, then first
+      const localVariant = prefix + strippedVariant
+      matched = variantOptions.find((v) => (v.data?.variantId as string) === localVariant)
+      if (!matched) {
+        matched = variantOptions.find((v) => {
+          const vid = ((v.data?.variantId as string) || '').replace(/^(win|mac|linux)-/, '')
+          return vid === baseGpu || vid.startsWith(baseGpu + '-')
+        })
+      }
+      if (!matched) matched = variantOptions.find((v) => v.recommended)
+      if (!matched) matched = variantOptions[0]!
     }
-    if (!matched) matched = variantOptions.find((v) => v.recommended)
-    if (!matched) matched = variantOptions[0]!
 
     // 6. Build installation
     const instData = {
       sourceId: source.id,
       sourceLabel: source.label,
-      ...source.buildInstallation({ release: latestRelease, variant: matched }),
+      ...source.buildInstallation({ release: selectedRelease, variant: matched }),
     }
     const baseName = customName || envelope.installationName || 'ComfyUI'
     const name = await uniqueName(baseName)
@@ -1118,11 +1182,17 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               { value: 'github', label: i18n.t('settings.themeGithub') },
             ] },
           { id: 'autoUpdate', label: i18n.t('settings.autoUpdate'), type: 'boolean', value: s.autoUpdate !== false },
-          { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || 'quit',
+          { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || settings.defaults.onLauncherClose,
             options: [
               { value: 'quit', label: i18n.t('settings.closeQuit') },
               { value: 'tray', label: i18n.t('settings.closeTray') },
             ] },
+        ],
+      },
+      {
+        title: i18n.t('settings.telemetry'),
+        fields: [
+          { id: 'telemetryEnabled', label: i18n.t('settings.telemetryEnabled'), type: 'boolean', value: s.telemetryEnabled !== false },
         ],
       },
       {
@@ -1241,6 +1311,20 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       })
       if (_onLocaleChanged) _onLocaleChanged()
     }
+    if (key === 'modelsDirs') {
+      // Re-sync shared model paths into Desktop's config if Desktop is tracked
+      const desktopInfo = detectDesktopInstall()
+      if (desktopInfo) {
+        try {
+          syncSharedModelPaths(desktopInfo.configDir, value as string[])
+        } catch {}
+      }
+    }
+    if (key === 'telemetryEnabled') {
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) win.webContents.send('telemetry-setting-changed', value)
+      })
+    }
   })
 
   ipcMain.handle('get-setting', (_event, key: string) => {
@@ -1308,6 +1392,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       return { ok: true, navigate: 'list' }
     }
     if (actionId === 'set-primary-install') {
+      if (inst.sourceId === 'desktop') {
+        return { ok: false, message: 'Desktop installations cannot be set as primary.' }
+      }
       settings.set('primaryInstallId', installationId)
       return { ok: true }
     }
@@ -1361,14 +1448,18 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         }, { signal: abort.signal })
       } catch (err) {
         _operationAborts.delete(installationId)
-        if (abort.signal.aborted) {
-          try {
-            fs.mkdirSync(inst.installPath, { recursive: true })
-            fs.writeFileSync(markerPath, markerContent)
-          } catch {}
-          await installations.update(installationId, { status: 'partial-delete' })
+        // Always restore marker so future delete attempts don't hit the safety check
+        try {
+          fs.mkdirSync(inst.installPath, { recursive: true })
+          fs.writeFileSync(markerPath, markerContent)
+        } catch {}
+        await installations.update(installationId, { status: 'partial-delete' })
+        const raw = (err as NodeJS.ErrnoException)
+        let message = raw.message
+        if (raw.code === 'EBUSY' || raw.code === 'EPERM') {
+          message = i18n.t('errors.deleteLocked', { path: raw.path ?? '' })
         }
-        return { ok: false, message: (err as Error).message }
+        return { ok: false, message }
       }
       _operationAborts.delete(installationId)
       await installations.remove(installationId)
@@ -1452,6 +1543,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
         const { entry } = await performCopy(inst, name, sendProgress, abort.signal, 'copy-update')
 
+        // If a target channel was specified, persist it on the copy before updating
+        const targetChannel = actionData?.channel as string | undefined
+        if (targetChannel) {
+          await installations.update(entry.id, { updateChannel: targetChannel })
+        }
+
         const updateSendProgress = (phase: string, detail: Record<string, unknown>): void => {
           if (phase !== 'steps') sendProgress(phase, detail)
         }
@@ -1480,6 +1577,58 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         return { ok: true, navigate: 'list' }
       } catch (err) {
         _operationAborts.delete(installationId)
+        if (abort.signal.aborted) return { ok: true, navigate: 'detail' }
+        return { ok: false, message: (err as Error).message }
+      }
+    }
+    if (actionId === 'migrate-to-standalone') {
+      if (_operationAborts.has(installationId)) {
+        return { ok: false, message: 'Another operation is already running for this installation.' }
+      }
+
+      const sender = _event.sender
+      const sendProgress = (phase: string, detail: Record<string, unknown>): void => {
+        if (!sender.isDestroyed()) {
+          sender.send('install-progress', { installationId, phase, ...detail })
+        }
+      }
+      const sendOutput = (text: string): void => {
+        if (!sender.isDestroyed()) {
+          sender.send('comfy-output', { installationId, text })
+        }
+      }
+
+      const abort = new AbortController()
+      _operationAborts.set(installationId, abort)
+
+      let entry: InstallationRecord | null = null
+      let destPath = ''
+      try {
+        const result = await performDesktopMigration(actionData, {
+          sendProgress,
+          sendOutput,
+          signal: abort.signal,
+          sourceMap,
+          uniqueName,
+          ensureDefaultPrimary,
+        })
+        entry = result.entry
+        destPath = result.destPath
+
+        // Promote the new standalone install to primary so the dashboard features it
+        settings.set('primaryInstallId', entry.id)
+
+        _operationAborts.delete(installationId)
+        sendProgress('done', { percent: 100, status: 'Complete' })
+        return { ok: true, navigate: 'list' }
+      } catch (err) {
+        _operationAborts.delete(installationId)
+        if (entry) {
+          try { await installations.remove(entry.id) } catch {}
+        }
+        if (destPath && fs.existsSync(destPath)) {
+          try { await fs.promises.rm(destPath, { recursive: true, force: true }) } catch {}
+        }
         if (abort.signal.aborted) return { ok: true, navigate: 'detail' }
         return { ok: false, message: (err as Error).message }
       }
@@ -1704,6 +1853,44 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         return { ok: false, message: `Executable not found: ${launchCmd.cmd}` }
       }
 
+      // Skip port logic entirely — spawn and immediately register session
+      if (launchCmd.skipPortWait) {
+        _broadcastToRenderer('instance-launching', { installationId, installationName: inst.name })
+        const sendOutput = (text: string): void => {
+          if (!sender.isDestroyed()) sender.send('comfy-output', { installationId, text })
+        }
+        const launchEnv = { ...process.env }
+        const proc = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv, { showWindow: launchCmd.showWindow })
+        let stderrBuf = ''
+        proc.stdout?.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
+        proc.stderr?.on('data', (chunk: Buffer) => {
+          const text = chunk.toString('utf-8')
+          stderrBuf += text
+          if (stderrBuf.length > 8192) stderrBuf = stderrBuf.slice(-4096)
+          sendOutput(text)
+        })
+
+        _operationAborts.delete(installationId)
+        const mode = (inst.launchMode as string | undefined) || 'window'
+        _addSession(installationId, { proc, port: 0, mode, installationName: inst.name })
+
+        proc.on('exit', (code) => {
+          // A clean exit (code 0) is normal for externally-managed processes
+          // (e.g. the user closed the Desktop app directly).
+          const crashed = _runningSessions.has(installationId) && code !== 0
+          _removeSession(installationId)
+          if (!sender.isDestroyed()) {
+            sender.send('comfy-exited', { installationId, crashed, exitCode: code, installationName: inst.name })
+          }
+          if (_onComfyExited) _onComfyExited({ installationId })
+        })
+
+        if (_onLaunch) {
+          _onLaunch({ port: 0, process: proc, installation: inst, mode })
+        }
+        return { ok: true, mode }
+      }
+
       if (actionData && actionData.portOverride) {
         setPortArg(launchCmd as LaunchCmd, actionData.portOverride as number)
       }
@@ -1794,7 +1981,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
 
       function spawnComfy(): { proc: ChildProcess; getStderr: () => string } {
-        const p = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv)
+        const p = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv, { showWindow: launchCmd.showWindow })
         let stderrBuf = ''
         p.stdout!.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
         p.stderr!.on('data', (chunk: Buffer) => {
@@ -2005,6 +2192,10 @@ export async function stopRunning(installationId?: string): Promise<void> {
 
 export function hasRunningSessions(): boolean {
   return _runningSessions.size > 0
+}
+
+export function getSessionProcess(installationId: string): ChildProcess | null {
+  return _runningSessions.get(installationId)?.proc ?? null
 }
 
 export function hasActiveOperations(): boolean {

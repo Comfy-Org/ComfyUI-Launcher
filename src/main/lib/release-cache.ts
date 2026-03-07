@@ -208,16 +208,25 @@ export function isUpdateAvailable(
   info: ReleaseCacheEntry | null
 ): boolean {
   if (!info || !info.latestTag) return false
-  // Cross-channel: last update was on a different channel, so this channel's installedTag is stale
+  // Installed version string shows commits ahead of the stable tag (e.g. "v0.14.2 + 21 commits")
+  const version = (installation.version as string) || ''
+  if (channel === 'stable' && version.includes(info.latestTag + ' +')) return true
+  // Cross-channel: last update was on a different channel, so this channel's installedTag is stale;
+  // fall back to comparing the current display version against this channel's latest tag.
   const lastRollback = installation.lastRollback as
     | Record<string, unknown>
     | undefined
   const lastUpdateChannel = lastRollback?.channel as string | undefined
-  if (lastUpdateChannel && lastUpdateChannel !== channel) return true
-  // Installed version string shows commits ahead of the stable tag (e.g. "v0.14.2 + 21 commits")
-  const version = (installation.version as string) || ''
-  if (channel === 'stable' && version.includes(info.latestTag + ' +')) return true
-  // Raw tag/sha mismatch
-  if (info.installedTag && info.installedTag !== info.latestTag) return true
+  if (lastUpdateChannel && lastUpdateChannel !== channel) {
+    // Compare display version and post-update commit against the latest for this channel.
+    // For the "latest" channel, latestTag is a short SHA; releaseName may include it or be the stable tag.
+    const postHead = (lastRollback?.postUpdateHead as string | undefined) || ''
+    const shortHead = postHead.slice(0, 7)
+    if (version === info.latestTag || version === info.releaseName) return false
+    if (shortHead && (shortHead === info.latestTag || info.releaseName?.includes(shortHead))) return false
+    return true
+  }
+  // Raw tag/sha mismatch (also check releaseName since the latest channel uses a SHA as latestTag)
+  if (info.installedTag && info.installedTag !== info.latestTag && info.installedTag !== info.releaseName) return true
   return false
 }

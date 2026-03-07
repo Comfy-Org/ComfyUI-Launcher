@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { SettingsField } from '../types/ipc'
+import { emitTelemetryAction } from '../lib/telemetry'
 
 interface Props {
   field: SettingsField
@@ -13,6 +14,11 @@ const localPaths = ref<string[]>(Array.isArray(props.field.value) ? [...props.fi
 
 async function updateSetting(value: string | boolean | number | string[]): Promise<void> {
   await window.api.setSetting(props.field.id, value)
+  emitTelemetryAction('launcher.settings.changed', {
+    setting_key: props.field.id,
+    value_kind: props.field.type || 'text',
+    bool_value: typeof value === 'boolean' ? value : undefined,
+  })
   emit('setting-updated')
 }
 
@@ -112,7 +118,7 @@ v-else-if="field.type === 'number'" type="number" class="detail-field-input"
         <input type="text" class="detail-field-input" :value="p" readonly />
         <button @click="openPath(p)">{{ $t('settings.open') }}</button>
         <button @click="browsePath(index)">{{ $t('common.browse') }}</button>
-        <button class="danger" @click="removePath(index)">{{ $t('models.removeDir') }}</button>
+        <button class="danger-solid" @click="removePath(index)">{{ $t('models.removeDir') }}</button>
       </div>
       <button @click="addPath">{{ $t('models.addDir') }}</button>
     </div>

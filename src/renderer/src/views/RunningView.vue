@@ -154,6 +154,7 @@ const emit = defineEmits<{
               v-for="[installationId] in sessionStore.runningInstances"
               :key="installationId"
               :name="getRunningName(installationId)"
+              :running="true"
             >
               <template #meta>
                 <template v-for="(part, i) in getRunningMetaParts(installationId)" :key="i">
@@ -176,7 +177,7 @@ const emit = defineEmits<{
                 >
                   {{ $t('list.console') }}
                 </button>
-                <button class="danger" @click="stopComfyUI(installationId)">
+                <button class="danger-solid" @click="stopComfyUI(installationId)">
                   {{ $t('console.stop') }}
                 </button>
                 <button
@@ -195,7 +196,7 @@ const emit = defineEmits<{
         <template v-if="sessionStore.errorInstances.size > 0">
           <div
             class="detail-section-title"
-            :style="sessionStore.runningInstances.size > 0 ? 'margin-top: 18px' : ''"
+            :class="{ spaced: sessionStore.runningInstances.size > 0 }"
           >
             {{ $t('running.errors') }}
           </div>
@@ -238,11 +239,7 @@ const emit = defineEmits<{
         <template v-if="inProgressIds.length > 0">
           <div
             class="detail-section-title"
-            :style="
-              (sessionStore.runningInstances.size > 0 || sessionStore.errorInstances.size > 0)
-                ? 'margin-top: 18px'
-                : ''
-            "
+            :class="{ spaced: sessionStore.runningInstances.size > 0 || sessionStore.errorInstances.size > 0 }"
           >
             {{ $t('running.inProgress') }}
           </div>
@@ -251,6 +248,7 @@ const emit = defineEmits<{
               v-for="installationId in inProgressIds"
               :key="installationId"
               :name="getInProgressName(installationId)"
+              :in-progress="true"
             >
               <template #meta>
                 <template v-for="(part, i) in getInProgressMetaParts(installationId)" :key="i">

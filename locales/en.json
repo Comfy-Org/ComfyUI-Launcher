@@ -18,7 +18,13 @@
     "noPinned": "No pinned installations. Right-click an install to pin it to the dashboard.",
     "pinnedInQuickLaunch": "Pinned installations are already shown in Quick Launch above.",
     "pinToDashboard": "Pin to Dashboard",
-    "unpinFromDashboard": "Unpin from Dashboard"
+    "unpinFromDashboard": "Unpin from Dashboard",
+    "telemetryNotice": "Anonymous telemetry is collected to improve ComfyUI Launcher.",
+    "telemetrySettings": "Manage in Settings",
+    "migrateBannerTitle": "Migrate to Standalone",
+    "migrateBannerDesc": "Your Desktop installation was detected. Migrate to a Standalone install for better performance, easier updates, and full Launcher management.",
+    "migrateBannerAction": "Migrate Now",
+    "migrateBannerLaunch": "Launch Desktop"
   },
 
   "sidebar": {
@@ -138,6 +144,10 @@
     "snapshotCreateInstall": "Create Installation",
     "snapshotDropHint": "Drop a snapshot .json file here",
     "snapshotNameHint": "Characters like < > : \" / \\ | ? * will be removed",
+    "snapshotRelease": "Release",
+    "snapshotOriginalRelease": "Snapshot version: {tag}",
+    "snapshotDevice": "Device",
+    "snapshotHardwareMismatch": "The snapshot was created with {snapshotDevice}. Your detected hardware is {detectedDevice}. The recommended variant for your hardware has been pre-selected.",
     "newInstall": "New Install",
     "empty": "No installs yet.",
     "emptyHint": "Install or track an existing version of ComfyUI.",
@@ -217,8 +227,10 @@
     "updateAvailable": "Update available",
     "upToDate": "Up to date",
     "noInfo": "Select this channel and check for updates to see version info.",
-    "switchChannel": "Switch Channel",
-    "switching": "Switching…"
+    "current": "Current",
+    "switchTo": "Switch to {channel}:",
+    "switchChannelOnly": "Switch Channel",
+    "switchChannelPrefix": "This will switch the update channel from {from} to {to}.\n\n"
   },
 
   "track": {
@@ -278,6 +290,8 @@
     "closeQuitOperations": "In Progress",
     "closeQuitDownloads": "Downloading",
     "autoUpdate": "Check for updates on startup",
+    "telemetry": "Telemetry",
+    "telemetryEnabled": "Share anonymous usage telemetry",
     "models": "Shared Models",
     "downloads": "Downloads",
     "cacheDir": "Cache Directory",
@@ -405,6 +419,30 @@
   "cloud": {
     "label": "Cloud",
     "desc": "Connect to Comfy Cloud for remote GPU-powered workflows."
+  },
+
+  "desktop": {
+    "label": "Desktop",
+    "desc": "Detected ComfyUI Desktop installation.",
+    "installInfo": "Desktop Install",
+    "basePath": "Data Path",
+    "executable": "Executable",
+    "tracked": "Tracked Since",
+    "openApp": "Open Desktop App",
+    "notFound": "ComfyUI Desktop executable not found.",
+    "migrateToStandalone": "Migrate to Standalone",
+    "migrateConfirmTitle": "Migrate Desktop to Standalone",
+    "migrateConfirmMessage": "This will create a new Standalone installation with your Desktop custom nodes, workflows, and settings. Your Desktop installation will not be modified.",
+    "migrateConfirm": "Start Migration",
+    "migrating": "Migrating Desktop to Standalone",
+    "scanningDesktop": "Scanning Desktop installation…",
+    "creatingSnapshot": "Creating Desktop snapshot…",
+    "copyingUserData": "Copying workflows and settings…",
+    "copyingInput": "Copying input files…",
+    "copyingOutput": "Copying output files…",
+    "addingModels": "Adding Desktop models to shared paths…",
+    "migrateComplete": "Migration complete",
+    "migrateNoData": "No data found to migrate."
   },
 
   "standalone": {
@@ -626,6 +664,7 @@
     "installNotReady": "This install is not ready to launch. It may still be installing or may have failed.",
     "installFailed": "Install Failed",
     "deleteInterrupted": "Delete Interrupted",
+    "deleteLocked": "A file could not be deleted because it is in use by another program. Close any applications that may have files open in this directory and try again.\n{path}",
     "cannotAdd": "Cannot Add",
     "dirNotExist": "Directory does not exist: {path}",
     "cannotOpenDir": "Could not open directory: {error}",

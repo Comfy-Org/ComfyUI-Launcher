@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, toRaw } from 'vue'
+import { ref, computed, watch, nextTick, toRaw, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import DetailSectionComponent from '../components/DetailSection.vue'
 import SnapshotTab from '../components/SnapshotTab.vue'
 import { useInstallationStore } from '../stores/installationStore'
+import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
   Installation,
@@ -18,9 +19,12 @@ import type {
 
 interface Props {
   installation: Installation | null
+  initialTab?: string
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  initialTab: 'status',
+})
 
 const emit = defineEmits<{
   close: []
@@ -43,6 +47,7 @@ const prefs = useLauncherPrefs()
 const installationStore = useInstallationStore()
 
 const isLocal = computed(() => props.installation?.sourceCategory === 'local')
+const isDesktop = computed(() => props.installation?.sourceId === 'desktop')
 const isCloud = computed(() => props.installation?.sourceCategory === 'cloud')
 const isPrimary = computed(() => props.installation ? prefs.isPrimary(props.installation.id) : false)
 const isPinned = computed(() => props.installation ? prefs.isPinned(props.installation.id) : false)
@@ -95,7 +100,8 @@ watch(
     previousInstId.value = inst.id
     sections.value = await window.api.getDetailSections(inst.id)
     if (isNewInstallation) {
-      activeTab.value = 'status'
+      const tabExists = sections.value.some((s) => s.tab === props.initialTab)
+      activeTab.value = tabExists ? props.initialTab : 'status'
       await nextTick()
       if (scrollRef.value) scrollRef.value.scrollTop = 0
     }
@@ -152,6 +158,10 @@ function handleActionClick(action: ActionDef, event: MouseEvent): void {
 
 async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Promise<void> {
   if (!props.installation) return
+  const telemetryContext = {
+    source_category: props.installation.sourceCategory || 'unknown',
+    ui_surface: 'detail',
+  }
   let mutableAction = { ...action }
 
   // fieldSelects chain
@@ -248,8 +258,49 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     }
   }
 
-  // confirm chain
-  if (mutableAction.confirm) {
+  // Desktop migration preview — replaces the static confirm with a live snapshot preview
+  if (mutableAction.id === 'migrate-to-standalone') {
+    let previewResult: Awaited<ReturnType<typeof window.api.previewDesktopMigration>>
+    try {
+      previewResult = await window.api.previewDesktopMigration()
+    } catch (err) {
+      await modal.alert({
+        title: mutableAction.label,
+        message: (err as Error)?.message ?? String(err),
+      })
+      return
+    }
+    if (!previewResult.ok) {
+      if (previewResult.message) {
+        await modal.alert({ title: mutableAction.label, message: previewResult.message })
+      }
+      return
+    }
+    const confirmed = await modal.confirm({
+      title: mutableAction.confirm?.title || t('desktop.migrateConfirmTitle'),
+      message: mutableAction.confirm?.message || '',
+      snapshotPreview: previewResult.preview?.newestSnapshot,
+      messageDetails: [{
+        label: t('desktop.migrateConfirmTitle'),
+        items: [
+          t('desktop.copyingUserData'),
+          t('desktop.copyingInput'),
+          t('desktop.copyingOutput'),
+          t('desktop.addingModels'),
+        ],
+      }],
+      confirmLabel: mutableAction.confirm?.confirmLabel || t('desktop.migrateConfirm'),
+      confirmStyle: 'primary',
+    })
+    if (!confirmed) return
+    mutableAction = {
+      ...mutableAction,
+      data: { ...mutableAction.data, snapshotPath: previewResult.snapshotPath },
+    }
+  }
+
+  // confirm chain — skip for migrate-to-standalone since it handles its own confirmation above
+  if (mutableAction.confirm && mutableAction.id !== 'migrate-to-standalone') {
     if (mutableAction.confirm.options) {
       const result = await modal.confirmWithOptions({
         title: mutableAction.confirm.title || 'Confirm',
@@ -301,6 +352,7 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
         String((mutableAction.data as Record<string, unknown>)?.[k] ?? k)
     )
     const title = `${rawTitle} — ${instName}`
+    emitTelemetryAction('launcher.action.invoked', { action_id: mutableAction.id, ...telemetryContext })
     emit('show-progress', {
       installationId: instId,
       title,
@@ -319,11 +371,14 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     btn.classList.add('loading')
   }
   try {
+    emitTelemetryAction('launcher.action.invoked', { action_id: mutableAction.id, ...telemetryContext })
     const result = await window.api.runAction(
       props.installation.id,
       mutableAction.id,
       mutableAction.data ? toRaw(mutableAction.data) : undefined
     )
+    const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
+    emitTelemetryAction('launcher.action.result', { action_id: mutableAction.id, result: resultValue, ...telemetryContext })
     if (result.navigate === 'list') {
       emit('close')
       emit('navigate-list')
@@ -332,6 +387,14 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
     } else if (result.message) {
       await modal.alert({ title: mutableAction.label, message: result.message })
     }
+  } catch (error: unknown) {
+    emitTelemetryAction('launcher.action.result', {
+      action_id: mutableAction.id,
+      result: 'failed',
+      error_bucket: toErrorBucket(error),
+      ...telemetryContext,
+    })
+    throw error
   } finally {
     if (btn) {
       btn.disabled = false
@@ -356,6 +419,20 @@ function handleOverlayClick(event: MouseEvent): void {
   }
   mouseDownOnOverlay.value = false
 }
+
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && props.installation) {
+    emit('close')
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
+})
 </script>
 
 <template>
@@ -378,7 +455,7 @@ function handleOverlayClick(event: MouseEvent): void {
         </div>
         <div class="detail-header-actions">
           <button
-            v-if="isLocal"
+            v-if="isLocal && !isDesktop"
             class="detail-header-btn"
             :class="{ active: isPrimary }"
             :disabled="isPrimary"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 
@@ -87,6 +87,20 @@ watch(
   }
 )
 
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && props.installationId) {
+    emit('close')
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
+})
+
 function handleOverlayMouseDown(event: MouseEvent): void {
   mouseDownOnOverlay.value = event.target === (event.currentTarget as HTMLElement)
 }
@@ -109,7 +123,19 @@ function handleOverlayClick(event: MouseEvent): void {
     <div class="view-modal-content">
       <div class="view-modal-header">
         <div class="view-modal-title">{{ title }}</div>
-        <div class="view-modal-header-actions">
+        <button class="view-modal-close" @click="emit('close')">{{ (!isExited && !errorInfo) ? '−' : '✕' }}</button>
+      </div>
+      <div class="view-modal-body">
+        <div v-if="errorInfo?.message" class="console-error-message">{{ errorInfo.message }}</div>
+        <div
+          id="console-terminal"
+          ref="terminalRef"
+          class="terminal-output"
+          @scroll="handleTerminalScroll"
+        >{{ terminalOutput }}</div>
+
+        <!-- Bottom actions -->
+        <div class="view-bottom">
           <button
             v-if="showWindowBtn"
             class="primary"
@@ -125,7 +151,7 @@ function handleOverlayClick(event: MouseEvent): void {
           </button>
           <button
             v-if="!isExited && !errorInfo"
-            class="danger"
+            class="danger-solid"
             @click="api.stopComfyUI(installationId!)"
           >
             {{ $t('console.stop') }}
@@ -137,15 +163,6 @@ function handleOverlayClick(event: MouseEvent): void {
             {{ $t('running.dismiss') }}
           </button>
         </div>
-        <button class="view-modal-close" @click="emit('close')">✕</button>
-      </div>
-      <div class="view-modal-body">
-        <div
-          id="console-terminal"
-          ref="terminalRef"
-          class="terminal-output"
-          @scroll="handleTerminalScroll"
-        >{{ terminalOutput }}</div>
       </div>
     </div>
   </div>

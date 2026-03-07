@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check, X, TriangleAlert } from 'lucide-vue-next'
 import { useModal } from '../composables/useModal'
@@ -240,6 +240,25 @@ function handleOverlayClick(event: MouseEvent): void {
   mouseDownOnOverlay.value = false
 }
 
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.key !== 'Escape') return
+  if (props.installationId === null) return
+  const id = displayId.value
+  if (!id) return
+  const op = progressStore.operations.get(id)
+  if (!op || op.finished) {
+    emit('close')
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
+})
+
 defineExpose({ startOperation, showOperation })
 </script>
 
@@ -251,31 +270,10 @@ defineExpose({ startOperation, showOperation })
     @click="handleOverlayClick"
   >
     <div class="view-modal-content">
-      <div class="view-modal-header">
-        <div class="view-modal-title">{{ currentOp.title }}</div>
-        <div class="view-modal-header-actions">
-          <button
-            v-if="currentOp.finished && currentOp.result?.ok"
-            class="primary"
-            @click="handleDone"
-          >
-            {{ $t('common.done') }}
-          </button>
-          <button
-            v-else-if="!currentOp.finished"
-            class="danger"
-            :disabled="currentOp.cancelRequested"
-            @click="handleCancel"
-          >
-            {{
-              currentOp.cancelRequested
-                ? $t('progress.cancelling')
-                : $t('common.cancel')
-            }}
-          </button>
-        </div>
-        <button class="view-modal-close" @click="emit('close')">✕</button>
-      </div>
+    <div class="view-modal-header">
+      <div class="view-modal-title">{{ currentOp.title }}</div>
+      <button class="view-modal-close" @click="emit('close')">{{ currentOp.finished ? '✕' : '−' }}</button>
+    </div>
       <div class="view-modal-body">
         <!-- Status banner -->
         <div
@@ -408,6 +406,29 @@ defineExpose({ startOperation, showOperation })
           class="terminal-output"
           @scroll="handleTerminalScroll"
         >{{ currentOp.terminalOutput }}</div>
+
+        <!-- Bottom actions -->
+        <div class="view-bottom">
+          <button
+            v-if="currentOp.finished && currentOp.result?.ok"
+            class="primary"
+            @click="handleDone"
+          >
+            {{ $t('common.done') }}
+          </button>
+          <button
+            v-else-if="!currentOp.finished"
+            class="danger-solid"
+            :disabled="currentOp.cancelRequested"
+            @click="handleCancel"
+          >
+            {{
+              currentOp.cancelRequested
+                ? $t('progress.cancelling')
+                : $t('common.cancel')
+            }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

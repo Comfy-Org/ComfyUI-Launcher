@@ -29,11 +29,11 @@ export interface PortLock {
   timestamp: number
 }
 
-export function spawnProcess(cmd: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv): ChildProcess {
+export function spawnProcess(cmd: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv, options?: { showWindow?: boolean }): ChildProcess {
   return spawn(cmd, args, {
     cwd,
     stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
+    windowsHide: !options?.showWindow,
     detached: process.platform !== "win32",
     env: env || process.env,
   })

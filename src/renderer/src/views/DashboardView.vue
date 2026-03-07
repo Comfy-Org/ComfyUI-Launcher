@@ -7,8 +7,10 @@ import { useModal } from '../composables/useModal'
 import { useLocalInstanceGuard } from '../composables/useLocalInstanceGuard'
 import { useLauncherPrefs } from '../composables/useLauncherPrefs'
 import { useInstallContextMenu } from '../composables/useInstallContextMenu'
+import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import { Download, Star, Clock, Cloud, Pin } from 'lucide-vue-next'
 import DashboardCard from '../components/DashboardCard.vue'
+import MigrationBanner from '../components/MigrationBanner.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import type { Installation, ListAction } from '../types/ipc'
 
@@ -25,7 +27,8 @@ const prefs = useLauncherPrefs()
 
 const emit = defineEmits<{
   'show-quick-install': []
-  'show-detail': [inst: Installation]
+  'show-settings': []
+  'show-detail': [inst: Installation, tab?: string]
   'show-console': [installationId: string]
   'show-progress': [opts: {
     installationId: string
@@ -52,10 +55,16 @@ const primaryInstall = computed(() => {
   return localInstalls.value[0] ?? null
 })
 
-// --- Latest install ---
+const desktopOnlyInstall = computed(() => {
+  if (localInstalls.value.length !== 1) return null
+  const only = localInstalls.value[0]!
+  return only.sourceId === 'desktop' ? only : null
+})
+
+// --- Latest install (exclude desktop) ---
 const latestInstall = computed(() => {
   const withTimestamp = installationStore.installations.filter(
-    (i) => i.sourceCategory !== 'cloud' && typeof i.lastLaunchedAt === 'number'
+    (i) => i.sourceCategory !== 'cloud' && i.sourceId !== 'desktop' && typeof i.lastLaunchedAt === 'number'
   )
   if (withTimestamp.length === 0) return null
   return withTimestamp.reduce((a, b) =>
@@ -90,6 +99,10 @@ const allPinsInQuickLaunch = computed(() => {
   if (showLatestCard.value && latestInstall.value) quickLaunchIds.add(latestInstall.value.id)
   return prefs.pinnedInstallIds.value.some((id) => quickLaunchIds.has(id))
 })
+
+function isInProgress(id: string): boolean {
+  return sessionStore.activeSessions.has(id) && !sessionStore.isRunning(id)
+}
 
 // --- Actions for cards (separate generation counters) ---
 const primaryActions = ref<ListAction[]>([])
@@ -215,6 +228,10 @@ function timeAgo(timestamp: number): string {
 async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<void> {
   const action = actions.find((a) => a.style === 'primary') ?? actions[0] ?? null
   if (!inst || !action) return
+  const telemetryContext = {
+    source_category: inst.sourceCategory || 'unknown',
+    ui_surface: 'dashboard',
+  }
 
   if (action.enabled === false && action.disabledMessage) {
     await modal.alert({ title: action.label, message: action.disabledMessage })
@@ -228,14 +245,21 @@ async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<
       confirmLabel: action.label,
       confirmStyle: action.style || 'danger',
     })
-    if (!confirmed) return
+    if (!confirmed) {
+      emitTelemetryAction('launcher.action.result', { action_id: action.id, result: 'cancelled', ...telemetryContext })
+      return
+    }
   }
 
   if (action.id === 'launch') {
     const canLaunch = await localInstanceGuard.checkBeforeLaunch(inst.id)
-    if (!canLaunch) return
+    if (!canLaunch) {
+      emitTelemetryAction('launcher.action.result', { action_id: action.id, result: 'cancelled', ...telemetryContext })
+      return
+    }
   }
 
+  emitTelemetryAction('launcher.action.invoked', { action_id: action.id, ...telemetryContext })
   if (action.showProgress) {
     emit('show-progress', {
       installationId: inst.id,
@@ -246,15 +270,27 @@ async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<
     return
   }
 
-  const result = await window.api.runAction(inst.id, action.id)
-  if (result.message) {
-    await modal.alert({ title: action.label, message: result.message })
+  try {
+    const result = await window.api.runAction(inst.id, action.id)
+    const resultValue = result.cancelled ? 'cancelled' : (result.ok === false ? 'failed' : 'ok')
+    emitTelemetryAction('launcher.action.result', { action_id: action.id, result: resultValue, ...telemetryContext })
+    if (result.message) {
+      await modal.alert({ title: action.label, message: result.message })
+    }
+  } catch (error: unknown) {
+    emitTelemetryAction('launcher.action.result', {
+      action_id: action.id,
+      result: 'failed',
+      error_bucket: toErrorBucket(error),
+      ...telemetryContext,
+    })
+    throw error
   }
 }
 
 // --- Change primary ---
 async function changePrimary(): Promise<void> {
-  const items = localInstalls.value.map((i) => ({
+  const items = localInstalls.value.filter((i) => i.sourceId !== 'desktop').map((i) => ({
     value: i.id,
     label: i.name,
     description: [i.sourceLabel, i.version].filter(Boolean).join(' · '),
@@ -285,14 +321,28 @@ async function changePrimary(): Promise<void> {
           <Download :size="18" />
           {{ $t('dashboard.installComfyUI') }}
         </button>
+        <p class="dashboard-telemetry-notice">
+          {{ $t('dashboard.telemetryNotice') }}
+          <button class="dashboard-telemetry-link" @click="emit('show-settings')">
+            {{ $t('dashboard.telemetrySettings') }}
+          </button>
+        </p>
       </div>
 
+      <!-- Desktop-only migration banner -->
+      <MigrationBanner
+        v-if="desktopOnlyInstall"
+        :installation="desktopOnlyInstall"
+        @show-progress="(opts) => emit('show-progress', opts)"
+        @show-settings="emit('show-settings')"
+      />
+
       <!-- Quick Launch section -->
-      <div v-if="primaryInstall" class="dashboard-section">
+      <div v-else-if="primaryInstall" class="dashboard-section">
         <div class="dashboard-section-label">{{ $t('dashboard.quickLaunch') }}</div>
         <div class="dashboard-quick-launch">
           <!-- Latest card -->
-          <div v-if="showLatestCard && latestInstall" class="dashboard-card" @contextmenu.prevent="openCardMenu($event, latestInstall!)">
+          <div v-if="showLatestCard && latestInstall" class="dashboard-card" :class="{ 'card-running': sessionStore.isRunning(latestInstall.id), 'card-in-progress': isInProgress(latestInstall.id) }" @contextmenu.prevent="openCardMenu($event, latestInstall!)">
             <div class="dashboard-card-badge">
               <Clock :size="14" />
               {{ $t('dashboard.recent') }}
@@ -302,6 +352,7 @@ async function changePrimary(): Promise<void> {
               :actions="latestActions"
               @launch="handleLaunch"
               @show-detail="(inst) => emit('show-detail', inst)"
+              @show-update="(inst) => emit('show-detail', inst, 'update')"
               @show-console="(id) => emit('show-console', id)"
               @show-progress="(opts) => emit('show-progress', opts)"
             >
@@ -314,7 +365,7 @@ async function changePrimary(): Promise<void> {
           </div>
 
           <!-- Primary card -->
-          <div class="dashboard-card" @contextmenu.prevent="openCardMenu($event, primaryInstall!)">
+          <div class="dashboard-card" :class="{ 'card-running': sessionStore.isRunning(primaryInstall.id), 'card-in-progress': isInProgress(primaryInstall.id) }" @contextmenu.prevent="openCardMenu($event, primaryInstall!)">
             <div class="dashboard-card-badge dashboard-card-badge-primary">
               <Star :size="14" />
               {{ $t('dashboard.primary') }}
@@ -325,6 +376,7 @@ async function changePrimary(): Promise<void> {
               :actions="primaryActions"
               @launch="handleLaunch"
               @show-detail="(inst) => emit('show-detail', inst)"
+              @show-update="(inst) => emit('show-detail', inst, 'update')"
               @show-console="(id) => emit('show-console', id)"
               @show-progress="(opts) => emit('show-progress', opts)"
             >
@@ -345,7 +397,7 @@ async function changePrimary(): Promise<void> {
       <!-- Pinned section -->
       <div v-if="primaryInstall" class="dashboard-section">
         <div class="dashboard-section-label">
-          <Pin :size="14" style="vertical-align: -2px; margin-right: 4px;" />
+          <Pin :size="14" />
           {{ $t('dashboard.pinned') }}
         </div>
         <div v-if="pinnedInstalls.length > 0" class="dashboard-quick-launch">
@@ -353,6 +405,7 @@ async function changePrimary(): Promise<void> {
             v-for="pinned in pinnedInstalls"
             :key="pinned.id"
             class="dashboard-card"
+            :class="{ 'card-running': sessionStore.isRunning(pinned.id), 'card-in-progress': isInProgress(pinned.id) }"
             @contextmenu.prevent="openCardMenu($event, pinned)"
           >
             <DashboardCard
@@ -360,6 +413,7 @@ async function changePrimary(): Promise<void> {
               :actions="pinnedActionsById[pinned.id] ?? []"
               @launch="handleLaunch"
               @show-detail="(inst) => emit('show-detail', inst)"
+              @show-update="(inst) => emit('show-detail', inst, 'update')"
               @show-console="(id) => emit('show-console', id)"
               @show-progress="(opts) => emit('show-progress', opts)"
             >
@@ -379,15 +433,16 @@ async function changePrimary(): Promise<void> {
       <!-- Cloud section -->
       <div v-if="cloudInstall" class="dashboard-section">
         <div class="dashboard-section-label">
-          <Cloud :size="14" style="vertical-align: -2px; margin-right: 4px;" />
+          <Cloud :size="14" />
           {{ $t('dashboard.cloudSection') }}
         </div>
-        <div class="dashboard-cloud-card" @contextmenu.prevent="openCardMenu($event, cloudInstall!)">
+        <div class="dashboard-cloud-card" :class="{ 'card-running': sessionStore.isRunning(cloudInstall.id), 'card-in-progress': isInProgress(cloudInstall.id) }" @contextmenu.prevent="openCardMenu($event, cloudInstall!)">
           <DashboardCard
             :installation="cloudInstall"
             :actions="cloudActions"
             @launch="handleLaunch"
             @show-detail="(inst) => emit('show-detail', inst)"
+            @show-update="(inst) => emit('show-detail', inst, 'update')"
             @show-console="(id) => emit('show-console', id)"
             @show-progress="(opts) => emit('show-progress', opts)"
           />

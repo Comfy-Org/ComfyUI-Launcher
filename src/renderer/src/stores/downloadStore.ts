@@ -1,13 +1,32 @@
 import { defineStore } from 'pinia'
 import { computed, reactive } from 'vue'
 import type { ModelDownloadProgress, Unsubscribe } from '../types/ipc'
+import {
+  emitTelemetryAction,
+  isTerminalModelDownloadStatus,
+  toFileExtension,
+  toModelDirectoryBucket,
+  toSizeBucket,
+} from '../lib/telemetry'
 
 export const useDownloadStore = defineStore('downloads', () => {
   const downloads = reactive(new Map<string, ModelDownloadProgress>())
   let unsub: Unsubscribe | null = null
 
   function upsert(progress: ModelDownloadProgress): void {
+    const previous = downloads.get(progress.url)
     downloads.set(progress.url, { ...progress })
+    if (
+      isTerminalModelDownloadStatus(progress.status)
+      && (!previous || previous.status !== progress.status)
+    ) {
+      emitTelemetryAction('launcher.model_download.result', {
+        result: progress.status,
+        directory_bucket: toModelDirectoryBucket(progress.directory),
+        file_ext: toFileExtension(progress.filename),
+        size_bucket: toSizeBucket(progress.totalBytes),
+      })
+    }
   }
 
   function init(): void {

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, toRaw } from 'vue'
+import { ref, computed, toRaw, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import type { ProbeResult } from '../types/ipc'
+import { emitTelemetryAction, toCountBucket } from '../lib/telemetry'
 
 const emit = defineEmits<{
   close: []
@@ -100,6 +101,11 @@ async function handleSave(): Promise<void> {
     })
     return
   }
+  emitTelemetryAction('launcher.track_existing.saved', {
+    detected_source_label: selectedProbe.value.sourceLabel || 'unknown',
+    probe_count_bucket: toCountBucket(probeResults.value.length),
+    custom_name_used: trackName.value.trim().length > 0,
+  })
   emit('close')
   emit('navigate-list')
 }
@@ -114,6 +120,18 @@ function handleOverlayClick(event: MouseEvent): void {
   }
   mouseDownOnOverlay.value = false
 }
+
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.key === 'Escape') emit('close')
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
+})
 
 defineExpose({ open })
 </script>
