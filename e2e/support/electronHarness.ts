@@ -34,9 +34,13 @@ export async function launchLauncherApp(): Promise<LauncherAppHandle> {
   })
 
   const cleanup = async (): Promise<void> => {
-    const proc = application.process()
-    if (proc && proc.exitCode === null) {
-      await application.close().catch(() => {})
+    try {
+      const proc = application.process()
+      if (proc && proc.exitCode === null) {
+        await application.close().catch(() => {})
+      }
+    } catch {
+      // Application already closed / disconnected — nothing to clean up.
     }
     await rm(homeDir, { recursive: true, force: true })
   }
