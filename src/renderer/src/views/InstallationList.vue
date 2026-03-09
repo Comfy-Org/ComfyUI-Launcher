@@ -328,6 +328,7 @@ defineExpose({ refresh })
           :source-category="inst.sourceCategory"
           :draggable="true"
           :running="sessionStore.isRunning(inst.id)"
+          :stopping="sessionStore.isStopping(inst.id)"
           :in-progress="isInProgress(inst.id)"
           @mousedown="markSeen(inst)"
           @contextmenu.prevent="openCardMenu($event, inst)"
@@ -365,8 +366,15 @@ defineExpose({ refresh })
           </template>
 
           <template #actions>
+            <!-- Stopping -->
+            <template v-if="sessionStore.isStopping(inst.id)">
+              <button class="danger-solid" disabled>
+                {{ $t('console.stopping') }}
+              </button>
+            </template>
+
             <!-- In-progress -->
-            <template v-if="sessionStore.activeSessions.has(inst.id) && !sessionStore.isRunning(inst.id)">
+            <template v-else-if="sessionStore.activeSessions.has(inst.id) && !sessionStore.isRunning(inst.id)">
               <button
                 class="primary"
                 @click="emit('show-progress', {

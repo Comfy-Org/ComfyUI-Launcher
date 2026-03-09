@@ -181,6 +181,10 @@ describe('useSessionStore', () => {
           handlers['instance-stopped'] = cb
           return () => {}
         }),
+        onInstanceStopping: vi.fn((cb: (data: unknown) => void) => {
+          handlers['instance-stopping'] = cb
+          return () => {}
+        }),
         onComfyOutput: vi.fn(() => () => {}),
         onComfyExited: vi.fn(() => () => {}),
       }

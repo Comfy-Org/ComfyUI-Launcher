@@ -32,6 +32,10 @@ const running = computed(() =>
   sessionStore.runningInstances.get(props.installation.id) ?? null
 )
 
+const stopping = computed(() =>
+  sessionStore.isStopping(props.installation.id)
+)
+
 const progress = computed(() =>
   progressStore.getProgressInfo(props.installation.id)
 )
@@ -68,7 +72,11 @@ function stopComfyUI(): void {
         <span> · </span>
         <span>{{ installation.version }}</span>
       </template>
-      <template v-if="running">
+      <template v-if="stopping">
+        <span> · </span>
+        <span class="status-in-progress">{{ $t('console.stopping') }}</span>
+      </template>
+      <template v-else-if="running">
         <span> · </span>
         <span class="status-running">{{ $t('list.running') }}</span>
       </template>
@@ -96,8 +104,15 @@ function stopComfyUI(): void {
   </div>
 
   <div class="dashboard-card-actions">
+    <!-- Stopping -->
+    <template v-if="stopping">
+      <button class="danger-solid dashboard-cta-btn" disabled>
+        {{ $t('console.stopping') }}
+      </button>
+    </template>
+
     <!-- Running -->
-    <template v-if="running">
+    <template v-else-if="running">
       <button
         v-if="running.mode !== 'console'"
         class="primary dashboard-cta-btn"

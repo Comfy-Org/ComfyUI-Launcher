@@ -194,6 +194,7 @@
     "title": "ComfyUI 控制台",
     "openInBrowser": "在浏览器中打开",
     "stop": "停止",
+    "stopping": "正在停止…",
     "disconnect": "断开连接",
     "connectedTo": "已连接到 {url}",
     "processExited": "进程已退出",

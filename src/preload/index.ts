@@ -144,6 +144,11 @@ const api: ElectronApi = {
     ipcRenderer.on('instance-started', handler)
     return () => ipcRenderer.removeListener('instance-started', handler)
   },
+  onInstanceStopping: (callback) => {
+    const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
+    ipcRenderer.on('instance-stopping', handler)
+    return () => ipcRenderer.removeListener('instance-stopping', handler)
+  },
   onInstanceStopped: (callback) => {
     const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
     ipcRenderer.on('instance-stopped', handler)

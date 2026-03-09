@@ -8,6 +8,7 @@ const props = defineProps<{
   draggable?: boolean
   sourceCategory?: string
   running?: boolean
+  stopping?: boolean
   inProgress?: boolean
 }>()
 
@@ -17,7 +18,7 @@ const prefs = useLauncherPrefs()
 <template>
   <div
     class="instance-card"
-    :class="{ 'card-running': running, 'card-in-progress': inProgress }"
+    :class="{ 'card-running': running && !stopping, 'card-stopping': stopping, 'card-in-progress': inProgress }"
     :data-id="installationId"
   >
     <div

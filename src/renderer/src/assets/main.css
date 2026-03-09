@@ -368,6 +368,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .update-pill:hover { background: var(--warning); color: #1a1a1a; }
 .status-in-progress { color: var(--accent); font-weight: 600; }
 .instance-card.card-running { border-color: var(--accent); }
+.instance-card.card-stopping { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
 .instance-card.card-in-progress { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
 .instance-actions { display: flex; gap: 8px; }
 
@@ -808,6 +809,7 @@ select.field-input { cursor: pointer; }
   display: flex; flex-direction: column; gap: 12px;
 }
 .dashboard-card.card-running, .dashboard-cloud-card.card-running { border-color: var(--accent); }
+.dashboard-card.card-stopping, .dashboard-cloud-card.card-stopping { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
 .dashboard-card.card-in-progress, .dashboard-cloud-card.card-in-progress { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
 .dashboard-card-badge {
   display: flex; align-items: center; gap: 6px;

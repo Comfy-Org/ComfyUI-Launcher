@@ -2193,20 +2193,35 @@ export async function stopRunning(installationId?: string): Promise<void> {
   if (installationId) {
     const session = _runningSessions.get(installationId)
     if (!session) return
-    _removeSession(installationId)
+    _broadcastToRenderer('instance-stopping', { installationId })
+    // Remove from running map BEFORE killing so the exit handler in
+    // attachExitHandler sees this as a clean (intentional) stop, not a crash.
+    if (session.port) removePortLock(session.port)
+    _runningSessions.delete(installationId)
     if (session.proc && !session.proc.killed) {
       await killProcessTree(session.proc)
     }
+    _broadcastToRenderer('instance-stopped', { installationId })
   } else {
-    const kills: Promise<void>[] = []
-    for (const [_id, session] of _runningSessions) {
-      if (session.proc && !session.proc.killed) {
-        kills.push(killProcessTree(session.proc))
-      }
+    const sessions = [..._runningSessions.entries()]
+    for (const [id] of sessions) {
+      _broadcastToRenderer('instance-stopping', { installationId: id })
+    }
+    // Remove all from running map before killing
+    for (const [, session] of sessions) {
       if (session.port) removePortLock(session.port)
     }
     _runningSessions.clear()
+    const kills: Promise<void>[] = []
+    for (const [, session] of sessions) {
+      if (session.proc && !session.proc.killed) {
+        kills.push(killProcessTree(session.proc))
+      }
+    }
     await Promise.all(kills)
+    for (const [id] of sessions) {
+      _broadcastToRenderer('instance-stopped', { installationId: id })
+    }
   }
 }
 
