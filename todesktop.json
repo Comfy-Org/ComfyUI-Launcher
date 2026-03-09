@@ -4,7 +4,8 @@
   "appPath": ".",
   "appFiles": [
     "**",
-    "!electron-builder.yml"
+    "!electron-builder.yml",
+    "!out/**/*.map"
   ],
   "appId": "org.comfy.comfyui-launcher",
   "icon": "./assets/Comfy_Logo_x512.png",

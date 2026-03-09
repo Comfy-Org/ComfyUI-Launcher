@@ -228,6 +228,16 @@ body {
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+.sidebar-feedback {
+  margin: 0 8px;
+  width: auto;
+}
+.sidebar-version {
+  padding: 8px 20px;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
 .content {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column;
@@ -358,6 +368,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .update-pill:hover { background: var(--warning); color: #1a1a1a; }
 .status-in-progress { color: var(--accent); font-weight: 600; }
 .instance-card.card-running { border-color: var(--accent); }
+.instance-card.card-stopping { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
 .instance-card.card-in-progress { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
 .instance-actions { display: flex; gap: 8px; }
 
@@ -578,8 +589,14 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .view-modal-body {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
-  padding: 20px; overflow: hidden;
+  padding: 20px; overflow-y: auto;
 }
+.view-modal-footer {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+.view-modal-footer .view-bottom { padding-top: 0; }
 
 /* Modal dialog */
 .modal-overlay {
@@ -771,6 +788,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   display: flex; flex-direction: column; gap: 12px;
 }
 .dashboard-card.card-running, .dashboard-cloud-card.card-running { border-color: var(--accent); }
+.dashboard-card.card-stopping, .dashboard-cloud-card.card-stopping { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
 .dashboard-card.card-in-progress, .dashboard-cloud-card.card-in-progress { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
 .dashboard-card-badge {
   display: flex; align-items: center; gap: 6px;

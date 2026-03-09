@@ -155,6 +155,7 @@ const emit = defineEmits<{
               :key="installationId"
               :name="getRunningName(installationId)"
               :running="true"
+              :stopping="sessionStore.isStopping(installationId)"
             >
               <template #meta>
                 <template v-for="(part, i) in getRunningMetaParts(installationId)" :key="i">
@@ -164,22 +165,29 @@ const emit = defineEmits<{
                 </template>
               </template>
               <template #actions>
-                <button
-                  v-if="sessionStore.runningInstances.get(installationId)?.mode !== 'console'"
-                  class="primary"
-                  @click="focusComfyWindow(installationId)"
-                >
-                  {{ $t('running.showWindow') }}
-                </button>
-                <button
-                  v-if="!instMap.get(installationId) || instMap.get(installationId)?.hasConsole"
-                  @click="emit('show-console', installationId)"
-                >
-                  {{ $t('list.console') }}
-                </button>
-                <button class="danger-solid" @click="stopComfyUI(installationId)">
-                  {{ $t('console.stop') }}
-                </button>
+                <template v-if="sessionStore.isStopping(installationId)">
+                  <button class="danger-solid" disabled>
+                    {{ $t('console.stopping') }}
+                  </button>
+                </template>
+                <template v-else>
+                  <button
+                    v-if="sessionStore.runningInstances.get(installationId)?.mode !== 'console'"
+                    class="primary"
+                    @click="focusComfyWindow(installationId)"
+                  >
+                    {{ $t('running.showWindow') }}
+                  </button>
+                  <button
+                    v-if="!instMap.get(installationId) || instMap.get(installationId)?.hasConsole"
+                    @click="emit('show-console', installationId)"
+                  >
+                    {{ $t('list.console') }}
+                  </button>
+                  <button class="danger-solid" @click="stopComfyUI(installationId)">
+                    {{ $t('console.stop') }}
+                  </button>
+                </template>
                 <button
                   v-if="instMap.get(installationId)"
                   class="manage-btn"

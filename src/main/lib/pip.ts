@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { execFile, spawn } from 'child_process'
+import { killProcTree } from './process'
 
 /** Regex matching PyTorch-family packages that must never be overwritten by pip. */
 export const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;[#]|$)/i
@@ -19,12 +20,14 @@ export function runUvPip(
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      detached: process.platform !== 'win32',
     })
 
     const onAbort = (): void => {
-      proc.kill()
+      killProcTree(proc)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
 
     proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
     proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
@@ -33,7 +36,7 @@ export function runUvPip(
       sendOutput(`Error: ${err.message}\n`)
       resolve(1)
     })
-    proc.on('exit', (code) => {
+    proc.on('close', (code) => {
       signal?.removeEventListener('abort', onAbort)
       resolve(code ?? 1)
     })
@@ -68,21 +71,32 @@ export async function installFilteredRequirements(
   }
 }
 
+/** The canonical PyPI index — always used as the primary `--index-url`. */
+export const PYPI_INDEX_URL = 'https://pypi.org/simple/'
+
 /**
- * PyPI fallback index URLs for users in regions with restricted access
- * to default package sources (e.g. China). Mirrors Desktop's constant.
+ * Additional PyPI mirror URLs for users in regions with restricted access
+ * to the default package source (e.g. China). Mirrors Desktop's constant.
  */
-export const PYPI_FALLBACK_INDEX_URLS: string[] = [
+export const PYPI_MIRROR_URLS: string[] = [
   'https://mirrors.aliyun.com/pypi/simple/',
   'https://mirrors.cloud.tencent.com/pypi/simple/',
-  'https://pypi.org/simple/',
 ]
 
 /**
- * Build `--index-url` and `--extra-index-url` arguments for uv pip commands.
- * When a user-configured mirror is set it becomes the primary index and all
- * other fallbacks are added as extras. When no mirror is set the fallbacks
- * are still added as extras so uv can try them automatically.
+ * Build `--index-url`, `--extra-index-url`, and `--index-strategy` arguments
+ * for uv pip commands.
+ *
+ * pypi.org is always the primary `--index-url`.  The Chinese mirrors are
+ * added as `--extra-index-url`.  When a user-configured mirror is set it is
+ * also added as an extra (de-duplicated against the lists above).
+ *
+ * We always pass `--index-strategy unsafe-best-match` so that uv queries
+ * **all** indexes and picks the best available version.  Without this, uv's
+ * default `first-match` strategy stops at the first index that carries the
+ * package name — if that index lags behind on versions the install fails
+ * even though pypi.org has the required version.  This is safe here because
+ * every configured index is a public PyPI mirror (no private indexes).
  */
 
 /** Trim whitespace and ensure a trailing slash for consistent URL comparison. */
@@ -92,18 +106,32 @@ function normalizeIndexUrl(url: string): string {
 }
 
 export function getPipIndexArgs(pypiMirror?: string): string[] {
-  const args: string[] = []
+  const args: string[] = ['--index-url', PYPI_INDEX_URL]
+
+  const seen = new Set<string>([normalizeIndexUrl(PYPI_INDEX_URL)])
+  const extras: string[] = []
+
   const mirror = pypiMirror?.trim() || undefined
   if (mirror) {
-    args.push('--index-url', mirror)
+    const norm = normalizeIndexUrl(mirror)
+    if (!seen.has(norm)) {
+      extras.push(mirror)
+      seen.add(norm)
+    }
   }
-  const normalizedMirror = mirror ? normalizeIndexUrl(mirror) : undefined
-  const fallbacks = PYPI_FALLBACK_INDEX_URLS.filter(
-    (url) => normalizeIndexUrl(url) !== normalizedMirror
-  )
-  for (const url of fallbacks) {
+
+  for (const url of PYPI_MIRROR_URLS) {
+    const norm = normalizeIndexUrl(url)
+    if (!seen.has(norm)) {
+      extras.push(url)
+      seen.add(norm)
+    }
+  }
+
+  for (const url of extras) {
     args.push('--extra-index-url', url)
   }
+  args.push('--index-strategy', 'unsafe-best-match')
   return args
 }
 

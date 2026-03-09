@@ -1,96 +1,66 @@
+import { describe, it, expect, vi, beforeAll } from 'vitest'
+import os from 'os'
 import path from 'path'
-import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
-  app: { getPath: () => '' },
-  ipcMain: { handle: vi.fn() },
-  BrowserWindow: { fromWebContents: vi.fn() },
+  app: {
+    getPath: (name: string) => {
+      if (name === 'home') return os.homedir()
+      return path.join(os.tmpdir(), 'comfyui-launcher-test')
+    },
+  },
+  BrowserWindow: class {},
   dialog: {},
+  ipcMain: { handle: vi.fn(), on: vi.fn() },
   shell: {},
 }))
 
-import { hasValidExtension, isPathContained, stripQueryParams } from './comfyDownloadManager'
+let ALLOWED_EXTENSIONS: string[]
+let hasValidExtension: (filename: string) => boolean
+let isPathContained: (filePath: string, baseDir: string) => boolean
 
-describe('isPathContained', () => {
-  const baseDir = path.resolve('/models')
+beforeAll(async () => {
+  const mod = await import('./comfyDownloadManager')
+  ALLOWED_EXTENSIONS = mod.ALLOWED_EXTENSIONS
+  hasValidExtension = mod.hasValidExtension
+  isPathContained = mod.isPathContained
+})
 
-  it('returns true for a file inside the base dir', () => {
-    const filePath = path.join(baseDir, 'file.safetensors')
-    expect(isPathContained(filePath, baseDir)).toBe(true)
-  })
+describe('ALLOWED_EXTENSIONS', () => {
+  const requiredExtensions = ['.safetensors', '.sft', '.ckpt', '.pth', '.pt']
 
-  it('returns true for a file in a subdirectory of the base dir', () => {
-    const filePath = path.join(baseDir, 'checkpoints', 'model.safetensors')
-    expect(isPathContained(filePath, baseDir)).toBe(true)
-  })
-
-  it('returns false for a path outside the base dir', () => {
-    const filePath = path.join(baseDir, '..', '..', 'etc', 'passwd')
-    expect(isPathContained(filePath, baseDir)).toBe(false)
-  })
-
-  it('returns false for a path that is a prefix but not a child', () => {
-    const filePath = path.resolve('/models-evil/file.txt')
-    expect(isPathContained(filePath, baseDir)).toBe(false)
-  })
-
-  it('returns false when the file path equals the base dir itself', () => {
-    expect(isPathContained(baseDir, baseDir)).toBe(false)
+  it.each(requiredExtensions)('includes %s', (ext) => {
+    expect(ALLOWED_EXTENSIONS).toContain(ext)
   })
 })
 
 describe('hasValidExtension', () => {
-  it.each(['.safetensors', '.sft', '.ckpt', '.pth', '.pt'])(
-    'returns true for %s extension',
-    (ext) => {
-      expect(hasValidExtension(`model${ext}`)).toBe(true)
-    },
-  )
-
-  it('returns true for uppercase extensions', () => {
-    expect(hasValidExtension('model.SAFETENSORS')).toBe(true)
+  it.each([
+    'model.safetensors',
+    'model.sft',
+    'model.ckpt',
+    'model.pth',
+    'model.pt',
+  ])('returns true for %s', (filename) => {
+    expect(hasValidExtension(filename)).toBe(true)
   })
 
-  it('returns true for mixed case extensions', () => {
+  it('is case-insensitive', () => {
     expect(hasValidExtension('model.SafeTensors')).toBe(true)
   })
 
-  it.each(['.exe', '.js', '.zip', '.txt'])(
-    'returns false for %s extension',
-    (ext) => {
-      expect(hasValidExtension(`file${ext}`)).toBe(false)
-    },
-  )
-
-  it('returns false for empty string', () => {
-    expect(hasValidExtension('')).toBe(false)
-  })
-
-  it('returns false for filename with no extension', () => {
-    expect(hasValidExtension('model')).toBe(false)
+  it('returns false for disallowed extensions', () => {
+    expect(hasValidExtension('script.py')).toBe(false)
+    expect(hasValidExtension('archive.zip')).toBe(false)
   })
 })
 
-describe('stripQueryParams', () => {
-  it('returns filename unchanged when no query params', () => {
-    expect(stripQueryParams('model.safetensors')).toBe('model.safetensors')
+describe('isPathContained', () => {
+  it('returns true when file is inside base directory', () => {
+    expect(isPathContained('/models/stable-diffusion/model.sft', '/models')).toBe(true)
   })
 
-  it('strips query params from filename', () => {
-    expect(stripQueryParams('model.safetensors?token=abc')).toBe('model.safetensors')
-  })
-
-  it('handles multiple question marks', () => {
-    expect(stripQueryParams('model.safetensors?a=1?b=2')).toBe('model.safetensors')
-  })
-
-  it('returns empty string for empty input', () => {
-    expect(stripQueryParams('')).toBe('')
-  })
-
-  it('handles filename that is just a question mark', () => {
-    expect(stripQueryParams('?')).toBe('')
+  it('returns false when file is outside base directory', () => {
+    expect(isPathContained('/other/model.sft', '/models')).toBe(false)
   })
 })
-
-

@@ -11,6 +11,7 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!{.env,.env.*,.npmrc}'
   - '!docs/*'
+  - '!out/**/*.map'
   - '!reference/*'
 extraResources:
   - from: lib

@@ -77,6 +77,16 @@ function openPath(targetPath: string): Promise<string> {
   return shell.openPath(targetPath)
 }
 
+export function getLauncherVersion(): string {
+  let version = app.getVersion()
+  if (!app.isPackaged) {
+    try {
+      version = execFileSync('git', ['describe', '--tags', '--always'], { cwd: __dirname, encoding: 'utf8' }).trim() || version
+    } catch {}
+  }
+  return version.replace(/^v/, '')
+}
+
 const sourceMap: Record<string, SourcePlugin> = Object.fromEntries(sources.map((s) => [s.id, s]))
 
 
@@ -473,6 +483,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   // Check installation updates on startup and periodically
   setTimeout(() => checkInstallationUpdates(), 3_000)
   setInterval(() => checkInstallationUpdates(), UPDATE_CHECK_INTERVAL)
+
+  // App version
+  ipcMain.handle('get-app-version', () => getLauncherVersion())
 
   // Sources
   ipcMain.handle('get-sources', () =>
@@ -1227,12 +1240,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
       return []
     })
-    let version = app.getVersion()
-    if (!app.isPackaged) {
-      try {
-        version = execFileSync('git', ['describe', '--tags', '--always'], { cwd: __dirname, encoding: 'utf8' }).trim() || version
-      } catch {}
-    }
+    const version = getLauncherVersion()
     const aboutSection = {
       title: i18n.t('settings.about'),
       fields: [
@@ -1836,7 +1844,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         const sendOutput = (text: string): void => {
           if (!sender.isDestroyed()) sender.send('comfy-output', { installationId, text })
         }
-        const launchEnv = { ...process.env }
+        const launchEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' }
         const proc = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv, { showWindow: launchCmd.showWindow })
         let stderrBuf = ''
         proc.stdout?.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
@@ -1950,7 +1958,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       _broadcastToRenderer('instance-launching', { installationId, installationName: inst.name })
 
       const sessionPath = createSessionPath()
-      const launchEnv = { ...process.env, __COMFY_CLI_SESSION__: sessionPath }
+      const launchEnv = { ...process.env, PYTHONIOENCODING: 'utf-8', __COMFY_CLI_SESSION__: sessionPath }
       const sendOutput = (text: string): void => {
         if (!sender.isDestroyed()) {
           sender.send('comfy-output', { installationId, text })
@@ -2148,20 +2156,35 @@ export async function stopRunning(installationId?: string): Promise<void> {
   if (installationId) {
     const session = _runningSessions.get(installationId)
     if (!session) return
-    _removeSession(installationId)
+    _broadcastToRenderer('instance-stopping', { installationId })
+    // Remove from running map BEFORE killing so the exit handler in
+    // attachExitHandler sees this as a clean (intentional) stop, not a crash.
+    if (session.port) removePortLock(session.port)
+    _runningSessions.delete(installationId)
     if (session.proc && !session.proc.killed) {
       await killProcessTree(session.proc)
     }
+    _broadcastToRenderer('instance-stopped', { installationId })
   } else {
-    const kills: Promise<void>[] = []
-    for (const [_id, session] of _runningSessions) {
-      if (session.proc && !session.proc.killed) {
-        kills.push(killProcessTree(session.proc))
-      }
+    const sessions = [..._runningSessions.entries()]
+    for (const [id] of sessions) {
+      _broadcastToRenderer('instance-stopping', { installationId: id })
+    }
+    // Remove all from running map before killing
+    for (const [, session] of sessions) {
       if (session.port) removePortLock(session.port)
     }
     _runningSessions.clear()
+    const kills: Promise<void>[] = []
+    for (const [, session] of sessions) {
+      if (session.proc && !session.proc.killed) {
+        kills.push(killProcessTree(session.proc))
+      }
+    }
     await Promise.all(kills)
+    for (const [id] of sessions) {
+      _broadcastToRenderer('instance-stopped', { installationId: id })
+    }
   }
 }
 

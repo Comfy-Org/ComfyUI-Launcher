@@ -551,6 +551,7 @@ export interface ElectronApi {
   getResolvedTheme(): Promise<ResolvedTheme>
 
   // App
+  getAppVersion(): Promise<string>
   quitApp(): Promise<void>
   resetZoom(): Promise<void>
 
@@ -574,6 +575,7 @@ export interface ElectronApi {
   onInstanceLaunching(callback: (data: { installationId: string; installationName: string }) => void): Unsubscribe
   onInstanceLaunchFailed(callback: (data: { installationId: string }) => void): Unsubscribe
   onInstanceStarted(callback: (data: RunningInstance) => void): Unsubscribe
+  onInstanceStopping(callback: (data: { installationId: string }) => void): Unsubscribe
   onInstanceStopped(callback: (data: { installationId: string }) => void): Unsubscribe
   onThemeChanged(callback: (theme: ResolvedTheme) => void): Unsubscribe
   onLocaleChanged(callback: (messages: Record<string, unknown>) => void): Unsubscribe

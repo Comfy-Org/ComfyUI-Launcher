@@ -30,7 +30,8 @@ import TrackModal from './views/TrackModal.vue'
 import LoadSnapshotModal from './views/LoadSnapshotModal.vue'
 
 // Lucide icons
-import { LayoutDashboard, Box, Play, FolderOpen, Image, Settings } from 'lucide-vue-next'
+import { LayoutDashboard, Box, Play, FolderOpen, Image, Settings, MessageSquarePlus } from 'lucide-vue-next'
+import { buildSupportUrl } from './lib/supportUrl'
 
 const { t, setLocaleMessage, locale } = useI18n()
 const sessionStore = useSessionStore()
@@ -44,6 +45,7 @@ useTheme()
 // --- View state ---
 type TabView = 'dashboard' | 'list' | 'running' | 'models' | 'media' | 'settings'
 const activeView = ref<TabView>('dashboard')
+const appVersion = ref('')
 
 // --- Modal views ---
 const detailInstallation = ref<Installation | null>(null)
@@ -89,6 +91,11 @@ function switchView(view: TabView): void {
   else if (view === 'settings') settingsRef.value?.loadSettings()
   else if (view === 'models') modelsRef.value?.loadModels()
   else if (view === 'media') mediaRef.value?.loadMedia()
+}
+
+function openFeedback(): void {
+  emitTelemetryAction('launcher.feedback.opened')
+  window.api.openExternal(buildSupportUrl())
 }
 
 // --- Modal handlers ---
@@ -253,6 +260,7 @@ onMounted(async () => {
   setupQuitConfirmation()
   setupLocaleListener()
   listRef.value?.refresh()
+  appVersion.value = await window.api.getAppVersion()
 })
 </script>
 
@@ -289,6 +297,11 @@ onMounted(async () => {
           </template>
         </button>
       </div>
+      <button class="sidebar-item sidebar-feedback" @click="openFeedback">
+        <MessageSquarePlus :size="18" />
+        <span>{{ $t('sidebar.giveFeedback') }}</span>
+      </button>
+      <div v-if="appVersion" class="sidebar-version">v{{ appVersion }}</div>
     </nav>
 
     <!-- Content Area -->

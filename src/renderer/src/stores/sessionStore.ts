@@ -22,6 +22,7 @@ export const useSessionStore = defineStore('session', () => {
   const launchingInstances = reactive(new Map<string, { installationName: string }>())
   const activeSessions = reactive(new Map<string, ActiveSession>())
   const errorInstances = reactive(new Map<string, ErrorInstance>())
+  const stoppingInstances = reactive(new Set<string>())
   const sessions = reactive(new Map<string, SessionBuffer>())
 
   const runningTabCount = computed(() => activeSessions.size + runningInstances.size)
@@ -36,6 +37,10 @@ export const useSessionStore = defineStore('session', () => {
 
   function isLaunching(installationId: string): boolean {
     return launchingInstances.has(installationId)
+  }
+
+  function isStopping(installationId: string): boolean {
+    return stoppingInstances.has(installationId)
   }
 
   function setActiveSession(installationId: string, label: string): void {
@@ -79,7 +84,24 @@ export const useSessionStore = defineStore('session', () => {
       session = { output: '', exited: false }
       sessions.set(installationId, session)
     }
-    session.output += text
+
+    // Handle carriage returns (\r) used by tqdm-style progress bars.
+    // A \r means "return to the start of the current line", so text after
+    // a \r should replace everything after the last \n in the output.
+    // Split on bare \r (not followed by \n) to handle tqdm-style progress bars.
+    // Windows CRLF (\r\n) must be preserved as a normal newline.
+    const parts = text.split(/\r(?!\n)/)
+    for (let i = 0; i < parts.length; i++) {
+      const segment = parts[i]!
+      if (i === 0) {
+        // First segment: always append (no preceding \r)
+        session.output += segment
+      } else if (segment.length > 0) {
+        // After a bare \r: overwrite from the last newline
+        const lastNewline = session.output.lastIndexOf('\n')
+        session.output = session.output.slice(0, lastNewline + 1) + segment
+      }
+    }
   }
 
   /** Initialize IPC listeners. Call once from App.vue. */
@@ -103,6 +125,10 @@ export const useSessionStore = defineStore('session', () => {
       }),
       window.api.onInstanceStopped((data: { installationId: string }) => {
         runningInstances.delete(data.installationId)
+        stoppingInstances.delete(data.installationId)
+      }),
+      window.api.onInstanceStopping((data: { installationId: string }) => {
+        stoppingInstances.add(data.installationId)
       }),
       window.api.onComfyOutput((data: ComfyOutputData) => {
         appendOutput(data.installationId, data.text)
@@ -141,6 +167,8 @@ export const useSessionStore = defineStore('session', () => {
     hasErrors,
     isRunning,
     isLaunching,
+    stoppingInstances,
+    isStopping,
     setActiveSession,
     clearActiveSession,
     clearErrorInstance,

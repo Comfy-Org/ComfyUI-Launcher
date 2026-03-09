@@ -70,6 +70,50 @@ describe('useSessionStore', () => {
       expect(store.hasSession('inst-1')).toBe(true)
       expect(store.getSession('inst-1')?.output).toBe('auto-created')
     })
+
+    it('handles \\r by replacing the current line (tqdm-style)', () => {
+      store.startSession('inst-1')
+      store.appendOutput('inst-1', 'progress: 0%\rprogress: 50%')
+
+      expect(store.getSession('inst-1')?.output).toBe('progress: 50%')
+    })
+
+    it('handles \\r after a newline, replacing only the last line', () => {
+      store.startSession('inst-1')
+      store.appendOutput('inst-1', 'line1\nline2\rprogress: 100%')
+
+      expect(store.getSession('inst-1')?.output).toBe('line1\nprogress: 100%')
+    })
+
+    it('handles multiple \\r in sequence, keeping only the last segment', () => {
+      store.startSession('inst-1')
+      store.appendOutput('inst-1', 'a\rb\rc')
+
+      expect(store.getSession('inst-1')?.output).toBe('c')
+    })
+
+    it('handles \\r across multiple appendOutput calls', () => {
+      store.startSession('inst-1')
+      store.appendOutput('inst-1', 'header\ndownloading: 0%')
+      store.appendOutput('inst-1', '\rdownloading: 50%')
+      store.appendOutput('inst-1', '\rdownloading: 100%')
+
+      expect(store.getSession('inst-1')?.output).toBe('header\ndownloading: 100%')
+    })
+
+    it('preserves Windows CRLF line endings', () => {
+      store.startSession('inst-1')
+      store.appendOutput('inst-1', 'line1\r\nline2\r\nline3')
+
+      expect(store.getSession('inst-1')?.output).toBe('line1\r\nline2\r\nline3')
+    })
+
+    it('ignores trailing bare \\r without deleting current line', () => {
+      store.startSession('inst-1')
+      store.appendOutput('inst-1', 'progress: 50%\r')
+
+      expect(store.getSession('inst-1')?.output).toBe('progress: 50%')
+    })
   })
 
   describe('runningTabCount', () => {
@@ -135,6 +179,10 @@ describe('useSessionStore', () => {
         }),
         onInstanceStopped: vi.fn((cb: (data: unknown) => void) => {
           handlers['instance-stopped'] = cb
+          return () => {}
+        }),
+        onInstanceStopping: vi.fn((cb: (data: unknown) => void) => {
+          handlers['instance-stopping'] = cb
           return () => {}
         }),
         onComfyOutput: vi.fn(() => () => {}),

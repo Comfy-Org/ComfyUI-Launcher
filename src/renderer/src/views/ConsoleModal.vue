@@ -36,6 +36,11 @@ const errorInfo = computed(() => {
   return sessionStore.errorInstances.get(props.installationId)
 })
 
+const isStopping = computed(() => {
+  if (!props.installationId) return false
+  return sessionStore.isStopping(props.installationId)
+})
+
 const isExited = computed(() => {
   return session.value ? session.value.exited : true
 })
@@ -150,7 +155,14 @@ function handleOverlayClick(event: MouseEvent): void {
             {{ $t('console.openInBrowser') }}
           </button>
           <button
-            v-if="!isExited && !errorInfo"
+            v-if="isStopping"
+            class="danger-solid"
+            disabled
+          >
+            {{ $t('console.stopping') }}
+          </button>
+          <button
+            v-else-if="!isExited && !errorInfo"
             class="danger-solid"
             @click="api.stopComfyUI(installationId!)"
           >

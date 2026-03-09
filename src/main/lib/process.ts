@@ -57,13 +57,27 @@ export function killProcTree(proc: ChildProcess): void {
 export function killProcessTree(proc: ChildProcess | null): Promise<void> {
   if (!proc || proc.killed) return Promise.resolve()
   return new Promise<void>((resolve) => {
+    let settled = false
+    const done = (): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      proc.stdout?.destroy()
+      proc.stderr?.destroy()
+      resolve()
+    }
     // Resolve once the process actually exits, or after a timeout
-    const timeout = setTimeout(resolve, 5000)
-    proc.once('exit', () => { clearTimeout(timeout); resolve() })
+    const timeout = setTimeout(done, 5000)
+    proc.once('exit', done)
     if (process.platform === "win32") {
+      // Kill the direct child via process.kill() which is instant on Windows.
+      // Then fire-and-forget taskkill /T /F to clean up any orphaned
+      // grandchildren (e.g. Python subprocesses). We don't await taskkill
+      // because it can take 5-7+ seconds on Windows even for simple kills.
+      try { process.kill(proc.pid!) } catch { done() }
       execFile("taskkill", ["/T", "/F", "/PID", String(proc.pid)], { windowsHide: true }, () => {})
     } else {
-      try { process.kill(-proc.pid!, "SIGKILL") } catch {}
+      try { process.kill(-proc.pid!, "SIGKILL") } catch { done() }
     }
   })
 }

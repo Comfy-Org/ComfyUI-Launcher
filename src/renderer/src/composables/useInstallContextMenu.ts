@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLauncherPrefs } from './useLauncherPrefs'
 import { useSessionStore } from '../stores/sessionStore'
-import type { ContextMenuItem } from '../components/ContextMenu.vue'
+import type { ContextMenuItem } from '../types/context-menu'
 import type { Installation } from '../types/ipc'
 
 export function useInstallContextMenu(onShowDetail: (inst: Installation) => void) {

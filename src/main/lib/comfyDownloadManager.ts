@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import * as settings from '../settings'
 
-const ALLOWED_EXTENSIONS = ['.safetensors', '.sft', '.ckpt', '.pth', '.pt']
+export const ALLOWED_EXTENSIONS = ['.safetensors', '.sft', '.ckpt', '.pth', '.pt']
 
 export interface DownloadProgress {
   url: string

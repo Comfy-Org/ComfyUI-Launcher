@@ -354,7 +354,7 @@ async function changePrimary(): Promise<void> {
         <div class="dashboard-section-label">{{ $t('dashboard.quickLaunch') }}</div>
         <div class="dashboard-quick-launch">
           <!-- Latest card -->
-          <div v-if="showLatestCard && latestInstall" class="dashboard-card" :class="{ 'card-running': sessionStore.isRunning(latestInstall.id), 'card-in-progress': isInProgress(latestInstall.id) }" @contextmenu.prevent="openCardMenu($event, latestInstall!)">
+          <div v-if="showLatestCard && latestInstall" class="dashboard-card" :class="{ 'card-running': sessionStore.isRunning(latestInstall.id) && !sessionStore.isStopping(latestInstall.id), 'card-stopping': sessionStore.isStopping(latestInstall.id), 'card-in-progress': isInProgress(latestInstall.id) }" @contextmenu.prevent="openCardMenu($event, latestInstall!)">
             <div class="dashboard-card-badge">
               <Clock :size="14" />
               {{ $t('dashboard.recent') }}
@@ -377,7 +377,7 @@ async function changePrimary(): Promise<void> {
           </div>
 
           <!-- Primary card -->
-          <div class="dashboard-card" :class="{ 'card-running': sessionStore.isRunning(primaryInstall.id), 'card-in-progress': isInProgress(primaryInstall.id) }" @contextmenu.prevent="openCardMenu($event, primaryInstall!)">
+          <div class="dashboard-card" :class="{ 'card-running': sessionStore.isRunning(primaryInstall.id) && !sessionStore.isStopping(primaryInstall.id), 'card-stopping': sessionStore.isStopping(primaryInstall.id), 'card-in-progress': isInProgress(primaryInstall.id) }" @contextmenu.prevent="openCardMenu($event, primaryInstall!)">
             <div class="dashboard-card-badge dashboard-card-badge-primary">
               <Star :size="14" />
               {{ $t('dashboard.primary') }}
@@ -417,7 +417,7 @@ async function changePrimary(): Promise<void> {
             v-for="pinned in pinnedInstalls"
             :key="pinned.id"
             class="dashboard-card"
-            :class="{ 'card-running': sessionStore.isRunning(pinned.id), 'card-in-progress': isInProgress(pinned.id) }"
+            :class="{ 'card-running': sessionStore.isRunning(pinned.id) && !sessionStore.isStopping(pinned.id), 'card-stopping': sessionStore.isStopping(pinned.id), 'card-in-progress': isInProgress(pinned.id) }"
             @contextmenu.prevent="openCardMenu($event, pinned)"
           >
             <DashboardCard
