@@ -143,13 +143,13 @@ function handleOverlayClick(event: MouseEvent): void {
         <div class="view-bottom">
           <button
             v-if="showWindowBtn"
-            class="primary"
+            class="accent"
             @click="api.focusComfyWindow(installationId!)"
           >
             {{ $t('running.showWindow') }}
           </button>
           <button
-            v-if="comfyUrl"
+            v-if="comfyUrl && runningInfo?.mode === 'console'"
             @click="api.openPath(comfyUrl)"
           >
             {{ $t('console.openInBrowser') }}

@@ -115,7 +115,7 @@ function stopComfyUI(): void {
     <template v-else-if="running">
       <button
         v-if="running.mode !== 'console'"
-        class="primary dashboard-cta-btn"
+        class="accent dashboard-cta-btn"
         @click="focusComfyWindow()"
       >
         <ExternalLink :size="18" />
@@ -132,7 +132,7 @@ function stopComfyUI(): void {
     <!-- In-progress -->
     <template v-else-if="sessionStore.activeSessions.has(installation.id)">
       <button
-        class="primary dashboard-cta-btn"
+        class="accent dashboard-cta-btn"
         @click="emit('show-progress', {
           installationId: installation.id,
           title: '',

@@ -376,7 +376,7 @@ defineExpose({ refresh })
             <!-- In-progress -->
             <template v-else-if="sessionStore.activeSessions.has(inst.id) && !sessionStore.isRunning(inst.id)">
               <button
-                class="primary"
+                class="accent"
                 @click="emit('show-progress', {
                   installationId: inst.id,
                   title: '',
@@ -391,7 +391,7 @@ defineExpose({ refresh })
             <template v-else-if="sessionStore.isRunning(inst.id)">
               <button
                 v-if="sessionStore.runningInstances.get(inst.id)?.mode !== 'console'"
-                class="primary"
+                class="accent"
                 @click="focusComfyWindow(inst.id)"
               >
                 {{ $t('running.showWindow') }}

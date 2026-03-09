@@ -173,7 +173,7 @@ const emit = defineEmits<{
                 <template v-else>
                   <button
                     v-if="sessionStore.runningInstances.get(installationId)?.mode !== 'console'"
-                    class="primary"
+                    class="accent"
                     @click="focusComfyWindow(installationId)"
                   >
                     {{ $t('running.showWindow') }}
@@ -281,7 +281,7 @@ const emit = defineEmits<{
               </template>
               <template #actions>
                 <button
-                  class="primary"
+                  class="accent"
                   @click="emit('show-progress', {
                     installationId,
                     title: '',
