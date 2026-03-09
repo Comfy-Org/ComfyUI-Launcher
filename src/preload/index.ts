@@ -100,12 +100,6 @@ const api: ElectronApi = {
   resumeModelDownload: (url) => ipcRenderer.invoke('model-download-resume', { url }),
   cancelModelDownload: (url) => ipcRenderer.invoke('model-download-cancel', { url }),
   showDownloadInFolder: (savePath) => ipcRenderer.invoke('show-download-in-folder', { savePath }),
-  startModelDownload: (url, filename, directory) =>
-    ipcRenderer.invoke('launcher-start-download', { url, filename, directory }),
-
-  // Model file browser
-  getModelFolders: () => ipcRenderer.invoke('get-model-folders'),
-  getModelFiles: (directory: string) => ipcRenderer.invoke('get-model-files', directory),
 
   // Updates
   checkForUpdate: () => ipcRenderer.invoke('check-for-update'),

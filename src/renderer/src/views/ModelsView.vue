@@ -2,10 +2,7 @@
 import { ref, onMounted } from 'vue'
 import DirCard from '../components/DirCard.vue'
 import DownloadsPanel from '../components/DownloadsPanel.vue'
-import ModelBrowser from '../components/ModelBrowser.vue'
 import type { ModelsSection } from '../types/ipc'
-
-const activeTab = ref<'directories' | 'browse'>('directories')
 
 const systemDefault = ref('')
 const sections = ref<ModelsSection[]>([])
@@ -72,24 +69,8 @@ defineExpose({ loadModels })
         <span class="breadcrumb-current">{{ $t('models.title') }}</span>
       </div>
     </div>
-    <div class="filter-tabs">
-      <button
-        class="filter-tab"
-        :class="{ active: activeTab === 'directories' }"
-        @click="activeTab = 'directories'"
-      >
-        {{ $t('models.directoriesTab') }}
-      </button>
-      <button
-        class="filter-tab"
-        :class="{ active: activeTab === 'browse' }"
-        @click="activeTab = 'browse'"
-      >
-        {{ $t('models.browse') }}
-      </button>
-    </div>
 
-    <div v-if="activeTab === 'directories'" class="view-scroll">
+    <div class="view-scroll">
       <div
         v-for="(section, sIdx) in sections"
         :key="sIdx"
@@ -120,10 +101,6 @@ defineExpose({ loadModels })
       </div>
 
       <DownloadsPanel />
-    </div>
-
-    <div v-else class="view-scroll" style="padding: 16px;">
-      <ModelBrowser />
     </div>
   </div>
 </template>

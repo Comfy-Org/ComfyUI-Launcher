@@ -59,16 +59,7 @@
     "completed": "Complete",
     "cancelled": "Cancelled",
     "error": "Failed",
-    "sizeProgress": "{received} / {total}",
-    "clearCompleted": "Clear completed",
-    "downloadModel": "Download Model",
-    "urlLabel": "URL",
-    "urlPlaceholder": "https://example.com/model.safetensors",
-    "filenameLabel": "Filename",
-    "filenamePlaceholder": "model.safetensors",
-    "directoryLabel": "Destination Folder",
-    "startDownload": "Download",
-    "downloadFailed": "Download failed. Please check the URL and try again."
+    "sizeProgress": "{received} / {total}"
   },
 
   "media": {
@@ -86,14 +77,7 @@
     "removeDir": "Remove",
     "primary": "primary",
     "default": "default",
-    "makePrimary": "Make Primary",
-    "browse": "Browse",
-    "directoriesTab": "Directories",
-    "folderTypes": "Model Types",
-    "searchPlaceholder": "Search files…",
-    "noFiles": "No model files found",
-    "openFolder": "Open folder",
-    "fileCount": "{count} files"
+    "makePrimary": "Make Primary"
   },
 
   "common": {
@@ -125,7 +109,6 @@
     "extract": "Extract",
     "useSharedPaths": "Use Shared Directories",
     "done": "Done",
-    "loading": "Loading…",
     "noItems": "No items available.",
     "advanced": "Advanced",
     "tabStatus": "Status",

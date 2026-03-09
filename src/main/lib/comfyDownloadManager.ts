@@ -476,13 +476,4 @@ export function registerDownloadIpc(): void {
       shell.showItemInFolder(path.resolve(savePath))
     }
   })
-
-  ipcMain.handle(
-    'launcher-start-download',
-    (event, { url, filename, directory }: { url: string; filename: string; directory: string }) => {
-      const win = BrowserWindow.fromWebContents(event.sender)
-      if (!win) return false
-      return startModelDownload(win, url, filename, directory)
-    },
-  )
 }
