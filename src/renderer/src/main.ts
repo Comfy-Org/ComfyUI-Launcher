@@ -1,10 +1,11 @@
 import './assets/main.css'
 
-import { datadogRum } from '@datadog/browser-rum'
+import { datadogRum, type RumBeforeSend } from '@datadog/browser-rum'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import App from './App.vue'
+import { normalizeRumErrorEvent } from './lib/datadogPathNormalization'
 import {
   TELEMETRY_ACTION_EVENT_NAME,
   type TelemetryActionEventDetail,
@@ -67,6 +68,13 @@ const isDatadogConfigured = !isFlagDisabled(import.meta.env.VITE_DATADOG_RUM_ENA
 
 let isDatadogInitialized = false
 
+const datadogBeforeSend: RumBeforeSend = (event) => {
+  if (event.type === 'error') {
+    normalizeRumErrorEvent(event)
+  }
+  return true
+}
+
 function toDatadogTrackingConsent(enabled: boolean | undefined): DatadogTrackingConsent {
   return enabled === false ? 'not-granted' : 'granted'
 }
@@ -114,6 +122,7 @@ async function initializeDatadog(): Promise<void> {
       env: datadogEnv,
       version: datadogVersion || undefined,
       trackingConsent: toDatadogTrackingConsent(telemetryEnabled),
+      beforeSend: datadogBeforeSend,
       sessionSampleRate: parseSampleRate(import.meta.env.VITE_DATADOG_RUM_SESSION_SAMPLE_RATE, 100),
       sessionReplaySampleRate: parseSampleRate(import.meta.env.VITE_DATADOG_RUM_SESSION_REPLAY_SAMPLE_RATE, 0),
       trackResources: true,
@@ -147,16 +156,14 @@ function reportRendererError(payload: {
 }): void {
   if (!isDatadogInitialized) return
   const error = new Error(payload.message || 'Unknown error')
-  if (payload.stack) {
-    error.stack = payload.stack
-  }
+  error.stack = payload.stack
   try {
     datadogRum.addError(error, {
       source: 'custom',
       context: {
         origin: 'renderer',
         forwarded_source: payload.source,
-        ...payload.context,
+        ...(payload.context || {}),
       },
     })
   } catch {}

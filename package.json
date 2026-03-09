@@ -28,6 +28,7 @@
     "build:win": "pnpm run build && electron-builder --win",
     "build:mac": "pnpm run build && electron-builder --mac",
     "build:linux": "pnpm run build && electron-builder --linux",
+    "datadog:sourcemaps:upload": "node ./scripts/upload-datadog-sourcemaps.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,vue}\" \"*.{json,ts,yml}\"",
@@ -48,6 +49,7 @@
     "smol-toml": "^1.6.0"
   },
   "devDependencies": {
+    "@datadog/datadog-ci": "^5.9.0",
     "@eslint/js": "^10.0.1",
     "@pinia/testing": "^1.0.3",
     "@playwright/test": "^1.58.2",
