@@ -55,7 +55,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Resolve Datadog release version
+        id: datadog
+        shell: bash
+        run: |
+          echo "release_version=$(node ./scripts/datadog-release-version.cjs)" >> "$GITHUB_OUTPUT"
+
       - name: Build app
+        env:
+          VITE_DATADOG_RUM_VERSION: ${{ steps.datadog.outputs.release_version }}
         run: pnpm run build
 
       - name: Ensure tag matches package.json version
@@ -68,6 +76,13 @@ jobs:
             echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)."
             exit 1
           fi
+
+      - name: Upload Datadog sourcemaps
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DATADOG_SITE: us5.datadoghq.com
+          VITE_DATADOG_RUM_VERSION: ${{ steps.datadog.outputs.release_version }}
+        run: pnpm run datadog:sourcemaps:upload
 
       - name: Install ToDesktop CLI
         run: npm install --location=global @todesktop/cli@1.22.0
