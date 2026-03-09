@@ -1,6 +1,7 @@
 import { execFile, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import { killProcTree } from './process'
 
 export interface ProcessResult {
   exitCode: number
@@ -102,14 +103,20 @@ export function isGitAvailable(): Promise<boolean> {
 export function gitClone(
   url: string,
   dest: string,
-  sendOutput: (text: string) => void
+  sendOutput: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<ProcessResult> {
+  if (signal?.aborted) return Promise.resolve({ exitCode: 1, stderr: '' })
   return new Promise((resolve) => {
     const stderrChunks: string[] = []
     const proc = spawn('git', ['clone', url, dest], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
+      windowsHide: true,
+      detached: process.platform !== 'win32'
     })
+    const onAbort = (): void => { killProcTree(proc) }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
     proc.stdout.on('data', (data: Buffer) => sendOutput(data.toString()))
     proc.stderr.on('data', (data: Buffer) => {
       const text = data.toString()
@@ -117,26 +124,37 @@ export function gitClone(
       sendOutput(text)
     })
     proc.on('error', (err) => {
+      signal?.removeEventListener('abort', onAbort)
       sendOutput(err.message)
       resolve({ exitCode: 1, stderr: stderrChunks.join('') + err.message })
     })
-    proc.on('close', (code) => resolve({ exitCode: code ?? 1, stderr: stderrChunks.join('') }))
+    proc.on('close', (code) => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve({ exitCode: code ?? 1, stderr: stderrChunks.join('') })
+    })
   })
 }
 
 export function gitFetchAndCheckout(
   repoPath: string,
   commit: string,
-  sendOutput: (text: string) => void
+  sendOutput: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<ProcessResult> {
-  const runGit = (args: string[]): Promise<ProcessResult> =>
-    new Promise((resolve) => {
+  if (signal?.aborted) return Promise.resolve({ exitCode: 1, stderr: '' })
+  const runGit = (args: string[]): Promise<ProcessResult> => {
+    if (signal?.aborted) return Promise.resolve({ exitCode: 1, stderr: '' })
+    return new Promise((resolve) => {
       const stderrChunks: string[] = []
       const proc = spawn('git', args, {
         cwd: repoPath,
         stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true
+        windowsHide: true,
+        detached: process.platform !== 'win32'
       })
+      const onAbort = (): void => { killProcTree(proc) }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
       proc.stdout.on('data', (data: Buffer) => sendOutput(data.toString()))
       proc.stderr.on('data', (data: Buffer) => {
         const text = data.toString()
@@ -144,11 +162,16 @@ export function gitFetchAndCheckout(
         sendOutput(text)
       })
       proc.on('error', (err) => {
+        signal?.removeEventListener('abort', onAbort)
         sendOutput(err.message)
         resolve({ exitCode: 1, stderr: stderrChunks.join('') + err.message })
       })
-      proc.on('close', (code) => resolve({ exitCode: code ?? 1, stderr: stderrChunks.join('') }))
+      proc.on('close', (code) => {
+        signal?.removeEventListener('abort', onAbort)
+        resolve({ exitCode: code ?? 1, stderr: stderrChunks.join('') })
+      })
     })
+  }
 
   // Fetch master explicitly — grafted/archive-based repos may have no
   // branch tracking configured, so a bare `git fetch origin` only pulls

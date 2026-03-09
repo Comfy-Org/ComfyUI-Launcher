@@ -39,6 +39,21 @@ export function spawnProcess(cmd: string, args: string[], cwd: string, env?: Nod
   })
 }
 
+/**
+ * Fire-and-forget process tree kill. On Windows, uses taskkill /T /F to
+ * terminate the entire process tree. On Unix, sends SIGTERM to the process.
+ * Does not wait for the process to exit — use killProcessTree when you need
+ * to wait.
+ */
+export function killProcTree(proc: ChildProcess): void {
+  if (proc.killed || proc.pid == null) return
+  if (process.platform === 'win32') {
+    execFile('taskkill', ['/T', '/F', '/PID', String(proc.pid)], { windowsHide: true }, () => {})
+  } else {
+    try { process.kill(-proc.pid!, 'SIGTERM') } catch { proc.kill() }
+  }
+}
+
 export function killProcessTree(proc: ChildProcess | null): Promise<void> {
   if (!proc || proc.killed) return Promise.resolve()
   return new Promise<void>((resolve) => {
