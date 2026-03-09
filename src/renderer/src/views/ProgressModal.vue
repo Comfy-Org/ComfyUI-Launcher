@@ -377,6 +377,18 @@ defineExpose({ startOperation, showOperation })
           </div>
         </template>
 
+        <!-- Terminal output -->
+        <div
+          v-if="currentOp.terminalOutput"
+          id="progress-terminal"
+          ref="terminalRef"
+          class="terminal-output"
+          @scroll="handleTerminalScroll"
+        >{{ currentOp.terminalOutput }}</div>
+      </div>
+
+      <!-- Bottom bar (pinned outside scrollable body) -->
+      <div class="view-modal-footer">
         <!-- Port conflict actions -->
         <div
           v-if="
@@ -407,16 +419,6 @@ defineExpose({ startOperation, showOperation })
           </button>
         </div>
 
-        <!-- Terminal output -->
-        <div
-          v-if="currentOp.terminalOutput"
-          id="progress-terminal"
-          ref="terminalRef"
-          class="terminal-output"
-          @scroll="handleTerminalScroll"
-        >{{ currentOp.terminalOutput }}</div>
-
-        <!-- Bottom actions -->
         <div class="view-bottom">
           <button
             v-if="currentOp.finished && currentOp.result?.ok"
