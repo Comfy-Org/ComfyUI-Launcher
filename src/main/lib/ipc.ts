@@ -592,7 +592,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         : (source.getStatusTag ? source.getStatusTag(inst) : undefined)
       // Derive version display string from comfyVersion ground truth, falling back to legacy string
       const cv = inst.comfyVersion as ComfyVersion | undefined
-      const version = cv ? formatComfyVersion(cv, 'short') : inst.version
+      const version = cv ? formatComfyVersion(cv, 'short', inst.version) : inst.version
       return {
         ...inst,
         ...(version != null ? { version } : {}),

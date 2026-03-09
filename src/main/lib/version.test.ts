@@ -12,10 +12,16 @@ describe('formatComfyVersion', () => {
     expect(formatComfyVersion(undefined, 'detail')).toBe('unknown')
   })
 
-  it('returns short SHA when no baseTag', () => {
+  it('returns short SHA when no baseTag and no legacy string', () => {
     const v: ComfyVersion = { commit: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2' }
     expect(formatComfyVersion(v, 'short')).toBe('a1b2c3d')
     expect(formatComfyVersion(v, 'detail')).toBe('a1b2c3d')
+  })
+
+  it('returns legacy string when baseTag is missing but legacy version exists', () => {
+    const v: ComfyVersion = { commit: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2' }
+    expect(formatComfyVersion(v, 'short', 'v0.14.2+5')).toBe('v0.14.2+5')
+    expect(formatComfyVersion(v, 'detail', 'v0.14.2 + 5 commits (a1b2c3d)')).toBe('v0.14.2 + 5 commits (a1b2c3d)')
   })
 
   it('returns baseTag when commitsAhead is 0', () => {

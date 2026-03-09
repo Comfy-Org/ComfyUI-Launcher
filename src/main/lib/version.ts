@@ -32,7 +32,7 @@ export function formatComfyVersion(
   const { commit, baseTag, commitsAhead } = v
   const shortSha = commit.slice(0, 7)
 
-  if (!baseTag) return shortSha
+  if (!baseTag) return legacyVersion || shortSha
 
   if (!commitsAhead || commitsAhead === 0) return baseTag
 
