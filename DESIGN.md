@@ -172,3 +172,51 @@ Badge backgrounds must **contrast with their parent**: on `--surface` cards use 
 - **No `!important`** — fix specificity with more specific selectors instead.
 - **No hex fallbacks** — use `var(--token)` without fallback values.
 - **No ad-hoc sizes** — use only values from the font-size, border-radius, and spacing scales above.
+
+## Process Error Reporting
+
+When spawning child processes (git, python, uv, etc.), **always capture stderr** and include it in any error message surfaced to the user. A bare exit code like `"failed with exit code 1"` is never acceptable — the user must see the underlying error.
+
+### Pattern
+
+1. **Use `'close'`, not `'exit'`** — resolve promises on the `'close'` event, not `'exit'`. Node.js can fire `'exit'` before all stdio data has been received, causing empty output buffers:
+   ```ts
+   // ✗ BAD — data events may not have fired yet
+   proc.on('exit', (code) => resolve(code ?? 1))
+   // ✓ GOOD — all stdio streams have ended
+   proc.on('close', (code) => resolve(code ?? 1))
+   ```
+
+2. **Capture both stdout and stderr** into buffers while still streaming via `sendOutput`. Many tools (Python scripts, git) write errors to stdout, not stderr:
+   ```ts
+   let stdoutBuf = ''
+   let stderrBuf = ''
+   proc.stdout.on('data', (chunk: Buffer) => {
+     const text = chunk.toString('utf-8')
+     stdoutBuf += text
+     sendOutput(text)
+   })
+   proc.stderr.on('data', (chunk: Buffer) => {
+     const text = chunk.toString('utf-8')
+     stderrBuf += text
+     sendOutput(text)
+   })
+   ```
+
+3. **Include output in failure messages** — prefer stderr, fall back to stdout, take the last 20 lines:
+   ```ts
+   if (exitCode !== 0) {
+     const detail = (stderrBuf || stdoutBuf).trim().split('\n').slice(-20).join('\n')
+     const message = detail
+       ? `${t('source.updateFailed', { code: exitCode })}\n\n${detail}`
+       : t('source.updateFailed', { code: exitCode })
+     return { ok: false, message }
+   }
+   ```
+
+4. **For reusable helpers** (e.g. `gitClone`, `gitFetchAndCheckout`), return a `ProcessResult` with both `exitCode` and `stderr` so callers can format the error:
+   ```ts
+   interface ProcessResult { exitCode: number; stderr: string }
+   ```
+
+This applies to all spawned processes: update scripts, git operations, pip/uv installs, snapshot restores, etc.

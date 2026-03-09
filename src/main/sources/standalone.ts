@@ -86,20 +86,89 @@ function findSitePackages(envRoot: string): string | null {
   return null
 }
 
-async function codesignBinaries(dir: string): Promise<void> {
+async function removeQuarantine(dir: string, log?: (text: string) => void): Promise<void> {
+  if (process.platform !== 'darwin') return
+  await new Promise<void>((resolve) => {
+    execFile('xattr', ['-dr', 'com.apple.quarantine', dir], (err) => {
+      if (err && log) log(`⚠ removeQuarantine: ${err.message}\n`)
+      resolve()
+    })
+  })
+}
+
+async function repairMacBinaries(
+  installPath: string,
+  sendProgress: (step: string, data: { percent: number; status: string; [key: string]: unknown }) => void,
+  sendOutput?: (text: string) => void
+): Promise<void> {
+  if (process.platform !== 'darwin') return
+  const standaloneEnvDir = path.join(installPath, 'standalone-env')
+  sendProgress('repair', { percent: -1, status: 'Removing quarantine flags…' })
+  await removeQuarantine(standaloneEnvDir, sendOutput)
+  sendProgress('repair', { percent: -1, status: 'Codesigning binaries…' })
+  await codesignBinaries(standaloneEnvDir, sendOutput)
+  const envsDir = path.join(installPath, ENVS_DIR)
+  if (fs.existsSync(envsDir)) {
+    sendProgress('repair', { percent: -1, status: 'Codesigning environment binaries…' })
+    await removeQuarantine(envsDir, sendOutput)
+    await codesignBinaries(envsDir, sendOutput)
+  }
+}
+
+const NON_BINARY_EXTENSIONS = new Set([
+  '.py', '.pyc', '.pyo', '.pyi', '.pyd',
+  '.txt', '.md', '.rst', '.json', '.yaml', '.yml', '.toml', '.cfg', '.ini', '.csv',
+  '.html', '.htm', '.css', '.js', '.ts', '.xml', '.svg',
+  '.h', '.c', '.cpp', '.hpp', '.pxd', '.pyx',
+  '.sh', '.bat', '.ps1',
+  '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.ttf', '.eot',
+  '.egg-info', '.dist-info', '.data',
+  '.typed', '.LICENSE', '.license',
+])
+
+function hasNonBinaryExtension(name: string): boolean {
+  const dot = name.lastIndexOf('.')
+  if (dot === -1) return false
+  return NON_BINARY_EXTENSIONS.has(name.slice(dot).toLowerCase())
+}
+
+function isMachO(filePath: string): boolean {
+  let fd: number | undefined
+  try {
+    fd = fs.openSync(filePath, 'r')
+    const buf = Buffer.alloc(4)
+    fs.readSync(fd, buf, 0, 4, 0)
+    // Mach-O magic numbers: MH_MAGIC, MH_CIGAM, MH_MAGIC_64, MH_CIGAM_64, FAT_MAGIC, FAT_CIGAM
+    const magic = buf.readUInt32BE(0)
+    return (
+      magic === 0xfeedface || magic === 0xcefaedfe ||
+      magic === 0xfeedfacf || magic === 0xcffaedfe ||
+      magic === 0xcafebabe || magic === 0xbebafeca
+    )
+  } catch {
+    return false
+  } finally {
+    if (fd !== undefined) try { fs.closeSync(fd) } catch {}
+  }
+}
+
+async function codesignBinaries(dir: string, log?: (text: string) => void): Promise<void> {
   if (process.platform !== 'darwin') return
   const stack = [dir]
   while (stack.length > 0) {
     const current = stack.pop()!
     let items: fs.Dirent[]
-    try { items = fs.readdirSync(current, { withFileTypes: true }) } catch { continue }
+    try { items = await fs.promises.readdir(current, { withFileTypes: true }) } catch { continue }
     for (const item of items) {
       const full = path.join(current, item.name)
       if (item.isDirectory()) {
         stack.push(full)
-      } else if (item.name.endsWith('.dylib') || item.name.endsWith('.so')) {
+      } else if (item.name.endsWith('.dylib') || item.name.endsWith('.so') || (!hasNonBinaryExtension(item.name) && isMachO(full))) {
         await new Promise<void>((resolve) => {
-          execFile('codesign', ['--force', '--sign', '-', full], () => resolve())
+          execFile('codesign', ['--force', '--sign', '-', full], (err) => {
+            if (err && log) log(`⚠ codesign failed: ${full}: ${err.message}\n`)
+            resolve()
+          })
         })
       }
     }
@@ -556,8 +625,9 @@ export const standalone: SourcePlugin = {
   },
 
   async postInstall(installation: InstallationRecord, { sendProgress, update }: PostInstallTools): Promise<void> {
+    const standaloneEnvDir = path.join(installation.installPath, 'standalone-env')
     if (process.platform !== 'win32') {
-      const binDir = path.join(installation.installPath, 'standalone-env', 'bin')
+      const binDir = path.join(standaloneEnvDir, 'bin')
       try {
         const entries = fs.readdirSync(binDir)
         for (const entry of entries) {
@@ -566,6 +636,7 @@ export const standalone: SourcePlugin = {
         }
       } catch {}
     }
+    await repairMacBinaries(installation.installPath, sendProgress)
     sendProgress('setup', { percent: 0, status: 'Creating default Python environment…' })
     await createEnv(installation.installPath, DEFAULT_ENV, (copied, total, elapsedSecs, etaSecs) => {
       const percent = Math.round((copied / total) * 100)
@@ -900,7 +971,10 @@ export const standalone: SourcePlugin = {
         ? path.join(process.resourcesPath, 'lib', 'update_comfyui.py')
         : path.join(__dirname, '..', '..', 'lib', 'update_comfyui.py')
       const markers: Record<string, string> = {}
+      let markerBuf = ''
       let stdoutBuf = ''
+      let stderrBuf = ''
+      let exitSignal: string | null = null
       const exitCode = await new Promise<number>((resolve) => {
         const proc = spawn(masterPython, ['-s', updateScript, comfyuiDir, ...stableArgs], {
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -909,33 +983,59 @@ export const standalone: SourcePlugin = {
         if (signal) {
           const onAbort = (): void => { proc.kill() }
           signal.addEventListener('abort', onAbort, { once: true })
-          proc.on('exit', () => signal.removeEventListener('abort', onAbort))
+          proc.on('close', () => signal.removeEventListener('abort', onAbort))
         }
         proc.stdout.on('data', (chunk: Buffer) => {
           const text = chunk.toString('utf-8')
           stdoutBuf += text
-          const lines = stdoutBuf.split(/\r?\n/)
-          stdoutBuf = lines.pop()!
+          markerBuf += text
+          const lines = markerBuf.split(/\r?\n/)
+          markerBuf = lines.pop()!
           for (const line of lines) {
             const match = line.match(/^\[(\w+)\]\s*(.+)$/)
             if (match) markers[match[1]!] = match[2]!.trim()
           }
           sendOutput(text)
         })
-        proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
+        proc.stderr.on('data', (chunk: Buffer) => {
+          const text = chunk.toString('utf-8')
+          stderrBuf += text
+          sendOutput(text)
+        })
         proc.on('error', (err) => {
           sendOutput(`Error: ${err.message}\n`)
           resolve(1)
         })
-        proc.on('exit', (code) => resolve(code ?? 1))
+        proc.on('close', (code, sig) => {
+          exitSignal = sig
+          resolve(code ?? 1)
+        })
       })
-      if (stdoutBuf) {
-        const match = stdoutBuf.match(/^\[(\w+)\]\s*(.+)$/)
+      if (markerBuf) {
+        const match = markerBuf.match(/^\[(\w+)\]\s*(.+)$/)
         if (match) markers[match[1]!] = match[2]!.trim()
       }
 
       if (exitCode !== 0) {
-        return { ok: false, message: t('standalone.updateFailed', { code: exitCode }) }
+        // On macOS, SIGKILL typically means Gatekeeper blocked an unsigned binary.
+        // Auto-repair (quarantine removal + codesigning) and retry once.
+        if (exitSignal === 'SIGKILL' && process.platform === 'darwin' && !actionData?._repairAttempted) {
+          sendOutput('\nProcess was killed by macOS — attempting binary repair…\n')
+          await repairMacBinaries(installPath, sendProgress, sendOutput)
+          sendOutput('Repair complete — retrying update…\n\n')
+          return this.handleAction(actionId, installation, { ...actionData, _repairAttempted: true }, { update, sendProgress, sendOutput, signal })
+        }
+
+        const detail = (stderrBuf || stdoutBuf).trim().split('\n').slice(-20).join('\n')
+        let message: string
+        if (detail) {
+          message = `${t('standalone.updateFailed', { code: exitCode })}\n\n${detail}`
+        } else if (exitSignal) {
+          message = `${t('standalone.updateFailed', { code: exitCode })}\n\nProcess was killed by signal ${exitSignal}.\npython: ${masterPython}\nscript: ${updateScript}`
+        } else {
+          message = `${t('standalone.updateFailed', { code: exitCode })}\n\nProcess produced no output.\npython: ${masterPython}\nscript: ${updateScript}`
+        }
+        return { ok: false, message }
       }
 
       if (signal?.aborted) return { ok: false, message: 'Cancelled' }
@@ -966,14 +1066,14 @@ export const standalone: SourcePlugin = {
               if (signal) {
                 const onAbort = (): void => { proc.kill() }
                 signal.addEventListener('abort', onAbort, { once: true })
-                proc.on('exit', () => signal.removeEventListener('abort', onAbort))
+                proc.on('close', () => signal.removeEventListener('abort', onAbort))
               }
               let stdout = ''
               let stderr = ''
               proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf-8') })
               proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf-8') })
               proc.on('error', (err) => resolve({ code: 1, stdout: '', stderr: err.message }))
-              proc.on('exit', (code) => resolve({ code: code ?? 1, stdout, stderr }))
+              proc.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }))
             })
 
             if (dryRunResult.code !== 0) {
@@ -994,7 +1094,7 @@ export const standalone: SourcePlugin = {
               if (signal) {
                 const onAbort = (): void => { proc.kill() }
                 signal.addEventListener('abort', onAbort, { once: true })
-                proc.on('exit', () => signal.removeEventListener('abort', onAbort))
+                proc.on('close', () => signal.removeEventListener('abort', onAbort))
               }
               proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
               proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
@@ -1002,7 +1102,7 @@ export const standalone: SourcePlugin = {
                 sendOutput(`Error: ${err.message}\n`)
                 resolve(1)
               })
-              proc.on('exit', (code) => resolve(code ?? 1))
+              proc.on('close', (code) => resolve(code ?? 1))
             })
 
             if (installResult !== 0) {

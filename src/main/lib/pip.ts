@@ -36,7 +36,7 @@ export function runUvPip(
       sendOutput(`Error: ${err.message}\n`)
       resolve(1)
     })
-    proc.on('exit', (code) => {
+    proc.on('close', (code) => {
       signal?.removeEventListener('abort', onAbort)
       resolve(code ?? 1)
     })
