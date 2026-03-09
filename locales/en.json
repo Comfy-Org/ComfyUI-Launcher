@@ -29,7 +29,8 @@
 
   "sidebar": {
     "installations": "Installs",
-    "running": "Running"
+    "running": "Running",
+    "giveFeedback": "Give Feedback"
   },
 
   "running": {

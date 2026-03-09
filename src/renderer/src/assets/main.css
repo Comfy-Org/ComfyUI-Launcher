@@ -228,6 +228,9 @@ body {
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+.sidebar-feedback {
+  margin: 0 8px;
+}
 .sidebar-version {
   padding: 8px 20px;
   font-size: 11px;
