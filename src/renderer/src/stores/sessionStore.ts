@@ -79,7 +79,24 @@ export const useSessionStore = defineStore('session', () => {
       session = { output: '', exited: false }
       sessions.set(installationId, session)
     }
-    session.output += text
+
+    // Handle carriage returns (\r) used by tqdm-style progress bars.
+    // A \r means "return to the start of the current line", so text after
+    // a \r should replace everything after the last \n in the output.
+    // Split on bare \r (not followed by \n) to handle tqdm-style progress bars.
+    // Windows CRLF (\r\n) must be preserved as a normal newline.
+    const parts = text.split(/\r(?!\n)/)
+    for (let i = 0; i < parts.length; i++) {
+      const segment = parts[i]!
+      if (i === 0) {
+        // First segment: always append (no preceding \r)
+        session.output += segment
+      } else if (segment.length > 0) {
+        // After a bare \r: overwrite from the last newline
+        const lastNewline = session.output.lastIndexOf('\n')
+        session.output = session.output.slice(0, lastNewline + 1) + segment
+      }
+    }
   }
 
   /** Initialize IPC listeners. Call once from App.vue. */

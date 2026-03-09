@@ -309,29 +309,48 @@ export const portable: SourcePlugin = {
       sendProgress('prepare', { percent: -1, status: 'Checking for updater updates…' })
       sendProgress('run', { percent: -1, status: 'Running update…' })
 
-      const runUpdateScript = (extraArgs: string[]): Promise<number> => {
-        return new Promise<number>((resolve) => {
+      const runUpdateScript = (extraArgs: string[]): Promise<{ exitCode: number; stdout: string; stderr: string; signal: string | null }> => {
+        return new Promise<{ exitCode: number; stdout: string; stderr: string; signal: string | null }>((resolve) => {
+          let stdout = ''
+          let stderr = ''
           const proc = spawn(pythonExe, ['-s', updateScript, comfyuiDir, ...extraArgs, ...stableArgs], {
             cwd: updateDir,
             stdio: ['ignore', 'pipe', 'pipe'],
             windowsHide: true,
           })
-          proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
-          proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
+          proc.stdout.on('data', (chunk: Buffer) => {
+            const text = chunk.toString('utf-8')
+            stdout += text
+            sendOutput(text)
+          })
+          proc.stderr.on('data', (chunk: Buffer) => {
+            const text = chunk.toString('utf-8')
+            stderr += text
+            sendOutput(text)
+          })
           proc.on('error', (err: Error) => {
             sendOutput(`Error: ${err.message}\n`)
-            resolve(1)
+            resolve({ exitCode: 1, stdout: '', stderr: err.message, signal: null })
           })
-          proc.on('exit', (code: number | null) => resolve(code ?? 1))
+          proc.on('close', (code: number | null, sig: string | null) => resolve({ exitCode: code ?? 1, stdout, stderr, signal: sig }))
         })
       }
 
-      const exitCode = await runUpdateScript([])
+      const result = await runUpdateScript([])
 
-      if (exitCode !== 0) {
+      if (result.exitCode !== 0) {
         const updateNewPy = path.join(updateDir, 'update_new.py')
         if (!fs.existsSync(updateNewPy)) {
-          return { ok: false, message: t('portable.updateFailed', { code: exitCode }) }
+          const detail = (result.stderr || result.stdout).trim().split('\n').slice(-20).join('\n')
+          let message: string
+          if (detail) {
+            message = `${t('portable.updateFailed', { code: result.exitCode })}\n\n${detail}`
+          } else if (result.signal) {
+            message = `${t('portable.updateFailed', { code: result.exitCode })}\n\nProcess was killed by signal ${result.signal}.\npython: ${pythonExe}\nscript: ${updateScript}`
+          } else {
+            message = `${t('portable.updateFailed', { code: result.exitCode })}\n\nProcess produced no output.\npython: ${pythonExe}\nscript: ${updateScript}`
+          }
+          return { ok: false, message }
         }
       }
 
@@ -343,9 +362,18 @@ export const portable: SourcePlugin = {
         } catch (err) {
           sendOutput(`Warning: could not replace updater: ${(err as Error).message}\n`)
         }
-        const exitCode2 = await runUpdateScript(['--skip_self_update'])
-        if (exitCode2 !== 0) {
-          return { ok: false, message: t('portable.updateFailed', { code: exitCode2 }) }
+        const result2 = await runUpdateScript(['--skip_self_update'])
+        if (result2.exitCode !== 0) {
+          const detail = (result2.stderr || result2.stdout).trim().split('\n').slice(-20).join('\n')
+          let message: string
+          if (detail) {
+            message = `${t('portable.updateFailed', { code: result2.exitCode })}\n\n${detail}`
+          } else if (result2.signal) {
+            message = `${t('portable.updateFailed', { code: result2.exitCode })}\n\nProcess was killed by signal ${result2.signal}.\npython: ${pythonExe}\nscript: ${updateScript}`
+          } else {
+            message = `${t('portable.updateFailed', { code: result2.exitCode })}\n\nProcess produced no output.\npython: ${pythonExe}\nscript: ${updateScript}`
+          }
+          return { ok: false, message }
         }
       }
 

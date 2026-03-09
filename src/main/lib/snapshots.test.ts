@@ -8,9 +8,23 @@ vi.mock('electron', () => ({
   net: { fetch: vi.fn() },
 }))
 
-import { buildExportEnvelope, validateExportEnvelope, importSnapshots, diffSnapshots, listSnapshots, restoreComfyUIVersion, buildPostRestoreState } from './snapshots'
+vi.mock('./pip', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...(actual as object),
+    pipFreeze: vi.fn((actual as Record<string, unknown>).pipFreeze as () => unknown),
+    runUvPip: vi.fn((actual as Record<string, unknown>).runUvPip as () => unknown),
+  }
+})
+
+import { buildExportEnvelope, validateExportEnvelope, importSnapshots, diffSnapshots, listSnapshots, restoreComfyUIVersion, buildPostRestoreState, restorePipPackages } from './snapshots'
 import type { Snapshot, SnapshotEntry, SnapshotExportEnvelope } from './snapshots'
 import type { ScannedNode } from './nodes'
+import type { InstallationRecord } from '../installations'
+import { pipFreeze, runUvPip } from './pip'
+
+const mockedPipFreeze = vi.mocked(pipFreeze)
+const mockedRunUvPip = vi.mocked(runUvPip)
 
 // --- Helpers ---
 
@@ -635,5 +649,98 @@ describe('buildPostRestoreState', () => {
     const info = state.updateInfoByChannel as Record<string, Record<string, unknown>>
     expect(info.latest).toEqual({ installedTag: 'xyz' })
     expect(info.stable).toBeDefined()
+  })
+})
+
+// --- restorePipPackages abort revert ---
+
+describe('restorePipPackages', () => {
+  let tmpDir: string
+  let sitePackagesDir: string
+  let uvPath: string
+  let pythonPath: string
+  let installation: InstallationRecord
+
+  beforeEach(async () => {
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pip-restore-test-'))
+    // Create the directory structure that restorePipPackages expects
+    const envDir = path.join(tmpDir, 'envs', 'default')
+    if (process.platform === 'win32') {
+      sitePackagesDir = path.join(envDir, 'Lib', 'site-packages')
+      pythonPath = path.join(envDir, 'Scripts', 'python.exe')
+    } else {
+      sitePackagesDir = path.join(envDir, 'lib', 'python3.11', 'site-packages')
+      pythonPath = path.join(envDir, 'bin', 'python3')
+    }
+    await fs.promises.mkdir(sitePackagesDir, { recursive: true })
+    await fs.promises.mkdir(path.dirname(pythonPath), { recursive: true })
+    await fs.promises.writeFile(pythonPath, '')
+
+    if (process.platform === 'win32') {
+      uvPath = path.join(tmpDir, 'standalone-env', 'uv.exe')
+    } else {
+      uvPath = path.join(tmpDir, 'standalone-env', 'bin', 'uv')
+    }
+    await fs.promises.mkdir(path.dirname(uvPath), { recursive: true })
+    await fs.promises.writeFile(uvPath, '')
+
+    installation = {
+      id: 'test',
+      name: 'Test',
+      createdAt: '2026-03-01T00:00:00.000Z',
+      installPath: tmpDir,
+      sourceId: 'test',
+    }
+  })
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  })
+
+  it('uses pre-computed newPkgNames (not result.installed) when reverting on abort', async () => {
+    // Mock pipFreeze to report an empty current environment
+    mockedPipFreeze.mockResolvedValue({})
+
+    // Track all runUvPip calls
+    const uvCalls: string[][] = []
+    const ac = new AbortController()
+
+    mockedRunUvPip.mockImplementation(
+      async (_uvPath, args, _cwd, _sendOutput, _signal?) => {
+        uvCalls.push([...args])
+        // Simulate: the bulk install is running when the signal aborts.
+        // The bulk install returns non-zero (killed), and result.installed
+        // is never populated because the bulk path only populates it on
+        // success (exit code 0).
+        if (args.includes('install')) {
+          ac.abort()
+          return 1
+        }
+        // Uninstall calls during revert should succeed
+        return 0
+      }
+    )
+
+    const snapshot = makeSnapshot({
+      pipPackages: { 'new-pkg-a': '1.0.0', 'new-pkg-b': '2.0.0' },
+    })
+    const noop = () => {}
+
+    const result = await restorePipPackages(
+      tmpDir, installation, snapshot, noop as never, noop, ac.signal
+    )
+
+    // The function should have reverted
+    expect(result.errors.length).toBeGreaterThan(0)
+    expect(result.errors[0]).toContain('Restore reverted')
+    expect(result.installed).toHaveLength(0)
+
+    // Find the revert uninstall call — it should contain the new package names
+    // even though result.installed was never populated
+    const uninstallCall = uvCalls.find((args) => args.includes('uninstall'))
+    expect(uninstallCall).toBeDefined()
+    expect(uninstallCall).toContain('new-pkg-a')
+    expect(uninstallCall).toContain('new-pkg-b')
   })
 })

@@ -275,6 +275,9 @@ export const gitSource: SourcePlugin = {
 
       sendProgress('pull', { percent: -1, status: t('git.gitPulling') })
 
+      let stdoutBuf = ''
+      let stderrBuf = ''
+      let exitSignal: string | null = null
       const exitCode = await new Promise<number>((resolve) => {
         const proc = spawn(gitPath, ['pull'], {
           cwd: installation.installPath,
@@ -282,17 +285,37 @@ export const gitSource: SourcePlugin = {
           windowsHide: true,
           env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
         })
-        proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
-        proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
+        proc.stdout.on('data', (chunk: Buffer) => {
+          const text = chunk.toString('utf-8')
+          stdoutBuf += text
+          sendOutput(text)
+        })
+        proc.stderr.on('data', (chunk: Buffer) => {
+          const text = chunk.toString('utf-8')
+          stderrBuf += text
+          sendOutput(text)
+        })
         proc.on('error', (err: Error) => {
           sendOutput(`Error: ${err.message}\n`)
           resolve(1)
         })
-        proc.on('exit', (code: number | null) => resolve(code ?? 1))
+        proc.on('close', (code: number | null, sig: string | null) => {
+          exitSignal = sig
+          resolve(code ?? 1)
+        })
       })
 
       if (exitCode !== 0) {
-        return { ok: false, message: t('git.gitPullFailed', { code: exitCode }) }
+        const detail = (stderrBuf || stdoutBuf).trim().split('\n').slice(-20).join('\n')
+        let message: string
+        if (detail) {
+          message = `${t('git.gitPullFailed', { code: exitCode })}\n\n${detail}`
+        } else if (exitSignal) {
+          message = `${t('git.gitPullFailed', { code: exitCode })}\n\nProcess was killed by signal ${exitSignal}.`
+        } else {
+          message = `${t('git.gitPullFailed', { code: exitCode })}\n\nProcess produced no output.`
+        }
+        return { ok: false, message }
       }
 
       sendOutput(`\n✓ ${t('git.gitPullComplete')}\n`)

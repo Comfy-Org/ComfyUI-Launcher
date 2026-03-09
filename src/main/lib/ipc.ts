@@ -1881,7 +1881,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         const sendOutput = (text: string): void => {
           if (!sender.isDestroyed()) sender.send('comfy-output', { installationId, text })
         }
-        const launchEnv = { ...process.env }
+        const launchEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' }
         const proc = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv, { showWindow: launchCmd.showWindow })
         let stderrBuf = ''
         proc.stdout?.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
@@ -1995,7 +1995,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       _broadcastToRenderer('instance-launching', { installationId, installationName: inst.name })
 
       const sessionPath = createSessionPath()
-      const launchEnv = { ...process.env, __COMFY_CLI_SESSION__: sessionPath }
+      const launchEnv = { ...process.env, PYTHONIOENCODING: 'utf-8', __COMFY_CLI_SESSION__: sessionPath }
       const sendOutput = (text: string): void => {
         if (!sender.isDestroyed()) {
           sender.send('comfy-output', { installationId, text })

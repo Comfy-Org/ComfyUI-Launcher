@@ -497,6 +497,8 @@
     "setupEnv": "Set up environment",
     "cleanupEnv": "Clean up environment",
     "cleanupEnvStatus": "Removing redundant packages from template environment…",
+    "repairBinaries": "Repair macOS Binaries",
+    "repairBinariesTitle": "Repairing macOS Binaries",
     "updates": "Updates",
     "updateChannel": "Update Channel",
     "channelStable": "Stable",

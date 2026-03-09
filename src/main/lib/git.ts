@@ -1,6 +1,12 @@
 import { execFile, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import { killProcTree } from './process'
+
+export interface ProcessResult {
+  exitCode: number
+  stderr: string
+}
 
 /**
  * Resolve the actual .git directory for a repository.
@@ -97,54 +103,86 @@ export function isGitAvailable(): Promise<boolean> {
 export function gitClone(
   url: string,
   dest: string,
-  sendOutput: (text: string) => void
-): Promise<number> {
+  sendOutput: (text: string) => void,
+  signal?: AbortSignal
+): Promise<ProcessResult> {
+  if (signal?.aborted) return Promise.resolve({ exitCode: 1, stderr: '' })
   return new Promise((resolve) => {
+    const stderrChunks: string[] = []
     const proc = spawn('git', ['clone', url, dest], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
+      windowsHide: true,
+      detached: process.platform !== 'win32'
     })
+    const onAbort = (): void => { killProcTree(proc) }
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
     proc.stdout.on('data', (data: Buffer) => sendOutput(data.toString()))
-    proc.stderr.on('data', (data: Buffer) => sendOutput(data.toString()))
-    proc.on('error', (err) => {
-      sendOutput(err.message)
-      resolve(1)
+    proc.stderr.on('data', (data: Buffer) => {
+      const text = data.toString()
+      stderrChunks.push(text)
+      sendOutput(text)
     })
-    proc.on('close', (code) => resolve(code ?? 1))
+    proc.on('error', (err) => {
+      signal?.removeEventListener('abort', onAbort)
+      sendOutput(err.message)
+      resolve({ exitCode: 1, stderr: stderrChunks.join('') + err.message })
+    })
+    proc.on('close', (code) => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve({ exitCode: code ?? 1, stderr: stderrChunks.join('') })
+    })
   })
 }
 
 export function gitFetchAndCheckout(
   repoPath: string,
   commit: string,
-  sendOutput: (text: string) => void
-): Promise<number> {
-  const runGit = (args: string[]): Promise<number> =>
-    new Promise((resolve) => {
+  sendOutput: (text: string) => void,
+  signal?: AbortSignal
+): Promise<ProcessResult> {
+  if (signal?.aborted) return Promise.resolve({ exitCode: 1, stderr: '' })
+  const runGit = (args: string[]): Promise<ProcessResult> => {
+    if (signal?.aborted) return Promise.resolve({ exitCode: 1, stderr: '' })
+    return new Promise((resolve) => {
+      const stderrChunks: string[] = []
       const proc = spawn('git', args, {
         cwd: repoPath,
         stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true
+        windowsHide: true,
+        detached: process.platform !== 'win32'
       })
+      const onAbort = (): void => { killProcTree(proc) }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
       proc.stdout.on('data', (data: Buffer) => sendOutput(data.toString()))
-      proc.stderr.on('data', (data: Buffer) => sendOutput(data.toString()))
-      proc.on('error', (err) => {
-        sendOutput(err.message)
-        resolve(1)
+      proc.stderr.on('data', (data: Buffer) => {
+        const text = data.toString()
+        stderrChunks.push(text)
+        sendOutput(text)
       })
-      proc.on('close', (code) => resolve(code ?? 1))
+      proc.on('error', (err) => {
+        signal?.removeEventListener('abort', onAbort)
+        sendOutput(err.message)
+        resolve({ exitCode: 1, stderr: stderrChunks.join('') + err.message })
+      })
+      proc.on('close', (code) => {
+        signal?.removeEventListener('abort', onAbort)
+        resolve({ exitCode: code ?? 1, stderr: stderrChunks.join('') })
+      })
     })
+  }
 
   // Fetch master explicitly — grafted/archive-based repos may have no
   // branch tracking configured, so a bare `git fetch origin` only pulls
   // tags. Use --unshallow to handle shallow clones; fall back to a
   // regular fetch if the repo is already complete.
   const refspec = '+refs/heads/master:refs/remotes/origin/master'
-  return runGit(['fetch', '--unshallow', 'origin', refspec]).then((code) => {
-    if (code !== 0) return runGit(['fetch', 'origin', refspec])
-    return code
-  }).then((code) => {
-    if (code !== 0) return code
+  return runGit(['fetch', '--unshallow', 'origin', refspec]).then((result) => {
+    if (result.exitCode !== 0) return runGit(['fetch', 'origin', refspec])
+    return result
+  }).then((result) => {
+    if (result.exitCode !== 0) return result
     // Ensure a local master branch exists (mirroring the pygit2 update
     // script) so future updates via update_comfyui.py work correctly.
     // Detach HEAD first so `branch -f` can't fail due to master being
@@ -153,8 +191,8 @@ export function gitFetchAndCheckout(
       // Detach may fail if HEAD is invalid (fresh archive with no commits
       // checked out); that's fine — branch -f will still succeed.
       return runGit(['branch', '-f', 'master', 'refs/remotes/origin/master'])
-    }).then((branchCode) => {
-      if (branchCode !== 0) return branchCode
+    }).then((branchResult) => {
+      if (branchResult.exitCode !== 0) return branchResult
       return runGit(['checkout', commit])
     })
   })

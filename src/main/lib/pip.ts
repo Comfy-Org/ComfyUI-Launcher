@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { execFile, spawn } from 'child_process'
+import { killProcTree } from './process'
 
 /** Regex matching PyTorch-family packages that must never be overwritten by pip. */
 export const PYTORCH_RE = /^(torch|torchvision|torchaudio|torchsde)(\s*[<>=!~;[#]|$)/i
@@ -19,12 +20,14 @@ export function runUvPip(
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      detached: process.platform !== 'win32',
     })
 
     const onAbort = (): void => {
-      proc.kill()
+      killProcTree(proc)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
 
     proc.stdout.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
     proc.stderr.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
@@ -33,7 +36,7 @@ export function runUvPip(
       sendOutput(`Error: ${err.message}\n`)
       resolve(1)
     })
-    proc.on('exit', (code) => {
+    proc.on('close', (code) => {
       signal?.removeEventListener('abort', onAbort)
       resolve(code ?? 1)
     })

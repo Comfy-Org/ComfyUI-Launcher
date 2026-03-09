@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
-
-export interface ContextMenuItem {
-  id: string
-  label: string
-  icon?: string
-  disabled?: boolean
-  separator?: boolean
-}
+import type { ContextMenuItem } from '../types/context-menu'
 
 const props = defineProps<{
   open: boolean
