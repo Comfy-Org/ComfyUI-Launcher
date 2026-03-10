@@ -8,7 +8,7 @@ import { buildExportEnvelope } from './snapshots'
 import {
   sendMigrationSteps, migrateToStandaloneFromSnapshot,
 } from './standaloneMigration'
-import type { MigrationTools } from './standaloneMigration'
+import type { MigrationTools, StandaloneTargetSelection } from './standaloneMigration'
 import type { Snapshot, SnapshotExportEnvelope } from './snapshots'
 import type { InstallationRecord } from '../installations'
 import * as i18n from './i18n'
@@ -172,6 +172,8 @@ export async function performLocalMigration(
     sendProgress('scan', { percent: 100, status: i18n.t('common.done') })
   }
 
+  const target = actionData?.target as StandaloneTargetSelection | undefined
+
   return migrateToStandaloneFromSnapshot({
     installNameBase: `ComfyUI (from ${sourceLabel})`,
     stagedSnapshot: { path: stagedFile, owned: ownsStagedFile },
@@ -187,5 +189,6 @@ export async function performLocalMigration(
       output: i18n.t('migrate.mergingOutput'),
       models: i18n.t('migrate.addingModels'),
     },
+    target,
   }, tools)
 }

@@ -1,6 +1,6 @@
 import { reactive, readonly } from 'vue'
 import { i18n } from '../main'
-import type { SnapshotDetailData } from '../types/ipc'
+import type { SnapshotDetailData, FieldOption } from '../types/ipc'
 
 export type ModalType = 'alert' | 'confirm' | 'confirmWithOptions' | 'prompt' | 'select'
 
@@ -35,6 +35,9 @@ export interface ModalState {
   message: string
   messageDetails: ModalDetailGroup[]
   snapshotPreview: SnapshotDetailData | null
+  variantCards: FieldOption[]
+  selectedVariant: FieldOption | null
+  variantLoading: boolean
   checkboxes: ModalCheckbox[]
   buttonLabel: string
   confirmLabel: string
@@ -55,6 +58,9 @@ const state = reactive<ModalState>({
   message: '',
   messageDetails: [],
   snapshotPreview: null,
+  variantCards: [],
+  selectedVariant: null,
+  variantLoading: false,
   checkboxes: [],
   buttonLabel: 'OK',
   confirmLabel: 'Confirm',
@@ -75,6 +81,9 @@ function reset(): void {
   state.message = ''
   state.messageDetails = []
   state.snapshotPreview = null
+  state.variantCards = []
+  state.selectedVariant = null
+  state.variantLoading = false
   state.checkboxes = []
   state.buttonLabel = 'OK'
   state.confirmLabel = 'Confirm'
@@ -148,6 +157,9 @@ export function useModal() {
     message?: string
     messageDetails?: ModalDetailGroup[]
     snapshotPreview?: SnapshotDetailData | null
+    variantCards?: FieldOption[]
+    selectedVariant?: FieldOption | null
+    variantLoading?: boolean
     checkboxes?: ModalCheckbox[]
   }): void {
     if (!state.visible || state.type !== 'confirm') return
@@ -155,6 +167,9 @@ export function useModal() {
     if (opts.message !== undefined) state.message = opts.message
     if (opts.messageDetails !== undefined) state.messageDetails = opts.messageDetails
     if (opts.snapshotPreview !== undefined) state.snapshotPreview = opts.snapshotPreview
+    if (opts.variantCards !== undefined) state.variantCards = opts.variantCards
+    if (opts.selectedVariant !== undefined) state.selectedVariant = opts.selectedVariant
+    if (opts.variantLoading !== undefined) state.variantLoading = opts.variantLoading
     if (opts.checkboxes !== undefined) state.checkboxes = opts.checkboxes.map((c) => ({ ...c }))
   }
 

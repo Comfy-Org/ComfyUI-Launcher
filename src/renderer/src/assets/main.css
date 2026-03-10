@@ -361,20 +361,18 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   display: inline-flex; align-items: center;
   font-size: 11px; font-weight: 600; line-height: 1;
   padding: 2px 8px; border-radius: 10px;
-  background: color-mix(in srgb, var(--warning) 15%, transparent);
-  color: var(--warning); border: 1px solid var(--warning);
-  cursor: pointer; user-select: none; transition: background 0.15s, color 0.15s;
+  background: var(--warning); color: #1a1a1a; border: 1px solid var(--warning);
+  cursor: pointer; user-select: none; transition: background 0.15s, border-color 0.15s;
 }
-.update-pill:hover { background: var(--warning); color: #1a1a1a; }
+.update-pill:hover { background: color-mix(in srgb, var(--warning) 80%, #fff); border-color: color-mix(in srgb, var(--warning) 80%, #fff); }
 .migrate-pill {
   display: inline-flex; align-items: center;
   font-size: 11px; font-weight: 600; line-height: 1;
   padding: 2px 8px; border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--accent); border: 1px solid var(--accent);
-  cursor: pointer; user-select: none; transition: background 0.15s, color 0.15s;
+  background: var(--accent); color: #1a1a1a; border: 1px solid var(--accent);
+  cursor: pointer; user-select: none; transition: background 0.15s, border-color 0.15s;
 }
-.migrate-pill:hover { background: var(--accent); color: #1a1a1a; }
+.migrate-pill:hover { background: color-mix(in srgb, var(--accent) 80%, #fff); border-color: color-mix(in srgb, var(--accent) 80%, #fff); }
 .status-in-progress { color: var(--accent); font-weight: 600; }
 .instance-card.card-running { border-color: var(--accent); }
 .instance-card.card-stopping { border-color: var(--accent); animation: card-breathe 2s ease-in-out infinite; }
@@ -628,7 +626,8 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .modal-message a { color: var(--accent); text-decoration: underline; cursor: pointer; }
 .modal-body { max-height: 50vh; overflow-y: auto; margin-bottom: 20px; }
 .modal-body .modal-message { max-height: none; overflow-y: visible; margin-bottom: 8px; }
-.modal-box-wide { max-width: 520px; }
+.modal-box-wide { max-width: 720px; }
+.modal-box-wide .modal-body { max-height: 70vh; }
 .modal-details { margin-bottom: 0; margin-top: 12px; }
 .modal-detail-group { margin-bottom: 6px; }
 .modal-detail-label { font-weight: 600; color: var(--text); font-size: 13px; text-transform: uppercase; }
@@ -928,6 +927,8 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .variant-card-badge {
   font-size: 11px; font-weight: 600; text-transform: uppercase;
   color: var(--accent); margin-top: 6px; letter-spacing: 0.5px;
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 .variant-card-desc {
   font-size: 11px; color: var(--text-muted); margin-top: 6px;

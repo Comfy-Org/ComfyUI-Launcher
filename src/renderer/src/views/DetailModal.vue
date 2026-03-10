@@ -8,6 +8,7 @@ import DetailSectionComponent from '../components/DetailSection.vue'
 import SnapshotTab from '../components/SnapshotTab.vue'
 import { useInstallationStore } from '../stores/installationStore'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
+import { findBestVariant } from '../lib/variants'
 import { REQUIRES_STOPPED } from '../types/ipc'
 import { Star, Pin } from 'lucide-vue-next'
 import type {
@@ -357,10 +358,11 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
       return
     }
 
-    // Update the modal with the loaded preview data
+    // Update the modal with the loaded preview data + start loading variant options
     modal.updateConfirm({
       loading: false,
       snapshotPreview: previewResult.preview?.newestSnapshot,
+      variantLoading: true,
       messageDetails: [{
         label: t('migrate.migrationWill'),
         items: migrateItems,
@@ -370,15 +372,49 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
       ],
     })
 
+    // Fetch release + variant options for device selection
+    let migrateRelease: FieldOption | null = null
+    try {
+      const releaseOptions = await window.api.getFieldOptions('standalone', 'release', {})
+      migrateRelease = releaseOptions[0] || null
+      if (migrateRelease) {
+        const variantOptions = await window.api.getFieldOptions('standalone', 'variant', { release: toRaw(migrateRelease) })
+        const snapshotVariantId = previewResult.preview?.newestSnapshot.comfyui.variant || ''
+        const defaultVariant = findBestVariant(variantOptions, snapshotVariantId)
+
+        modal.updateConfirm({
+          variantCards: variantOptions,
+          selectedVariant: defaultVariant,
+          variantLoading: false,
+        })
+      } else {
+        modal.updateConfirm({ variantLoading: false })
+      }
+    } catch {
+      modal.updateConfirm({ variantLoading: false })
+    }
+
     const confirmed = await confirmPromise
     if (!confirmed) return
     const checkboxValues = modal.getLastCheckboxValues()
+
+    const selectedVariant = modal.state.selectedVariant
+    const targetData: Record<string, unknown> = {}
+    if (selectedVariant && migrateRelease) {
+      targetData.target = {
+        mode: 'selected' as const,
+        release: toRaw(migrateRelease),
+        variant: toRaw(selectedVariant),
+      }
+    }
+
     mutableAction = {
       ...mutableAction,
       data: {
         ...mutableAction.data,
         snapshotPath: previewResult.snapshotPath,
         enablePipSync: !!checkboxValues.enablePipSync,
+        ...targetData,
       },
     }
   }

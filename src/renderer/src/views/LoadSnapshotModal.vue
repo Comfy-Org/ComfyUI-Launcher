@@ -3,7 +3,7 @@ import { ref, computed, watch, toRaw, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '../composables/useModal'
 import type { SnapshotFilePreview, FieldOption, GPUInfo } from '../types/ipc'
-import { stripVariantPrefix, getVariantImage, getVariantGpuLabel, sortedCardOptions } from '../lib/variants'
+import { getVariantImage, getVariantGpuLabel, sortedCardOptions, findBestVariant } from '../lib/variants'
 import { emitTelemetryAction, toVariantBucket } from '../lib/telemetry'
 
 const emit = defineEmits<{
@@ -117,12 +117,7 @@ async function loadVariantOptions(): Promise<void> {
 
     // Default to the variant matching the snapshot's device, then recommended (detected GPU), then first
     const snapshotVariantId = preview.value?.newestSnapshot.comfyui.variant || ''
-    const snapshotStripped = stripVariantPrefix(snapshotVariantId)
-    const snapshotMatch = snapshotStripped
-      ? options.find((o) => stripVariantPrefix((o.data?.variantId as string) || '') === snapshotStripped)
-      : null
-    const recommended = options.find((o) => o.recommended)
-    selectedVariant.value = snapshotMatch || recommended || options[0] || null
+    selectedVariant.value = findBestVariant(options, snapshotVariantId)
   } finally {
     if (gen === optionsGeneration) variantLoading.value = false
   }

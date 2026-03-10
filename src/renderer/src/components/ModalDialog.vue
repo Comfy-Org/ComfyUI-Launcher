@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import { useModal, type ModalOption } from '../composables/useModal'
+import { sortedCardOptions, getVariantImage } from '../lib/variants'
+import type { FieldOption } from '../types/ipc'
 
-const { state, close } = useModal()
+const { state, close, updateConfirm } = useModal()
+
+const sortedVariants = computed(() => sortedCardOptions(state.variantCards))
+
+function selectVariant(opt: FieldOption): void {
+  updateConfirm({ selectedVariant: opt })
+}
 
 const inputValue = ref('')
 const error = ref('')
@@ -87,13 +95,20 @@ function handleOverlayClick(event: MouseEvent): void {
 
 function resetSnapshotExpansion(): void {
   const sp = state.snapshotPreview
-  spNodesExpanded.value = sp ? sp.customNodes.length > 0 : true
+  const hasVariantCards = state.variantCards.length > 0 || state.variantLoading
+  spNodesExpanded.value = hasVariantCards ? false : sp ? sp.customNodes.length > 0 : true
   spPipExpanded.value = false
 }
 
 watch(() => state.snapshotPreview, () => {
   if (state.visible && state.type === 'confirm') {
     resetSnapshotExpansion()
+  }
+})
+
+watch(() => state.variantCards, () => {
+  if (state.visible && state.type === 'confirm' && state.variantCards.length > 0) {
+    spNodesExpanded.value = false
   }
 })
 
@@ -234,6 +249,48 @@ onUnmounted(() => {
             </div>
           </template>
 
+          <!-- Variant / device selection -->
+          <div v-if="!state.loading && (state.variantCards.length > 0 || state.variantLoading)" class="sp-subsection">
+            <div class="sp-subsection-title">
+              <span>{{ $t('list.snapshotDevice') }}</span>
+            </div>
+            <div v-if="state.variantLoading" class="modal-loading">
+              <div class="modal-loading-spinner" />
+              <span>{{ $t('common.loading') }}</span>
+            </div>
+            <div v-else class="variant-cards">
+              <div
+                v-for="opt in sortedVariants"
+                :key="opt.value"
+                role="button"
+                tabindex="0"
+                :class="['variant-card', {
+                  selected: state.selectedVariant?.value === opt.value,
+                  recommended: opt.recommended,
+                }]"
+                @click="selectVariant(opt)"
+                @keydown.enter.prevent="selectVariant(opt)"
+              >
+                <div class="variant-card-icon">
+                  <img
+                    v-if="getVariantImage(opt)"
+                    :src="getVariantImage(opt)!"
+                    :alt="opt.label"
+                    draggable="false"
+                  />
+                  <span v-else class="variant-card-icon-text">{{ opt.label }}</span>
+                </div>
+                <div class="variant-card-label">{{ opt.label }}</div>
+                <div v-if="opt.recommended" class="variant-card-badge">
+                  {{ $t('newInstall.recommended') }}
+                </div>
+                <div v-if="opt.description" class="variant-card-desc">
+                  {{ opt.description }}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div v-if="state.messageDetails.length" class="modal-details">
             <div v-for="(group, gi) in state.messageDetails" :key="gi" class="modal-detail-group">
               <span class="modal-detail-label">{{ group.label }}</span>
@@ -251,7 +308,7 @@ onUnmounted(() => {
         </div>
         <div class="modal-actions">
           <button @click="close(false)">{{ $t('common.cancel') }}</button>
-          <button :class="confirmClass" :disabled="state.loading" @click="close(true)">
+          <button :class="confirmClass" :disabled="state.loading || state.variantLoading || (state.variantCards.length > 0 && !state.selectedVariant)" @click="close(true)">
             {{ state.confirmLabel }}
           </button>
         </div>

@@ -499,7 +499,10 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   ipcMain.handle('get-field-options', async (_event, sourceId: string, fieldId: string, selections: Record<string, unknown>) => {
     const source = sourceMap[sourceId]
     if (!source) return []
-    const gpu = _gpuPromise ? await _gpuPromise : null
+    if (!_gpuPromise) {
+      _gpuPromise = detectGPU().catch(() => null)
+    }
+    const gpu = await _gpuPromise
     const options = await source.getFieldOptions(
       fieldId,
       selections as Record<string, FieldOption | undefined>,

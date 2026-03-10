@@ -3,7 +3,7 @@ import fs from 'fs'
 import { detectDesktopInstall, stageDesktopSnapshot } from './desktopDetect'
 import {
   sendMigrationSteps, migrateToStandaloneFromSnapshot,
-  type MigrationTools,
+  type MigrationTools, type StandaloneTargetSelection,
 } from './standaloneMigration'
 import type { InstallationRecord } from '../installations'
 import * as i18n from './i18n'
@@ -43,6 +43,8 @@ export async function performDesktopMigration(
     sendProgress('scan', { percent: 100, status: i18n.t('common.done') })
   }
 
+  const target = actionData?.target as StandaloneTargetSelection | undefined
+
   return migrateToStandaloneFromSnapshot({
     installNameBase: 'ComfyUI (from Desktop)',
     stagedSnapshot: { path: stagedFile, owned: ownsStagedFile },
@@ -58,5 +60,6 @@ export async function performDesktopMigration(
       output: i18n.t('desktop.copyingOutput'),
       models: i18n.t('desktop.addingModels'),
     },
+    target,
   }, tools)
 }
