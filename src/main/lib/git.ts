@@ -1,4 +1,4 @@
-import { execFile, execFileSync, spawn } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { killProcTree } from './process'
@@ -89,22 +89,22 @@ function redactUrl(url: string): string {
 
 /**
  * Count how many commits HEAD is ahead of a tag.  Runs `git rev-list --count`
- * synchronously (local operation, no network).  Returns undefined if git is
+ * asynchronously (local operation, no network).  Returns undefined if git is
  * unavailable, the tag doesn't exist, or any error occurs.
  */
-export function countCommitsAhead(repoPath: string, tag: string): number | undefined {
-  try {
-    const out = execFileSync('git', ['rev-list', '--count', `${tag}..HEAD`], {
+export function countCommitsAhead(repoPath: string, tag: string): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    execFile('git', ['rev-list', '--count', `${tag}..HEAD`], {
       cwd: repoPath,
       encoding: 'utf-8',
       windowsHide: true,
-      timeout: 5000,
-    }).trim()
-    const n = parseInt(out, 10)
-    return Number.isFinite(n) ? n : undefined
-  } catch {
-    return undefined
-  }
+      timeout: 1000,
+    }, (error, stdout) => {
+      if (error) { resolve(undefined); return }
+      const n = parseInt(stdout.trim(), 10)
+      resolve(Number.isFinite(n) ? n : undefined)
+    })
+  })
 }
 
 /** Check whether a path has a .git directory or file (worktree/submodule). */

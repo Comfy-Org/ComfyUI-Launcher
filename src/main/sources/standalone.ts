@@ -682,7 +682,7 @@ export const standalone: SourcePlugin = {
     }
   },
 
-  probeInstallation(dirPath: string): Record<string, unknown> | null {
+  async probeInstallation(dirPath: string): Promise<Record<string, unknown> | null> {
     const envExists = fs.existsSync(path.join(dirPath, 'standalone-env'))
     const mainExists = fs.existsSync(path.join(dirPath, 'ComfyUI', 'main.py'))
     if (!envExists || !mainExists) return null
@@ -706,7 +706,7 @@ export const standalone: SourcePlugin = {
       const commit = readGitHead(comfyuiDir)
       if (commit) {
         const baseTag = version !== 'unknown' ? version : undefined
-        const commitsAhead = baseTag ? countCommitsAhead(comfyuiDir, baseTag) : undefined
+        const commitsAhead = baseTag ? await countCommitsAhead(comfyuiDir, baseTag) : undefined
         comfyVersion = { commit, baseTag, commitsAhead }
       }
     }

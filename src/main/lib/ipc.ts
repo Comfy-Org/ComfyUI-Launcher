@@ -631,11 +631,11 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     await installations.reorder(orderedIds)
   })
 
-  ipcMain.handle('probe-installation', (_event, dirPath: string) => {
+  ipcMain.handle('probe-installation', async (_event, dirPath: string) => {
     const results: Record<string, unknown>[] = []
     for (const source of sources) {
       if (source.probeInstallation) {
-        const data = source.probeInstallation(dirPath)
+        const data = await source.probeInstallation(dirPath)
         if (data) {
           results.push({ sourceId: source.id, sourceLabel: source.label, ...data })
         }

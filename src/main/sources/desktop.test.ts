@@ -27,41 +27,41 @@ describe('desktop.probeInstallation', () => {
     })
   }
 
-  it('returns data for a Desktop basePath (.venv, models, user, no standalone-env)', () => {
+  it('returns data for a Desktop basePath (.venv, models, user, no standalone-env)', async () => {
     const dir = '/home/test/Documents/ComfyUI'
     stubDir(dir, ['models', 'user', '.venv'])
 
-    const result = desktop.probeInstallation(dir)
+    const result = await desktop.probeInstallation(dir)
     expect(result).not.toBeNull()
     expect(result!.version).toBe('desktop')
     expect(result!.launchMode).toBe('external')
   })
 
-  it('returns null when standalone-env exists (Standalone install)', () => {
+  it('returns null when standalone-env exists (Standalone install)', async () => {
     const dir = '/home/test/installs/my-comfy'
     stubDir(dir, ['models', 'user', '.venv', 'standalone-env'])
 
-    expect(desktop.probeInstallation(dir)).toBeNull()
+    expect(await desktop.probeInstallation(dir)).toBeNull()
   })
 
-  it('returns null when .venv is missing', () => {
+  it('returns null when .venv is missing', async () => {
     const dir = '/home/test/Documents/ComfyUI'
     stubDir(dir, ['models', 'user'])
 
-    expect(desktop.probeInstallation(dir)).toBeNull()
+    expect(await desktop.probeInstallation(dir)).toBeNull()
   })
 
-  it('returns null when models directory is missing', () => {
+  it('returns null when models directory is missing', async () => {
     const dir = '/home/test/Documents/ComfyUI'
     stubDir(dir, ['user', '.venv'])
 
-    expect(desktop.probeInstallation(dir)).toBeNull()
+    expect(await desktop.probeInstallation(dir)).toBeNull()
   })
 
-  it('returns null when user directory is missing', () => {
+  it('returns null when user directory is missing', async () => {
     const dir = '/home/test/Documents/ComfyUI'
     stubDir(dir, ['models', '.venv'])
 
-    expect(desktop.probeInstallation(dir)).toBeNull()
+    expect(await desktop.probeInstallation(dir)).toBeNull()
   })
 })

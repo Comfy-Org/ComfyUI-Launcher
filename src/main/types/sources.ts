@@ -105,7 +105,7 @@ export interface SourcePlugin {
   getDetailSections(installation: InstallationRecord): Record<string, unknown>[]
   install?(installation: InstallationRecord, tools: InstallTools): Promise<void>
   postInstall?(installation: InstallationRecord, tools: PostInstallTools): Promise<void>
-  probeInstallation(dirPath: string): Record<string, unknown> | null
+  probeInstallation(dirPath: string): Record<string, unknown> | null | Promise<Record<string, unknown> | null>
   handleAction(
     actionId: string,
     installation: InstallationRecord,
