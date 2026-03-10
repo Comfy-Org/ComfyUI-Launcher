@@ -1174,12 +1174,18 @@ export const standalone: SourcePlugin = {
       const cachedRelease = releaseCache.get(COMFYUI_REPO, channel) || {}
       const fullPostHead = markers.POST_UPDATE_HEAD || null
 
-      // Build structured comfyVersion from raw data
+      // Build structured comfyVersion from raw data.
+      // For stable updates, CHECKED_OUT_TAG is the most reliable baseTag source
+      // (comes directly from the git checkout). The cache may lack baseTag if
+      // the release was fetched before the structured-version fields were added.
+      const checkedOutTag = markers.CHECKED_OUT_TAG || undefined
       const comfyVersion: ComfyVersion | undefined = fullPostHead
         ? {
           commit: fullPostHead,
-          baseTag: cachedRelease.baseTag as string | undefined,
-          commitsAhead: cachedRelease.commitsAhead as number | undefined,
+          baseTag: (cachedRelease.baseTag as string | undefined) ?? checkedOutTag,
+          commitsAhead: checkedOutTag
+            ? (cachedRelease.commitsAhead as number | undefined) ?? 0
+            : (cachedRelease.commitsAhead as number | undefined),
         }
         : undefined
       const installedTag = comfyVersion
