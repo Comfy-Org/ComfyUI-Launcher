@@ -34,6 +34,8 @@ export function formatComfyVersion(
 
   if (!baseTag) return legacyVersion || shortSha
 
+  // undefined (API comparison failed) and 0 (exactly on tag) both display as the tag.
+  // This is intentional: if we don't know how far ahead, we conservatively show the tag.
   if (!commitsAhead || commitsAhead === 0) return baseTag
 
   if (style === 'short') {
