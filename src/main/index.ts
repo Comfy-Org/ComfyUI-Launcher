@@ -471,7 +471,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   const isLocal = !url
   attachSessionDownloadHandler(comfyWindow.webContents.session)
   comfyWindow.webContents.on('dom-ready', () => {
-    const preamble = isLocal ? '' : 'window.__comfyLauncherRemote = true;\n'
+    const preamble = isLocal ? '' : 'window.__comfyDesktop2Remote = true;\n'
     comfyWindow.webContents
       .executeJavaScript(preamble + getModelDownloadContentScript())
       .catch(() => {})

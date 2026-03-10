@@ -14,9 +14,9 @@ export interface ComfyDownloadProgress {
   error?: string
 }
 
-contextBridge.exposeInMainWorld('__comfyLauncher', {
+contextBridge.exposeInMainWorld('__comfyDesktop2', {
   downloadModel: (url: string, filename: string, directory: string): Promise<boolean> => {
-    return ipcRenderer.invoke('launcher-download-model', { url, filename, directory })
+    return ipcRenderer.invoke('desktop2-download-model', { url, filename, directory })
   },
   pauseDownload: (url: string): Promise<boolean> => {
     return ipcRenderer.invoke('model-download-pause', { url })
@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('__comfyLauncher', {
   ): (() => void) => {
     const handler = (_event: IpcRendererEvent, data: unknown) =>
       callback(data as ComfyDownloadProgress)
-    ipcRenderer.on('launcher-download-progress', handler)
-    return () => ipcRenderer.removeListener('launcher-download-progress', handler)
+    ipcRenderer.on('desktop2-download-progress', handler)
+    return () => ipcRenderer.removeListener('desktop2-download-progress', handler)
   },
 })
