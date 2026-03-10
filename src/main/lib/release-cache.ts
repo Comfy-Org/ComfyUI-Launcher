@@ -162,6 +162,30 @@ export function getEffectiveInfo(
 }
 
 /**
+ * Build a cache entry from the raw release object returned by fetchLatestRelease.
+ * Shared by all callers (auto-check, manual check-update, cross-channel prefetch).
+ */
+export function buildCacheEntry(release: Record<string, unknown>): ReleaseCacheEntry {
+  const commitSha = release.commitSha as string | undefined
+  const baseTag = release.baseTag as string | undefined
+  const commitsAhead = release.commitsAhead as number | undefined
+  const cv: ComfyVersion | undefined = commitSha
+    ? { commit: commitSha, baseTag, commitsAhead }
+    : undefined
+  return {
+    checkedAt: Date.now(),
+    latestTag: release.tag_name as string,
+    releaseName: cv ? formatComfyVersion(cv, 'short') : ((release.name as string) || (release.tag_name as string)),
+    commitSha,
+    baseTag,
+    commitsAhead,
+    releaseNotes: truncateNotes(release.body as string, 4000),
+    releaseUrl: release.html_url as string,
+    publishedAt: release.published_at as string,
+  }
+}
+
+/**
  * Shared check-update action handler. Fetches the latest release info into the
  * cache and persists the per-installation installedTag.
  */
@@ -177,23 +201,7 @@ export async function checkForUpdate(
     async () => {
       const release = await fetchLatestRelease(channel)
       if (!release) return null
-      const commitSha = release.commitSha as string | undefined
-      const baseTag = release.baseTag as string | undefined
-      const commitsAhead = release.commitsAhead as number | undefined
-      const cv: ComfyVersion | undefined = commitSha
-        ? { commit: commitSha, baseTag, commitsAhead }
-        : undefined
-      return {
-        checkedAt: Date.now(),
-        latestTag: release.tag_name as string,
-        releaseName: cv ? formatComfyVersion(cv, 'short') : ((release.name as string) || (release.tag_name as string)),
-        commitSha,
-        baseTag,
-        commitsAhead,
-        releaseNotes: truncateNotes(release.body as string, 4000),
-        releaseUrl: release.html_url as string,
-        publishedAt: release.published_at as string,
-      }
+      return buildCacheEntry(release)
     },
     /* force */ true
   )

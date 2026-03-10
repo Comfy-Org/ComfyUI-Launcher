@@ -34,7 +34,7 @@ import * as i18n from './i18n'
 import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
-import { fetchLatestRelease, truncateNotes } from './comfyui-releases'
+import { fetchLatestRelease } from './comfyui-releases'
 import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot, restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState } from './snapshots'
 import type { SnapshotExportEnvelope } from './snapshots'
 import { getVariantLabel } from '../sources/standalone'
@@ -366,14 +366,7 @@ async function checkInstallationUpdates(): Promise<void> {
         releaseCache.getOrFetch(COMFYUI_REPO, channel, async () => {
           const release = await fetchLatestRelease(channel)
           if (!release) return null
-          return {
-            checkedAt: Date.now(),
-            latestTag: release.tag_name as string,
-            releaseName: (release.name as string) || (release.tag_name as string),
-            releaseNotes: truncateNotes(release.body as string, 4000),
-            releaseUrl: release.html_url as string,
-            publishedAt: release.published_at as string,
-          }
+          return releaseCache.buildCacheEntry(release)
         }, true)
       )
     )

@@ -914,14 +914,7 @@ export const standalone: SourcePlugin = {
           releaseCache.getOrFetch(COMFYUI_REPO, ch, async () => {
             const release = await fetchLatestRelease(ch)
             if (!release) return null
-            return {
-              checkedAt: Date.now(),
-              latestTag: release.tag_name as string,
-              releaseName: (release.name as string) || (release.tag_name as string),
-              releaseNotes: truncateNotes(release.body as string, 4000),
-              releaseUrl: release.html_url as string,
-              publishedAt: release.published_at as string,
-            }
+            return releaseCache.buildCacheEntry(release)
           }, true)
         )
       )
