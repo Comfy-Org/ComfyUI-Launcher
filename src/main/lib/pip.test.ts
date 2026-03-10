@@ -18,16 +18,12 @@ describe('getPipIndexArgs', () => {
     expect(extraCount).toBe(PYPI_MIRROR_URLS.length)
   })
 
-  it('always includes --index-strategy unsafe-best-match', () => {
+  it('does not include --index-strategy', () => {
     const noMirror = getPipIndexArgs()
-    const idx1 = noMirror.indexOf('--index-strategy')
-    expect(idx1).toBeGreaterThanOrEqual(0)
-    expect(noMirror[idx1 + 1]).toBe('unsafe-best-match')
+    expect(noMirror).not.toContain('--index-strategy')
 
     const withMirror = getPipIndexArgs('https://custom.mirror.example/simple/')
-    const idx2 = withMirror.indexOf('--index-strategy')
-    expect(idx2).toBeGreaterThanOrEqual(0)
-    expect(withMirror[idx2 + 1]).toBe('unsafe-best-match')
+    expect(withMirror).not.toContain('--index-strategy')
   })
 
   it('adds user mirror as --extra-index-url when provided', () => {

@@ -84,19 +84,16 @@ export const PYPI_MIRROR_URLS: string[] = [
 ]
 
 /**
- * Build `--index-url`, `--extra-index-url`, and `--index-strategy` arguments
- * for uv pip commands.
+ * Build `--index-url` and `--extra-index-url` arguments for uv pip commands.
  *
  * pypi.org is always the primary `--index-url`.  The Chinese mirrors are
  * added as `--extra-index-url`.  When a user-configured mirror is set it is
  * also added as an extra (de-duplicated against the lists above).
  *
- * We always pass `--index-strategy unsafe-best-match` so that uv queries
- * **all** indexes and picks the best available version.  Without this, uv's
- * default `first-match` strategy stops at the first index that carries the
- * package name — if that index lags behind on versions the install fails
- * even though pypi.org has the required version.  This is safe here because
- * every configured index is a public PyPI mirror (no private indexes).
+ * uv's default `first-match` strategy checks the primary index first and
+ * only falls back to extras when a package is not found there.  This keeps
+ * resolution fast for users with good connectivity to pypi.org while still
+ * providing fallback mirrors for regions where pypi.org is unreachable.
  */
 
 /** Trim whitespace and ensure a trailing slash for consistent URL comparison. */
@@ -131,7 +128,6 @@ export function getPipIndexArgs(pypiMirror?: string): string[] {
   for (const url of extras) {
     args.push('--extra-index-url', url)
   }
-  args.push('--index-strategy', 'unsafe-best-match')
   return args
 }
 
