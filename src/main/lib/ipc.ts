@@ -35,7 +35,7 @@ import { ensureModelPathsConfig } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease } from './comfyui-releases'
-import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot, restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState } from './snapshots'
+import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot, restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState, formatSnapshotVersion } from './snapshots'
 import type { SnapshotExportEnvelope } from './snapshots'
 import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
@@ -1004,9 +1004,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       createdAt: s.createdAt,
       trigger: s.trigger,
       label: s.label,
-      comfyuiVersion: (s.comfyui.commit && (s.comfyui.baseTag || s.comfyui.commitsAhead != null))
-        ? formatComfyVersion({ commit: s.comfyui.commit, baseTag: s.comfyui.baseTag, commitsAhead: s.comfyui.commitsAhead }, 'short')
-        : (s.comfyui.displayVersion || s.comfyui.ref),
+      comfyuiVersion: formatSnapshotVersion(s.comfyui, 'short'),
       nodeCount: s.customNodes.length,
       pipPackageCount: Object.keys(s.pipPackages).length,
     }))
@@ -1020,6 +1018,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         createdAt: newest.createdAt,
         trigger: newest.trigger,
         label: newest.label,
+        comfyuiVersion: formatSnapshotVersion(newest.comfyui, 'detail'),
         comfyui: newest.comfyui,
         pythonVersion: newest.pythonVersion,
         updateChannel: newest.updateChannel,

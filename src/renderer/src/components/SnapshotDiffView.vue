@@ -8,9 +8,8 @@ defineProps<{
 
 const { t } = useI18n()
 
-function formatVersion(v: { ref: string; commit: string | null; displayVersion?: string }): string {
-  if (v.displayVersion) return v.displayVersion
-  return v.commit ? `${v.ref} (${v.commit.slice(0, 7)})` : v.ref
+function formatVersion(v: { formattedVersion: string }): string {
+  return v.formattedVersion
 }
 
 function formatNodeVersion(node: { version?: string; commit?: string }): string {

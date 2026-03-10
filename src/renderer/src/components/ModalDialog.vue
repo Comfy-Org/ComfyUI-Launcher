@@ -201,7 +201,7 @@ onUnmounted(() => {
             <div class="sp-grid">
               <div class="sp-field">
                 <span class="sp-label">{{ $t('snapshots.comfyuiVersion') }}</span>
-                <span class="sp-value">{{ state.snapshotPreview.comfyui.displayVersion || state.snapshotPreview.comfyui.ref }}</span>
+                <span class="sp-value">{{ state.snapshotPreview.comfyuiVersion }}</span>
               </div>
               <div class="sp-field">
                 <span class="sp-label">{{ $t('snapshots.variant') }}</span>

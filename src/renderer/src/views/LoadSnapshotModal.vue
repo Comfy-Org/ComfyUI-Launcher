@@ -446,7 +446,7 @@ defineExpose({ open })
               <div class="ls-grid">
                 <div class="ls-field">
                   <span class="ls-label">{{ $t('snapshots.comfyuiVersion') }}</span>
-                  <span class="ls-value">{{ preview.newestSnapshot.comfyui.displayVersion || preview.newestSnapshot.comfyui.ref }}</span>
+                  <span class="ls-value">{{ preview.newestSnapshot.comfyuiVersion }}</span>
                 </div>
                 <div class="ls-field">
                   <span class="ls-label">{{ $t('snapshots.variant') }}</span>

@@ -510,7 +510,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
               <div class="inspector-grid">
                 <div class="inspector-field">
                   <span class="inspector-field-label">{{ t('snapshots.comfyuiVersion') }}</span>
-                  <span class="inspector-field-value">{{ detail.comfyui.displayVersion || detail.comfyui.ref }}{{ detail.comfyui.commit ? ` (${detail.comfyui.commit.slice(0, 7)})` : '' }}</span>
+                  <span class="inspector-field-value">{{ detail.comfyuiVersion }}</span>
                 </div>
                 <div class="inspector-field">
                   <span class="inspector-field-label">{{ t('snapshots.releaseTag') }}</span>

@@ -415,6 +415,7 @@ export interface SnapshotDetailData {
   createdAt: string
   trigger: string
   label: string | null
+  comfyuiVersion: string
   comfyui: {
     ref: string
     commit: string | null
@@ -439,8 +440,8 @@ export interface SnapshotDiffNodeChange {
 export interface SnapshotDiffResult {
   comfyuiChanged: boolean
   comfyui?: {
-    from: { ref: string; commit: string | null; displayVersion?: string }
-    to: { ref: string; commit: string | null; displayVersion?: string }
+    from: { ref: string; commit: string | null; displayVersion?: string; formattedVersion: string }
+    to: { ref: string; commit: string | null; displayVersion?: string; formattedVersion: string }
   }
   updateChannelChanged: boolean
   updateChannel?: { from: string; to: string }
