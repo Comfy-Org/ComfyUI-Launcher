@@ -181,7 +181,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Confirm -->
-      <div v-else-if="state.type === 'confirm'" class="modal-box" :class="{ 'modal-box-wide': state.snapshotPreview || state.loading }">
+      <div v-else-if="state.type === 'confirm'" class="modal-box" :class="{ 'modal-box-wide': state.snapshotPreview || state.loading || state.variantLoading || state.variantCards.length > 0 }">
         <div class="modal-title">{{ state.title }}</div>
         <div class="modal-body">
           <div

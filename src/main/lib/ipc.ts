@@ -566,7 +566,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   // Installations
   ipcMain.handle('get-installations', async () => {
-    const list = await installations.list()
+    const list = (await installations.list()).filter((i) => i.status !== 'installing')
 
     // Ensure a primary is always set when promotable local installs exist
     const currentPrimary = settings.get('primaryInstallId')

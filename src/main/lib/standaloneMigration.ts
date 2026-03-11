@@ -239,6 +239,7 @@ export async function migrateToStandaloneFromSnapshot(
     installPath: destPath,
     pendingSnapshotRestore: stagedSnapshot.path,
     ...instData,
+    status: 'installing',
     seen: false,
   })
   ensureDefaultPrimary(entry)
