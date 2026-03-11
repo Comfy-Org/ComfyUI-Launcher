@@ -852,6 +852,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 /* Install wizard */
 .wizard-step { display: flex; flex-direction: column; gap: 12px; }
 .wizard-loading { font-size: 14px; color: var(--text-muted); padding: 12px 0; }
+.wizard-error { font-size: 14px; color: var(--danger); padding: 12px 0; }
 
 /* Source cards (Step 1) */
 .source-card {

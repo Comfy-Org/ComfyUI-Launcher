@@ -33,6 +33,7 @@ const detectedGpu = ref('')
 const saveDisabled = ref(true)
 const sourcesLoading = ref(false)
 const initializing = ref(false)
+const sourceError = ref('')
 const currentStep = ref(1)
 
 // Per-field state
@@ -219,6 +220,7 @@ async function open(): Promise<void> {
   diskSpace.value = null
   diskSpaceLoading.value = false
   pathIssues.value = []
+  sourceError.value = ''
   initializing.value = true
 
   try {
@@ -280,6 +282,7 @@ async function selectSource(source: Source): Promise<void> {
   fieldErrors.value.clear()
   textFieldValues.value.clear()
   saveDisabled.value = true
+  sourceError.value = ''
 
   // Initialize text fields with defaults
   for (const f of source.fields) {
@@ -390,6 +393,8 @@ async function loadFieldOptions(fieldIndex: number): Promise<void> {
     }
     if (errorFieldId) {
       fieldErrors.value.set(errorFieldId, errMsg)
+    } else if (field.renderAs === 'cards' || field.type === 'select') {
+      sourceError.value = errMsg
     } else {
       fieldErrors.value.set(field.id, errMsg)
     }
@@ -768,6 +773,10 @@ defineExpose({ open })
             <!-- For local sources: configuration fields -->
             <template v-else>
               <div class="detected-hardware">{{ detectedGpu }}</div>
+
+              <div v-if="sourceError" class="wizard-error">
+                {{ sourceError }}
+              </div>
 
               <div v-if="currentSource" id="source-fields">
                 <div
