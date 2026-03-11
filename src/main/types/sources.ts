@@ -101,6 +101,7 @@ export interface SourcePlugin {
   buildInstallation(selections: Record<string, FieldOption | undefined>): Record<string, unknown>
   getListPreview?(installation: InstallationRecord): string | null
   getLaunchCommand(installation: InstallationRecord): LaunchCommand | null
+  getMachineSeedUserDir?(installation: InstallationRecord): string | null
   getListActions(installation: InstallationRecord): Record<string, unknown>[]
   getDetailSections(installation: InstallationRecord): Record<string, unknown>[]
   install?(installation: InstallationRecord, tools: InstallTools): Promise<void>

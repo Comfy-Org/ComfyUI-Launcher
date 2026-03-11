@@ -4,15 +4,19 @@ import fs from 'fs'
 import { execFile } from 'child_process'
 import type { ChildProcess } from 'child_process'
 import todesktop from '@todesktop/runtime'
+import sources from './sources/index'
 import * as ipc from './lib/ipc'
 import { getAppVersion } from './lib/ipc'
+import * as installations from './installations'
 import * as updater from './lib/updater'
 import * as settings from './settings'
 import * as i18n from './lib/i18n'
+import { isMachineScope } from './lib/machine-install'
 import { configDir, migrateXdgPaths } from './lib/paths'
 import { waitForPort } from './lib/process'
 import { isQuitInProgress, setQuitReason } from './lib/quit-state'
 import type { InstallationRecord } from './installations'
+import type { SourcePlugin } from './types/sources'
 import type { DatadogForwardedError } from '../types/ipc'
 import {
   attachSessionDownloadHandler,
@@ -29,6 +33,154 @@ todesktop.init({ autoUpdater: false })
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x256.png')
 const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x32.png')
 const APP_VERSION = getAppVersion()
+
+type CliCommand =
+  | { kind: 'none' }
+  | { kind: 'machine-list' }
+  | { kind: 'machine-track'; installPath: string; name?: string; sourceId?: string }
+  | { kind: 'machine-promote'; installationId: string; name?: string }
+  | { kind: 'machine-untrack'; installationId: string }
+
+function getArgValue(argv: string[], flag: string): string | undefined {
+  const exactIndex = argv.indexOf(flag)
+  if (exactIndex >= 0) return argv[exactIndex + 1]
+  const prefix = `${flag}=`
+  const match = argv.find((arg) => arg.startsWith(prefix))
+  return match ? match.slice(prefix.length) : undefined
+}
+
+function parseCliCommand(argv: string[]): CliCommand {
+  const machineTrack = getArgValue(argv, '--machine-track')
+  if (machineTrack) {
+    return {
+      kind: 'machine-track',
+      installPath: machineTrack,
+      name: getArgValue(argv, '--name'),
+      sourceId: getArgValue(argv, '--source-id'),
+    }
+  }
+
+  const machinePromote = getArgValue(argv, '--machine-promote')
+  if (machinePromote) {
+    return {
+      kind: 'machine-promote',
+      installationId: machinePromote,
+      name: getArgValue(argv, '--name'),
+    }
+  }
+
+  const machineUntrack = getArgValue(argv, '--machine-untrack')
+  if (machineUntrack) {
+    return {
+      kind: 'machine-untrack',
+      installationId: machineUntrack,
+    }
+  }
+
+  if (argv.includes('--machine-list')) {
+    return { kind: 'machine-list' }
+  }
+
+  return { kind: 'none' }
+}
+
+function resolveMachineProbe(installPath: string, explicitSourceId?: string): { source: SourcePlugin; data: Record<string, unknown> } {
+  const candidates = explicitSourceId
+    ? sources.filter((source) => source.id === explicitSourceId)
+    : sources.filter((source) => !source.hidden)
+
+  const matches = candidates
+    .map((source) => ({ source, data: source.probeInstallation(installPath) }))
+    .filter((entry): entry is { source: SourcePlugin; data: Record<string, unknown> } => entry.data != null)
+
+  if (matches.length === 0) {
+    if (explicitSourceId) {
+      throw new Error(`No installation recognized at "${installPath}" for source "${explicitSourceId}".`)
+    }
+    throw new Error(`No supported installation was recognized at "${installPath}".`)
+  }
+
+  if (!explicitSourceId && matches.length > 1) {
+    const sourceIds = matches.map((entry) => entry.source.id).join(', ')
+    throw new Error(`Installation at "${installPath}" is ambiguous. Re-run with --source-id. Candidates: ${sourceIds}`)
+  }
+
+  return matches[0]!
+}
+
+function defaultTrackedName(installPath: string, source: SourcePlugin): string {
+  const basename = path.basename(path.resolve(installPath))
+  return basename && basename !== path.sep ? basename : source.label
+}
+
+async function runCliCommand(command: CliCommand): Promise<number> {
+  if (command.kind === 'none') return 0
+
+  if (command.kind === 'machine-list') {
+    const machineInstallations = await installations.list('machine')
+    for (const inst of machineInstallations) {
+      console.log(`${inst.id}\t${inst.name}\t${inst.sourceId}\t${inst.installPath}`)
+    }
+    return 0
+  }
+
+  if (command.kind === 'machine-untrack') {
+    const inst = await installations.get(command.installationId)
+    if (!inst || !isMachineScope(inst.scope)) {
+      throw new Error(`Machine installation "${command.installationId}" was not found.`)
+    }
+    await installations.remove(inst.id, 'machine')
+    console.log(`Removed machine installation ${inst.id}`)
+    return 0
+  }
+
+  if (command.kind === 'machine-promote') {
+    const inst = await installations.get(command.installationId)
+    if (!inst) throw new Error(`Installation "${command.installationId}" was not found.`)
+    if (isMachineScope(inst.scope)) {
+      console.log(`Installation ${inst.id} is already machine-scoped.`)
+      return 0
+    }
+    const all = await installations.list()
+    const name = installations.uniqueName(command.name || inst.name, all)
+    const { id: _id, createdAt: _createdAt, scope: _scope, ...rest } = inst
+    const entry = await installations.add({
+      ...rest,
+      name,
+      status: inst.status || 'installed',
+      seen: false,
+      sourceLabel: inst.sourceLabel,
+    }, 'machine')
+    console.log(`Promoted ${inst.id} -> ${entry.id}`)
+    return 0
+  }
+
+  const installPath = path.resolve(command.installPath)
+  if (!fs.existsSync(installPath)) {
+    throw new Error(`Installation path does not exist: ${installPath}`)
+  }
+
+  const duplicate = (await installations.list()).find((inst) => inst.installPath && path.resolve(inst.installPath) === installPath)
+  if (duplicate) {
+    throw new Error(`That directory is already tracked by "${duplicate.name}" (${duplicate.id}).`)
+  }
+
+  const { source, data } = resolveMachineProbe(installPath, command.sourceId)
+  const all = await installations.list()
+  const name = installations.uniqueName(command.name || defaultTrackedName(installPath, source), all)
+  const entry = await installations.add({
+    ...data,
+    name,
+    sourceId: source.id,
+    sourceLabel: source.label,
+    installPath,
+    status: 'installed',
+    seen: false,
+  }, 'machine')
+
+  console.log(`Tracked machine installation ${entry.id} (${entry.name})`)
+  return 0
+}
 
 interface WindowBounds {
   x: number
@@ -571,7 +723,20 @@ ipcMain.handle('focus-comfy-window', (_event, installationId: string) => {
   return false
 })
 
-if (app.isPackaged && !app.requestSingleInstanceLock()) {
+const cliCommand = parseCliCommand(process.argv.slice(1))
+const shouldRunCliCommand = cliCommand.kind !== 'none'
+
+if (shouldRunCliCommand) {
+  app.whenReady().then(async () => {
+    try {
+      const exitCode = await runCliCommand(cliCommand)
+      app.exit(exitCode)
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err))
+      app.exit(1)
+    }
+  })
+} else if (app.isPackaged && !app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   if (app.isPackaged) {

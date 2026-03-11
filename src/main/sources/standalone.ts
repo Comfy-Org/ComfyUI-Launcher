@@ -392,6 +392,10 @@ export const standalone: SourcePlugin = {
     }
   },
 
+  getMachineSeedUserDir(installation: InstallationRecord): string | null {
+    return path.join(installation.installPath, 'ComfyUI', 'user')
+  },
+
   getListActions(installation: InstallationRecord): Record<string, unknown>[] {
     const installed = installation.status === 'installed'
     return [
@@ -441,7 +445,7 @@ export const standalone: SourcePlugin = {
     ]
 
     // Snapshot tab — minimal section so the tab appears; SnapshotTab.vue handles rendering
-    if (installed && installation.installPath) {
+    if (installed && installation.installPath && installation.scope !== 'machine') {
       sections.push({
         tab: 'snapshots',
         title: t('standalone.snapshotHistory'),

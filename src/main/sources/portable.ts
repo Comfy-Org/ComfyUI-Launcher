@@ -112,6 +112,12 @@ export const portable: SourcePlugin = {
     }
   },
 
+  getMachineSeedUserDir(installation: InstallationRecord): string | null {
+    const root = findPortableRoot(installation.installPath)
+    if (!root) return null
+    return path.join(root, 'ComfyUI', 'user')
+  },
+
   getListActions(installation: InstallationRecord): Record<string, unknown>[] {
     const installed = installation.status === 'installed'
     return [

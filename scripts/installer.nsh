@@ -1,5 +1,28 @@
 !include 'MUI2.nsh'
+!include 'FileFunc.nsh'
 !include 'LogicLib.nsh'
+
+; Optional installer command-line overrides:
+;   /ALLUSERS    force a per-machine install
+;   /CURRENTUSER force a per-user install
+;
+; This keeps us on a single ToDesktop Windows build while still allowing
+; OEM / IT provisioning flows to request machine installs explicitly.
+!macro customInstallMode
+  ${GetParameters} $R0
+
+  ClearErrors
+  ${GetOptions} $R0 "/ALLUSERS" $R1
+  ${IfNot} ${Errors}
+    StrCpy $isForceMachineInstall 1
+  ${Else}
+    ClearErrors
+    ${GetOptions} $R0 "/CURRENTUSER" $R1
+    ${IfNot} ${Errors}
+      StrCpy $isForceCurrentInstall 1
+    ${EndIf}
+  ${EndIf}
+!macroend
 
 # Custom finish page: launch the app as the current user (not elevated)
 !macro customFinishPage

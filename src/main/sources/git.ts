@@ -133,6 +133,12 @@ export const gitSource: SourcePlugin = {
     }
   },
 
+  getMachineSeedUserDir(installation: InstallationRecord): string | null {
+    const mainPy = findMainPy(installation.installPath)
+    if (!mainPy) return null
+    return path.join(path.dirname(mainPy), 'user')
+  },
+
   getListPreview(installation: InstallationRecord): string | null {
     const repo = installation.repo as string | undefined
     const branch = installation.branch as string | undefined
