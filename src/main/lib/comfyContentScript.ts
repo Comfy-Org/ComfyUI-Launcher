@@ -775,7 +775,7 @@ export function getModelDownloadContentScript(): string {
     hidePanel();
   }, true);
 
-  window.__comfyLauncher.onDownloadProgress(function(data) {
+  window.__comfyDesktop2.onDownloadProgress(function(data) {
     updateDlCard(data);
   });
 })();`
