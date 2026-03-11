@@ -28,7 +28,8 @@
     "node_modules/7zip-bin/**/*"
   ],
   "windows": {
-    "icon": "./assets/Comfy_Logo_x256.png"
+    "icon": "./assets/Comfy_Logo_x256.png",
+    "nsisInclude": "./scripts/installer.nsh"
   },
   "mac": {
     "icon": "./assets/Comfy_Logo_x512.png",

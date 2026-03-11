@@ -30,6 +30,7 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  include: scripts/installer.nsh
 mac:
   target:
     - dmg
