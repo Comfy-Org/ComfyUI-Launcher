@@ -96,7 +96,7 @@ function switchView(view: TabView): void {
 
 function openFeedback(): void {
   emitTelemetryAction('launcher.feedback.opened')
-  window.api.openExternal(buildSupportUrl())
+  window.api.openExternal(buildSupportUrl(appVersion.value || undefined))
 }
 
 // --- Modal handlers ---
