@@ -469,8 +469,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   void (async () => {
     try {
       await Promise.allSettled([
-        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Launcher-Environments/releases?per_page=30'),
-        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Launcher-Environments/releases/latest'),
+        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Standalone-Environments/releases?per_page=30'),
+        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Standalone-Environments/releases/latest'),
         fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI/releases?per_page=30'),
       ])
     } catch {}
@@ -1278,7 +1278,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         { label: i18n.t('settings.platform'), value: `${process.platform} (${process.arch})`, readonly: true },
       ],
       actions: [
-        { id: 'github', label: 'GitHub', url: 'https://github.com/Comfy-Org/ComfyUI-Launcher' },
+        { id: 'github', label: 'GitHub', url: 'https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta' },
       ],
     }
     return [...appSections, ...sourceSections, aboutSection]

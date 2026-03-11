@@ -6,8 +6,8 @@
     "name": "Jedrzej Kosinski",
     "email": "kosinkadink@users.noreply.github.com"
   },
-  "repository": "github:Comfy-Org/ComfyUI-Launcher",
-  "homepage": "https://github.com/Comfy-Org/ComfyUI-Launcher",
+  "repository": "github:Comfy-Org/ComfyUI-Desktop-2.0-Beta",
+  "homepage": "https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta",
   "engines": {
     "node": ">=22",
     "pnpm": ">=10"

@@ -21,7 +21,7 @@ asarUnpack:
 publish:
   provider: github
   owner: Comfy-Org
-  repo: ComfyUI-Launcher
+  repo: ComfyUI-Desktop-2.0-Beta
 artifactName: ComfyUI-Desktop-2.0-${version}-${os}-${arch}.${ext}
 win:
   target: nsis

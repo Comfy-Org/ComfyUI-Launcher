@@ -33,7 +33,7 @@ import type {
 } from '../types/sources'
 
 const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
-const RELEASE_REPO = 'Comfy-Org/ComfyUI-Launcher-Environments'
+const RELEASE_REPO = 'Comfy-Org/ComfyUI-Standalone-Environments'
 const ENVS_DIR = 'envs'
 const DEFAULT_ENV = 'default'
 const ENV_METHOD = 'copy'
