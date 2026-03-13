@@ -14,7 +14,6 @@ export interface Installation {
   name: string
   sourceLabel: string
   sourceCategory: string
-  scope?: 'user' | 'machine'
   version?: string
   statusTag?: { style: string; label: string }
   seen?: boolean

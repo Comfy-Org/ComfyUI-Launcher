@@ -11,7 +11,6 @@ import { formatComfyVersion } from './version'
 import type { ComfyVersion } from './version'
 import * as settings from '../settings'
 import { defaultInstallDir } from './paths'
-import { ensureMachineUserDir, isMachineScope, resolveMachineUserDir } from './machine-install'
 import { download } from './download'
 import { createCache } from './cache'
 import { extractNested as extract } from './extract'
@@ -48,7 +47,6 @@ const MARKER_FILE = '.comfyui-desktop-2'
 const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
 const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000
 const IGNORE_FILES = new Set([MARKER_FILE, '.DS_Store', 'Thumbs.db', 'desktop.ini'])
-const MACHINE_ACTION_ALLOWLIST = new Set(['launch', 'open-folder', 'set-primary-install', 'pin-install', 'unpin-install'])
 
 
 function isEffectivelyEmptyInstallDir(dirPath: string): boolean {
@@ -124,33 +122,6 @@ function ensureDefaultPrimary(entry: InstallationRecord): void {
   if (isPromotableLocal(entry.sourceId) && !settings.get('primaryInstallId')) {
     settings.set('primaryInstallId', entry.id)
   }
-}
-
-function filterMachineActions(sections: Record<string, unknown>[]): Record<string, unknown>[] {
-  return sections
-    .filter((section) => (section.tab as string | undefined) !== 'snapshots')
-    .map((section) => {
-      const next = { ...section }
-      const fields = next.fields as Record<string, unknown>[] | undefined
-      if (fields) {
-        next.fields = fields.map((field) => ({ ...field, editable: false }))
-      }
-      const actions = next.actions as Record<string, unknown>[] | undefined
-      if (actions) {
-        next.actions = actions.filter((action) => MACHINE_ACTION_ALLOWLIST.has(action.id as string))
-      }
-      return next
-    })
-    .filter((section) => {
-      const actions = section.actions as Record<string, unknown>[] | undefined
-      if (!actions) return true
-      return actions.length > 0 || section.pinBottom !== true
-    })
-}
-
-function hasCliArg(args: string[] | undefined, flag: string): boolean {
-  if (!args) return false
-  return args.some((arg) => arg === flag || arg.startsWith(`${flag}=`))
 }
 
 interface SessionInfo {
@@ -454,7 +425,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const all = await installations.list()
       let swept = false
       for (const inst of all) {
-        if (isMachineScope(inst.scope)) continue
         const source = sourceMap[inst.sourceId]
         if (!source || source.skipInstall) continue
         if (!inst.installPath) continue
@@ -658,7 +628,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
 
   ipcMain.handle('reorder-installations', async (_event, orderedIds: string[]) => {
-    await installations.reorder(orderedIds.filter((id) => !id.startsWith('machine-inst-')))
+    await installations.reorder(orderedIds)
   })
 
   ipcMain.handle('probe-installation', async (_event, dirPath: string) => {
@@ -854,19 +824,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     if (!inst) return []
     const source = sourceMap[inst.sourceId]
     if (!source) return []
-    const actions = source.getListActions ? source.getListActions(inst) : []
-    return isMachineScope(inst.scope)
-      ? actions.filter((action) => MACHINE_ACTION_ALLOWLIST.has(action.id as string))
-      : actions
+    return source.getListActions ? source.getListActions(inst) : []
   })
 
   // Detail — validate editable fields dynamically from source schema
   ipcMain.handle('update-installation', async (_event, installationId: string, data: Record<string, unknown>) => {
     const inst = await installations.get(installationId)
     if (!inst) return { ok: false, message: 'Installation not found.' }
-    if (isMachineScope(inst.scope)) {
-      return { ok: false, message: 'Machine-scoped installations are read-only.' }
-    }
     const source = sourceMap[inst.sourceId]
     if (!source) return { ok: false, message: i18n.t('errors.unknownSource') }
     const sections = source.getDetailSections(inst)
@@ -914,8 +878,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         },
       ]
     }
-    const sections = source.getDetailSections(inst)
-    return isMachineScope(inst.scope) ? filterMachineActions(sections) : sections
+    return source.getDetailSections(inst)
   })
 
   // Snapshots
@@ -1428,9 +1391,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const maybeInst = await installations.get(installationId)
     if (!maybeInst) return { ok: false, message: 'Installation not found.' }
     const inst = maybeInst
-    if (isMachineScope(inst.scope) && !MACHINE_ACTION_ALLOWLIST.has(actionId)) {
-      return { ok: false, message: 'Machine-scoped installations are read-only.' }
-    }
     if (REQUIRES_STOPPED.has(actionId) && _runningSessions.has(installationId)) {
       return { ok: false, message: i18n.t('errors.stopRequired'), running: true }
     }
@@ -1850,12 +1810,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         return { ok: false, message: i18n.t('errors.noEnvFound') }
       }
       const launchCmd = launchCmdRaw
-      if (isMachineScope(inst.scope) && launchCmd.args && source.getMachineSeedUserDir && !hasCliArg(launchCmd.args, '--user-directory')) {
-        const userDir = resolveMachineUserDir(inst.id)
-        const seedDir = source.getMachineSeedUserDir(inst)
-        ensureMachineUserDir(seedDir, userDir)
-        launchCmd.args.push('--user-directory', userDir)
-      }
       // Inject shared paths if this installation uses them
       if ((inst.useSharedPaths as boolean | undefined) !== false && launchCmd.args) {
         const modelsDirs = settings.get('modelsDirs') as string[] | undefined
@@ -2147,7 +2101,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
 
       // Capture snapshot in background after successful launch
-      if (inst.sourceId === 'standalone' && !isMachineScope(inst.scope)) {
+      if (inst.sourceId === 'standalone') {
         captureSnapshotIfChanged(inst.installPath, inst, 'boot')
           .then(async ({ saved, filename }) => {
             if (saved) {
