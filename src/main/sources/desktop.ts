@@ -32,6 +32,7 @@ export const desktop: SourcePlugin = {
     return {
       version: 'desktop',
       launchMode: 'external',
+      useSharedPaths: false,
     }
   },
 
@@ -137,6 +138,7 @@ export const desktop: SourcePlugin = {
     return {
       version: 'desktop',
       launchMode: 'external',
+      useSharedPaths: false,
       desktopExePath: findDesktopExecutable() || undefined,
     }
   },
