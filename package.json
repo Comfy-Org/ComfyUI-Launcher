@@ -7,6 +7,7 @@
     "email": "kosinkadink@users.noreply.github.com"
   },
   "repository": "github:Comfy-Org/ComfyUI-Desktop-2.0-Beta",
+  "license": "MIT",
   "homepage": "https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta",
   "engines": {
     "node": ">=22",
