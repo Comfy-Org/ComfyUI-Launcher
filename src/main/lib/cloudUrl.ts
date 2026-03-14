@@ -1,7 +1,7 @@
 const CLOUD_DISTRIBUTION_HOST = 'cloud.comfy.org'
 
 const DEFAULT_UTM_PARAMS: Record<string, string> = {
-  utm_source: 'comfyui_launcher',
+  utm_source: 'comfyui_desktop_2',
   utm_medium: 'app_feature',
 }
 

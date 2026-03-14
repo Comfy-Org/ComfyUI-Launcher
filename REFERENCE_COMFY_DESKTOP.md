@@ -1,12 +1,12 @@
-# Reference: Comfy-Org/desktop Architecture
+# Reference: Legacy Desktop (Comfy-Org/desktop) Architecture
 
-> **This document is a reference analysis of [Comfy-Org/desktop](https://github.com/Comfy-Org/desktop), the official ComfyUI desktop app.**
-> It does NOT describe how ComfyUI-Launcher works. It exists solely as prior art for design decisions.
-> For ComfyUI-Launcher's own architecture, see [DESIGN_PROCESS.md](./DESIGN_PROCESS.md).
+> **This document is a reference analysis of [Comfy-Org/desktop](https://github.com/Comfy-Org/desktop), the Legacy Desktop app.**
+> It does NOT describe how ComfyUI Desktop 2.0 works. It exists solely as prior art for design decisions.
+> For ComfyUI Desktop 2.0's own architecture, see [DESIGN_PROCESS.md](./DESIGN_PROCESS.md).
 
 ## Auto-Update System
 
-Comfy desktop uses **ToDesktop** (a commercial Electron distribution service) instead of electron-updater or direct GitHub Releases.
+Legacy Desktop uses **ToDesktop** (a commercial Electron distribution service) instead of electron-updater or direct GitHub Releases.
 
 ### Initialization (`src/main-process/comfyDesktopApp.ts`)
 
@@ -49,9 +49,9 @@ This loads a dedicated `desktop-update` page while packages install — separate
 }
 ```
 
-## Comparison with ComfyUI-Launcher
+## Comparison with Desktop 2.0
 
-| Feature | Comfy Desktop | ComfyUI-Launcher |
+| Feature | Legacy Desktop | Desktop 2.0 |
 |---|---|---|
 | Update source | `updater.comfy.org` (proprietary) | GitHub Releases API |
 | Check frequency | Auto every 60 min | On startup + manual |
@@ -62,7 +62,7 @@ This loads a dedicated `desktop-update` page while packages install — separate
 
 ## Installation Architecture
 
-Comfy desktop uses `uv` for Python/venv management:
+Legacy Desktop uses `uv` for Python/venv management:
 
 ```typescript
 // src/install/installationManager.ts
@@ -75,8 +75,8 @@ await this.virtualEnvironment.install(); // uv pip install
 - Requirements installed from `requirements.txt`
 - Separate from the Electron app update — handles ComfyUI core + manager packages
 
-## Key Takeaways for ComfyUI-Launcher
+## Key Takeaways for Desktop 2.0
 
-1. **Separating app updates from ComfyUI updates** — Comfy desktop treats these as independent concerns. ComfyUI-Launcher should do the same (app update via GitHub Releases, ComfyUI source update via git pull or re-download).
+1. **Separating app updates from ComfyUI updates** — Legacy Desktop treats these as independent concerns. Desktop 2.0 should do the same (app update via GitHub Releases, ComfyUI source update via git pull or re-download).
 2. **User control over auto-update** — Both apps let users disable auto-update checks.
-3. **Package update UI** — Comfy desktop shows a dedicated page during package updates, keeping the user informed. Worth considering for ComfyUI-Launcher's install/update progress views.
+3. **Package update UI** — Legacy Desktop shows a dedicated page during package updates, keeping the user informed. Worth considering for Desktop 2.0's install/update progress views.

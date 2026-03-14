@@ -101,7 +101,7 @@ export function download(
     }
 
     const request = net.request(url)
-    request.setHeader('User-Agent', 'ComfyUI-Launcher')
+    request.setHeader('User-Agent', 'ComfyUI-Desktop-2')
     if (resumeFrom > 0 && existingMeta?.etag) {
       request.setHeader('Range', `bytes=${resumeFrom}-`)
       request.setHeader('If-Range', existingMeta.etag)

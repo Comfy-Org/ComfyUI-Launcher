@@ -1,8 +1,8 @@
-# ComfyUI-Launcher
+# ComfyUI Desktop 2.0
 
-[![Latest Release](https://img.shields.io/github/v/release/Comfy-Org/ComfyUI-Launcher?style=for-the-badge&display_name=tag)](https://github.com/Comfy-Org/ComfyUI-Launcher/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/Comfy-Org/ComfyUI-Launcher/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/Comfy-Org/ComfyUI-Launcher/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/Comfy-Org/ComfyUI-Launcher?style=for-the-badge)](https://github.com/Comfy-Org/ComfyUI-Launcher/blob/main/LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/Comfy-Org/ComfyUI-Desktop-2.0-Beta?style=for-the-badge&display_name=tag)](https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/Comfy-Org/ComfyUI-Desktop-2.0-Beta/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/Comfy-Org/ComfyUI-Desktop-2.0-Beta?style=for-the-badge)](https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta/blob/main/LICENSE)
 
 An Electron app for managing multiple ComfyUI installations.
 
@@ -32,20 +32,20 @@ Run the NSIS installer (`.exe`) and launch from the Start Menu or desktop shortc
 
 ### macOS
 
-Open the `.dmg`, drag ComfyUI Launcher to Applications, and launch from there.
+Open the `.dmg`, drag ComfyUI Desktop 2.0 to Applications, and launch from there.
 
 ### Linux
 
 **`.deb` (Debian/Ubuntu):**
 ```bash
-sudo apt install ./ComfyUI-Launcher-*.deb
+sudo apt install ./ComfyUI-Desktop-2.0-*.deb
 ```
 Then launch from your application menu.
 
 **AppImage:**
 ```bash
-chmod +x ComfyUI-Launcher-*.AppImage
-./ComfyUI-Launcher-*.AppImage --no-sandbox
+chmod +x ComfyUI-Desktop-2.0-*.AppImage
+./ComfyUI-Desktop-2.0-*.AppImage --no-sandbox
 ```
 
 ## Development
@@ -102,8 +102,8 @@ sources/         # Installation source plugins
 ### Setup
 
 ```bash
-git clone https://github.com/Comfy-Org/ComfyUI-Launcher.git
-cd ComfyUI-Launcher
+git clone https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta.git
+cd ComfyUI-Desktop-2.0-Beta
 pnpm install
 ```
 
@@ -175,21 +175,21 @@ The workflow enforces `tag == package.json version`. Once the build finishes, go
 
 On **Windows** and **macOS**, all app data lives under the standard Electron `userData` path.
 
-> **Dev vs. production path difference:** Electron derives the `userData` directory name from the app's name. In development (`pnpm run dev`), it uses the `name` field from `package.json` (`comfyui-launcher`), while packaged builds use the `productName` from `electron-builder.yml` (`ComfyUI Launcher`). This means the two environments use separate data directories:
+> **Dev vs. production path difference:** Electron derives the `userData` directory name from the app's name. In development (`pnpm run dev`), it uses the `name` field from `package.json` (`comfyui-desktop-2`), while packaged builds use the `productName` from `electron-builder.yml` (`ComfyUI Desktop 2.0`). This means the two environments use separate data directories:
 >
 > | | Windows | macOS | Linux |
 > |---|---|---|---|
-> | **Dev** | `%APPDATA%\comfyui-launcher` | `~/Library/Application Support/comfyui-launcher` | `~/.config/comfyui-launcher` |
-> | **Production** | `%APPDATA%\ComfyUI Launcher` | `~/Library/Application Support/ComfyUI Launcher` | `~/.config/ComfyUI Launcher` |
+> | **Dev** | `%APPDATA%\comfyui-desktop-2` | `~/Library/Application Support/comfyui-desktop-2` | `~/.config/comfyui-desktop-2` |
+> | **Production** | `%APPDATA%\ComfyUI Desktop 2.0` | `~/Library/Application Support/ComfyUI Desktop 2.0` | `~/.config/ComfyUI Desktop 2.0` |
 
 On **Linux**, the app follows the [XDG Base Directory Specification](https://wiki.archlinux.org/title/XDG_Base_Directory):
 
 | Purpose | Linux Path |
 |---------|------------|
-| Config (`settings.json`) | `$XDG_CONFIG_HOME/comfyui-launcher` (default `~/.config/comfyui-launcher`) |
-| Data (`installations.json`) | `$XDG_DATA_HOME/comfyui-launcher` (default `~/.local/share/comfyui-launcher`) |
-| Cache (`download-cache/`) | `$XDG_CACHE_HOME/comfyui-launcher` (default `~/.cache/comfyui-launcher`) |
-| State (`port-locks/`) | `$XDG_STATE_HOME/comfyui-launcher` (default `~/.local/state/comfyui-launcher`) |
+| Config (`settings.json`) | `$XDG_CONFIG_HOME/comfyui-desktop-2` (default `~/.config/comfyui-desktop-2`) |
+| Data (`installations.json`) | `$XDG_DATA_HOME/comfyui-desktop-2` (default `~/.local/share/comfyui-desktop-2`) |
+| Cache (`download-cache/`) | `$XDG_CACHE_HOME/comfyui-desktop-2` (default `~/.cache/comfyui-desktop-2`) |
+| State (`port-locks/`) | `$XDG_STATE_HOME/comfyui-desktop-2` (default `~/.local/state/comfyui-desktop-2`) |
 | Default install dir | `~/ComfyUI-Installs` |
 
-Existing files at the old `~/.config/comfyui-launcher` location are automatically migrated on first launch.
+Existing files at the old `~/.config/comfyui-desktop-2` location are automatically migrated on first launch.

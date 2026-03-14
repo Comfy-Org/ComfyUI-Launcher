@@ -7,12 +7,12 @@
     "!electron-builder.yml",
     "!out/**/*.map"
   ],
-  "appId": "org.comfy.comfyui-launcher",
+  "appId": "org.comfy.comfyui-desktop-2",
   "icon": "./assets/Comfy_Logo_x512.png",
   "packageManager": "pnpm",
   "packageJson": {
     "extends": "package.json",
-    "productName": "ComfyUI Launcher",
+    "productName": "ComfyUI Desktop 2.0",
     "devDependencies": {
       "electron": "40.4.1",
       "electron-builder": null
@@ -28,7 +28,8 @@
     "node_modules/7zip-bin/**/*"
   ],
   "windows": {
-    "icon": "./assets/Comfy_Logo_x256.png"
+    "icon": "./assets/Comfy_Logo_x256.png",
+    "nsisInclude": "./scripts/installer.nsh"
   },
   "mac": {
     "icon": "./assets/Comfy_Logo_x512.png",

@@ -35,10 +35,10 @@ interface PendingDownload {
 
 const attachedSessions = new WeakSet<Electron.Session>()
 const pendingDownloads = new Map<string, PendingDownload>()
-let launcherWindow: BrowserWindow | null = null
+let mainWindow: BrowserWindow | null = null
 
-export function setLauncherWindow(win: BrowserWindow | null): void {
-  launcherWindow = win
+export function setMainWindow(win: BrowserWindow | null): void {
+  mainWindow = win
 }
 
 function getModelsBaseDir(): string {
@@ -46,7 +46,7 @@ function getModelsBaseDir(): string {
   return modelsDirs?.[0] || settings.defaults.modelsDirs[0]!
 }
 
-const TEMP_DIR_NAME = '.launcher-downloads'
+const TEMP_DIR_NAME = '.desktop2-downloads'
 
 function getTempDir(): string {
   return path.join(getModelsBaseDir(), TEMP_DIR_NAME)
@@ -74,19 +74,19 @@ function broadcastProgress(progress: DownloadProgress): void {
   if (pending) {
     pending.lastProgress = progress
     if (!pending.window.isDestroyed()) {
-      pending.window.webContents.send('launcher-download-progress', progress)
+      pending.window.webContents.send('desktop2-download-progress', progress)
     }
     for (const sub of pending.subscriberWindows) {
       if (!sub.isDestroyed()) {
-        sub.webContents.send('launcher-download-progress', progress)
+        sub.webContents.send('desktop2-download-progress', progress)
       } else {
         pending.subscriberWindows.delete(sub)
       }
     }
   }
   // Also send to the Launcher window
-  if (launcherWindow && !launcherWindow.isDestroyed()) {
-    launcherWindow.webContents.send('model-download-progress', progress)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('model-download-progress', progress)
   }
 }
 
@@ -178,7 +178,7 @@ export async function startModelDownload(
       existing.subscriberWindows.add(win)
     }
     if (!win.isDestroyed()) {
-      win.webContents.send('launcher-download-progress', existing.lastProgress)
+      win.webContents.send('desktop2-download-progress', existing.lastProgress)
     }
     return true
   }
@@ -347,7 +347,7 @@ export function attachSessionDownloadHandler(sess: Electron.Session): void {
 
       const url = item.getURL()
       const filename = path.basename(savePath)
-      const fallbackWindow = win || launcherWindow || BrowserWindow.getAllWindows()[0]
+      const fallbackWindow = win || mainWindow || BrowserWindow.getAllWindows()[0]
       const general: PendingDownload = {
         url,
         filename,
@@ -449,7 +449,7 @@ export async function cleanupTempDownloads(): Promise<void> {
 
 export function registerDownloadIpc(): void {
   ipcMain.handle(
-    'launcher-download-model',
+    'desktop2-download-model',
     (event, { url, filename, directory }: { url: string; filename: string; directory: string }) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win) return false

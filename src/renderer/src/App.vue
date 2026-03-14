@@ -96,7 +96,7 @@ function switchView(view: TabView): void {
 
 function openFeedback(): void {
   emitTelemetryAction('launcher.feedback.opened')
-  window.api.openExternal(buildSupportUrl())
+  window.api.openExternal(buildSupportUrl(appVersion.value || undefined))
 }
 
 // --- Modal handlers ---
@@ -270,7 +270,7 @@ onMounted(async () => {
   <div class="app-layout">
     <!-- Sidebar -->
     <nav class="sidebar">
-      <div class="sidebar-brand">ComfyUI Launcher</div>
+      <div class="sidebar-brand">Desktop 2.0</div>
       <div class="sidebar-nav">
         <button
           v-for="item in sidebarItems"

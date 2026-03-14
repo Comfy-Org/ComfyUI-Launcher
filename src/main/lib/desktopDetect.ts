@@ -122,22 +122,22 @@ export async function pipFreezeDirect(pythonPath: string): Promise<Record<string
 }
 
 /**
- * Build a Snapshot from the Desktop installation's on-disk state.
- * This enables Desktop → Standalone migration via the snapshot restore pipeline.
+ * Build a Snapshot from the Legacy Desktop installation's on-disk state.
+ * This enables Legacy Desktop → Standalone migration via the snapshot restore pipeline.
  */
 export async function captureDesktopSnapshot(info: DesktopInstallInfo): Promise<Snapshot> {
-  // Desktop's basePath IS the ComfyUI dir (models/, user/, custom_nodes/ at top level)
+  // Legacy Desktop's basePath IS the ComfyUI dir (models/, user/, custom_nodes/ at top level)
   const customNodes = await scanCustomNodes(info.basePath)
 
-  // Attempt pip freeze against Desktop's venv
+  // Attempt pip freeze against Legacy Desktop's venv
   let pipPackages: Record<string, string> = {}
   const venvPython = getDesktopPythonPath(info.basePath)
   if (venvPython) {
     try {
-      // Use pip directly (no uv in Desktop installs)
+      // Use pip directly (no uv in Legacy Desktop installs)
       pipPackages = await pipFreezeDirect(venvPython)
     } catch {
-      // Desktop venv may not be accessible — nodes will get deps via post-install scripts
+      // Legacy Desktop venv may not be accessible — nodes will get deps via post-install scripts
     }
   }
 
@@ -145,9 +145,9 @@ export async function captureDesktopSnapshot(info: DesktopInstallInfo): Promise<
     version: 1,
     createdAt: new Date().toISOString(),
     trigger: 'manual',
-    label: 'Desktop migration',
+    label: 'Legacy Desktop migration',
     comfyui: {
-      ref: 'Desktop',
+      ref: 'Legacy Desktop',
       commit: null,
       releaseTag: '',
       variant: '',
@@ -159,18 +159,18 @@ export async function captureDesktopSnapshot(info: DesktopInstallInfo): Promise<
 }
 
 /**
- * Capture a Desktop snapshot, wrap it in an export envelope, and write it to a
- * temp file.  Returns the envelope (for preview) and the staged file path.
+ * Capture a Legacy Desktop snapshot, wrap it in an export envelope, and write
+ * it to a temp file.  Returns the envelope (for preview) and the staged file path.
  */
 export async function stageDesktopSnapshot(
   info: DesktopInstallInfo
 ): Promise<{ envelope: SnapshotExportEnvelope; stagedFile: string }> {
   const snapshot = await captureDesktopSnapshot(info)
-  const envelope = buildExportEnvelope('Desktop Migration', [
+  const envelope = buildExportEnvelope('Legacy Desktop Migration', [
     { filename: 'desktop-migration.json', snapshot },
   ])
 
-  const stagingDir = path.join(os.tmpdir(), 'comfyui-launcher-snapshots')
+  const stagingDir = path.join(os.tmpdir(), 'comfyui-desktop-2-snapshots')
   await fs.promises.mkdir(stagingDir, { recursive: true })
   const stagedFile = path.join(stagingDir, `desktop-migrate-${Date.now()}.json`)
   await fs.promises.writeFile(stagedFile, JSON.stringify(envelope, null, 2))

@@ -4,7 +4,7 @@
  *
  * The script intercepts model downloads triggered by the "Missing Models"
  * dialog and routes them through the Launcher's download manager (exposed
- * as window.__comfyLauncher by comfyPreload.ts) so that model files land
+ * as window.__comfyDesktop2 by comfyPreload.ts) so that model files land
  * in the correct shared-models subdirectory.
  *
  * It supports both the legacy dialog (PrimeVue Listbox with class
@@ -13,8 +13,8 @@
 export function getModelDownloadContentScript(): string {
   return `(function() {
   'use strict';
-  if (window.__comfyLauncherInjected || typeof window.__comfyLauncher === 'undefined') return;
-  window.__comfyLauncherInjected = true;
+  if (window.__comfyDesktop2Injected || typeof window.__comfyDesktop2 === 'undefined') return;
+  window.__comfyDesktop2Injected = true;
 
   // Inject scrollbar styles for the download card list
   var dlStyle = document.createElement('style');
@@ -100,7 +100,7 @@ export function getModelDownloadContentScript(): string {
   }
 
   // Only observe the Missing Models dialog and intercept downloads for local sessions
-  if (!window.__comfyLauncherRemote) {
+  if (!window.__comfyDesktop2Remote) {
     if (document.body) {
       startObserver();
     } else {
@@ -111,17 +111,17 @@ export function getModelDownloadContentScript(): string {
   // ---- Override document.createElement to intercept <a>.click() ----
   // For remote/cloud sessions model downloads should not be captured (no local models dir).
   var origCreate = document.createElement.bind(document);
-  if (!window.__comfyLauncherRemote) {
+  if (!window.__comfyDesktop2Remote) {
     document.createElement = function(tag, options) {
       var el = origCreate(tag, options);
       if (typeof tag === 'string' && tag.toLowerCase() === 'a' && Object.keys(modelCache).length > 0) {
         var origClick = el.click;
         el.click = function() {
-          if (this.download && this.href && window.__comfyLauncher) {
+          if (this.download && this.href && window.__comfyDesktop2) {
             var directory = modelCache[this.href];
             if (directory) {
               var cleanName = this.download.split('?')[0];
-              window.__comfyLauncher.downloadModel(
+              window.__comfyDesktop2.downloadModel(
                 this.href,
                 cleanName,
                 directory
@@ -245,7 +245,7 @@ export function getModelDownloadContentScript(): string {
       var spans = dlContainer.querySelectorAll('span');
       for (var s = 0; s < spans.length; s++) {
         var sp = spans[s];
-        if (sp.textContent === 'ComfyUI Launcher') sp.style.color = theme.textSecondary;
+        if (sp.textContent === 'ComfyUI Desktop 2.0') sp.style.color = theme.textSecondary;
       }
       var closeButtons = dlContainer.querySelectorAll('button[title="Close"]');
       for (var c = 0; c < closeButtons.length; c++) {
@@ -480,7 +480,7 @@ export function getModelDownloadContentScript(): string {
     header.style.cssText = 'display:flex;align-items:center;padding:6px 10px;background:' + theme.panelBg + ';border:1px solid ' + theme.borderColor + ';border-bottom:none;border-radius:8px 8px 0 0;cursor:grab;user-select:none;';
 
     var brandLabel = origCreate('span');
-    brandLabel.textContent = 'ComfyUI Launcher';
+    brandLabel.textContent = 'ComfyUI Desktop 2.0';
     brandLabel.style.cssText = 'flex:1;color:' + theme.textSecondary + ';font-size:11px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;';
 
     var closeBtn = origCreate('button');
@@ -654,13 +654,13 @@ export function getModelDownloadContentScript(): string {
     controls.style.cssText = 'display:none;gap:6px;margin-top:6px;';
 
     var pauseBtn = makeBtn('\\u23f8 Pause', 'Pause download', function() {
-      window.__comfyLauncher.pauseDownload(data.url);
+      window.__comfyDesktop2.pauseDownload(data.url);
     });
     var resumeBtn = makeBtn('\\u25b6 Resume', 'Resume download', function() {
-      window.__comfyLauncher.resumeDownload(data.url);
+      window.__comfyDesktop2.resumeDownload(data.url);
     });
     var cancelBtn = makeBtn('\\u00d7 Cancel', 'Cancel download', function() {
-      window.__comfyLauncher.cancelDownload(data.url);
+      window.__comfyDesktop2.cancelDownload(data.url);
     });
 
     controls.appendChild(pauseBtn);
@@ -775,7 +775,7 @@ export function getModelDownloadContentScript(): string {
     hidePanel();
   }, true);
 
-  window.__comfyLauncher.onDownloadProgress(function(data) {
+  window.__comfyDesktop2.onDownloadProgress(function(data) {
     updateDlCard(data);
   });
 })();`

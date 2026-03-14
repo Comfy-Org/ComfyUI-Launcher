@@ -1,5 +1,5 @@
-appId: org.comfy.comfyui-launcher
-productName: ComfyUI Launcher
+appId: org.comfy.comfyui-desktop-2
+productName: ComfyUI Desktop 2.0
 directories:
   buildResources: resources
 files:
@@ -21,8 +21,8 @@ asarUnpack:
 publish:
   provider: github
   owner: Comfy-Org
-  repo: ComfyUI-Launcher
-artifactName: ComfyUI-Launcher-${version}-${os}-${arch}.${ext}
+  repo: ComfyUI-Desktop-2.0-Beta
+artifactName: ComfyUI-Desktop-2.0-${version}-${os}-${arch}.${ext}
 win:
   target: nsis
   icon: assets/Comfy_Logo_x256.png
@@ -30,6 +30,7 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  include: scripts/installer.nsh
 mac:
   target:
     - dmg
@@ -42,3 +43,9 @@ linux:
     - deb
   icon: assets/Comfy_Logo_x256.png
   category: Development
+  extraResources:
+    - from: resources/apparmor-profile
+      to: apparmor-profile
+deb:
+  afterInstall: scripts/after-install.sh
+  afterRemove: scripts/after-remove.sh

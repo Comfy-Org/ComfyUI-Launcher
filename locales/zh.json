@@ -212,7 +212,7 @@
     "themeNord": "Nord",
     "themeArc": "Arc",
     "themeGithub": "GitHub",
-    "onLauncherClose": "关闭启动器时",
+    "onAppClose": "关闭启动器时",
     "closeTray": "最小化到托盘（保持实例运行）",
     "closeQuit": "停止所有实例并退出",
     "closeQuitTitle": "退出启动器",
@@ -247,7 +247,7 @@
     "retry": "重试",
     "updateCheck": "检查更新",
     "updateError": "更新错误",
-    "upToDate": "您正在使用最新版本的 ComfyUI Launcher。"
+    "upToDate": "您正在使用最新版本的 ComfyUI Desktop 2.0。"
   },
 
   "modal": {
@@ -258,7 +258,7 @@
   },
 
   "tray": {
-    "showLauncher": "显示启动器",
+    "showApp": "显示启动器",
     "quit": "退出"
   },
 
@@ -469,7 +469,7 @@
     "cannotOpenDir": "无法打开目录：{error}",
     "launchCancelled": "启动已取消。",
     "cannotConnect": "无法连接到 {url}。请确保 ComfyUI 正在该地址运行。",
-    "portConflictLauncher": "端口 {port} 已被 \"{name}\" 占用，该实例由另一个 ComfyUI Launcher 启动。请先停止它或在启动参数中更改端口。",
+    "portConflictLauncher": "端口 {port} 已被 \"{name}\" 占用，该实例由另一个 ComfyUI Desktop 2.0 启动。请先停止它或在启动参数中更改端口。",
     "portConflictComfy": "端口 {port} 已被 {process} 占用，看起来是一个 ComfyUI 实例。请先停止它或在启动参数中更改端口。",
     "portConflictOther": "端口 {port} 已被 {process} 占用。请在启动参数中更改端口以避免冲突。",
     "portConflictUsePort": "改用端口 {port}",

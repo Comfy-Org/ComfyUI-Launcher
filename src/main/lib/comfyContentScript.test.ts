@@ -15,7 +15,7 @@ describe('getModelDownloadContentScript', () => {
   })
 
   it('contains the guard against double injection', () => {
-    expect(script).toContain('__comfyLauncherInjected')
+    expect(script).toContain('__comfyDesktop2Injected')
   })
 
   it('contains the BADGE_TO_DIR mapping with expected directory names', () => {
@@ -37,10 +37,10 @@ describe('getModelDownloadContentScript', () => {
     expect(script).toContain('__comfy-dl-tab')
   })
 
-  it('guards model download interception behind __comfyLauncherRemote check', () => {
-    expect(script).toContain('__comfyLauncherRemote')
+  it('guards model download interception behind __comfyDesktop2Remote check', () => {
+    expect(script).toContain('__comfyDesktop2Remote')
     // The createElement override should be skipped for remote sessions
-    expect(script).toContain('if (!window.__comfyLauncherRemote)')
+    expect(script).toContain('if (!window.__comfyDesktop2Remote)')
   })
 
   it('keeps download progress toast active regardless of remote flag', () => {

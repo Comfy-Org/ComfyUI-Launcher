@@ -626,7 +626,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .modal-message a { color: var(--accent); text-decoration: underline; cursor: pointer; }
 .modal-body { max-height: 50vh; overflow-y: auto; margin-bottom: 20px; }
 .modal-body .modal-message { max-height: none; overflow-y: visible; margin-bottom: 8px; }
-.modal-box-wide { max-width: 720px; }
+.modal-box-wide { max-width: 720px; width: 720px; }
 .modal-box-wide .modal-body { max-height: 70vh; }
 .modal-details { margin-bottom: 0; margin-top: 12px; }
 .modal-detail-group { margin-bottom: 6px; }
@@ -760,6 +760,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .dashboard-welcome-title { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
 .dashboard-welcome-desc { font-size: 16px; color: var(--text-muted); margin-bottom: 28px; max-width: 400px; }
 .dashboard-cta-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 24px; font-size: 14px; }
+.migration-banner-progress { max-width: 400px; margin-bottom: 20px; }
 .dashboard-telemetry-notice {
   margin-top: 28px;
   max-width: 460px;
@@ -852,6 +853,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 /* Install wizard */
 .wizard-step { display: flex; flex-direction: column; gap: 12px; }
 .wizard-loading { font-size: 14px; color: var(--text-muted); padding: 12px 0; }
+.wizard-error { font-size: 14px; color: var(--danger); padding: 12px 0; }
 
 /* Source cards (Step 1) */
 .source-card {

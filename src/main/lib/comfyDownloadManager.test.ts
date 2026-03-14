@@ -6,7 +6,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: (name: string) => {
       if (name === 'home') return os.homedir()
-      return path.join(os.tmpdir(), 'comfyui-launcher-test')
+      return path.join(os.tmpdir(), 'comfyui-desktop-2-test')
     },
   },
   BrowserWindow: class {},

@@ -4,7 +4,7 @@ import fs from 'fs'
 
 const isLinux = process.platform === "linux";
 
-const APP_NAME = "comfyui-launcher";
+const APP_NAME = "comfyui-desktop-2";
 
 /**
  * XDG-compliant directory helpers for Linux.
@@ -77,11 +77,11 @@ function migrateIfNeeded(oldPath: string, newPath: string): void {
 
 /**
  * Run all XDG migrations on Linux. Call once at startup.
- * Moves files from the old ~/.config/comfyui-launcher location to proper XDG dirs.
+ * Moves files from the old ~/.config/comfyui-desktop-2 location to proper XDG dirs.
  */
 export function migrateXdgPaths(): void {
   if (!isLinux) return;
-  const oldBase = app.getPath("userData"); // ~/.config/comfyui-launcher
+  const oldBase = app.getPath("userData"); // ~/.config/comfyui-desktop-2
 
   // Cache: download-cache → XDG_CACHE_HOME
   migrateIfNeeded(

@@ -60,7 +60,14 @@ export async function fetchLatestRelease(
   const releases = await fetchJSON(
     'https://api.github.com/repos/Comfy-Org/ComfyUI/releases?per_page=30'
   ) as GitHubRelease[]
-  return (releases.find((r) => !r.draft && !r.prerelease) as Record<string, unknown> | undefined) ?? null
+  const stable = releases.find((r) => !r.draft && !r.prerelease)
+  if (!stable) return null
+  // Populate structured version fields so buildCacheEntry stores them.
+  // A stable release IS the tag, so commitsAhead is always 0.
+  const release = stable as unknown as Record<string, unknown>
+  release.baseTag = stable.tag_name
+  release.commitsAhead = 0
+  return release
 }
 
 export function truncateNotes(text: string, maxLen: number): string {

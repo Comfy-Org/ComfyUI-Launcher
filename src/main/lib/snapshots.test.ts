@@ -63,7 +63,7 @@ function makeEntry(overrides?: Partial<Snapshot>): SnapshotEntry {
 
 function makeEnvelope(snapshots?: Snapshot[]): SnapshotExportEnvelope {
   return {
-    type: 'comfyui-launcher-snapshot',
+    type: 'comfyui-desktop-2-snapshot',
     version: 1,
     exportedAt: '2026-03-02T12:00:00.000Z',
     installationName: 'Test Install',
@@ -76,7 +76,7 @@ function makeEnvelope(snapshots?: Snapshot[]): SnapshotExportEnvelope {
 describe('validateExportEnvelope', () => {
   it('accepts a valid envelope', () => {
     const result = validateExportEnvelope(makeEnvelope())
-    expect(result.type).toBe('comfyui-launcher-snapshot')
+    expect(result.type).toBe('comfyui-desktop-2-snapshot')
     expect(result.snapshots).toHaveLength(1)
   })
 
@@ -97,13 +97,13 @@ describe('validateExportEnvelope', () => {
   })
 
   it('rejects wrong type field', () => {
-    expect(() => validateExportEnvelope({ ...makeEnvelope(), type: 'wrong' })).toThrow('not a ComfyUI Launcher snapshot export')
+    expect(() => validateExportEnvelope({ ...makeEnvelope(), type: 'wrong' })).toThrow('not a ComfyUI Desktop 2.0 snapshot export')
   })
 
   it('rejects missing type field', () => {
     const env = makeEnvelope()
     const { type: _, ...rest } = env
-    expect(() => validateExportEnvelope(rest)).toThrow('not a ComfyUI Launcher snapshot export')
+    expect(() => validateExportEnvelope(rest)).toThrow('not a ComfyUI Desktop 2.0 snapshot export')
   })
 
   it('rejects wrong version', () => {
@@ -257,7 +257,7 @@ describe('buildExportEnvelope', () => {
   it('wraps a single snapshot', () => {
     const entry = makeEntry()
     const result = buildExportEnvelope('My Install', [entry])
-    expect(result.type).toBe('comfyui-launcher-snapshot')
+    expect(result.type).toBe('comfyui-desktop-2-snapshot')
     expect(result.version).toBe(1)
     expect(result.installationName).toBe('My Install')
     expect(result.snapshots).toHaveLength(1)

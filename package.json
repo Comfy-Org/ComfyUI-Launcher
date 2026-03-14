@@ -1,13 +1,13 @@
 {
-  "name": "comfyui-launcher",
-  "version": "0.3.6",
-  "description": "ComfyUI Launcher",
+  "name": "comfyui-desktop-2",
+  "version": "0.4.1",
+  "description": "ComfyUI Desktop 2.0",
   "author": {
     "name": "Jedrzej Kosinski",
     "email": "kosinkadink@users.noreply.github.com"
   },
-  "repository": "github:Comfy-Org/ComfyUI-Launcher",
-  "homepage": "https://github.com/Comfy-Org/ComfyUI-Launcher",
+  "repository": "github:Comfy-Org/ComfyUI-Desktop-2.0-Beta",
+  "homepage": "https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta",
   "engines": {
     "node": ">=22",
     "pnpm": ">=10"
@@ -74,7 +74,7 @@
     "playwright": "^1.58.2",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.1.8",
-    "tar": "^7.5.9",
+    "tar": "^7.5.11",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.0",
     "vite": "^7.3.1",

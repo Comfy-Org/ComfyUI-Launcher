@@ -43,7 +43,7 @@ import { REQUIRES_STOPPED } from '../../types/ipc'
 import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
 import type { LaunchCmd } from './process'
 
-const MARKER_FILE = '.comfyui-launcher'
+const MARKER_FILE = '.comfyui-desktop-2'
 const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
 const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000
 const IGNORE_FILES = new Set([MARKER_FILE, '.DS_Store', 'Thumbs.db', 'desktop.ini'])
@@ -80,7 +80,7 @@ function openPath(targetPath: string): Promise<string> {
   return shell.openPath(targetPath)
 }
 
-export function getLauncherVersion(): string {
+export function getAppVersion(): string {
   let version = app.getVersion()
   if (!app.isPackaged) {
     try {
@@ -253,7 +253,7 @@ async function performCopy(
 }
 
 function createSessionPath(): string {
-  return path.join(os.tmpdir(), `comfyui-launcher-${Date.now()}`)
+  return path.join(os.tmpdir(), `comfyui-desktop-2-${Date.now()}`)
 }
 
 function checkRebootMarker(sessionPath: string): boolean {
@@ -406,7 +406,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     const desktopInfo = detectDesktopInstall()
     if (desktopInfo) {
       installations.ensureExists('desktop', {
-        name: 'ComfyUI Desktop',
+        name: 'ComfyUI Legacy Desktop',
         sourceId: 'desktop',
         installPath: desktopInfo.basePath,
         version: 'desktop',
@@ -469,8 +469,8 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   void (async () => {
     try {
       await Promise.allSettled([
-        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Launcher-Environments/releases?per_page=30'),
-        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Launcher-Environments/releases/latest'),
+        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Standalone-Environments/releases?per_page=30'),
+        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Standalone-Environments/releases/latest'),
         fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI/releases?per_page=30'),
       ])
     } catch {}
@@ -481,7 +481,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   setInterval(() => checkInstallationUpdates(), UPDATE_CHECK_INTERVAL)
 
   // App version
-  ipcMain.handle('get-app-version', () => getLauncherVersion())
+  ipcMain.handle('get-app-version', () => getAppVersion())
 
   // Sources
   ipcMain.handle('get-sources', () =>
@@ -566,7 +566,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   // Installations
   ipcMain.handle('get-installations', async () => {
-    const list = await installations.list()
+    const list = (await installations.list()).filter((i) => i.status !== 'installing')
 
     // Ensure a primary is always set when promotable local installs exist
     const currentPrimary = settings.get('primaryInstallId')
@@ -1195,7 +1195,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
     // Copy snapshot file to a temp location so it survives if the user
     // moves/deletes the original during the (potentially long) installation.
-    const stagingDir = path.join(os.tmpdir(), 'comfyui-launcher-snapshots')
+    const stagingDir = path.join(os.tmpdir(), 'comfyui-desktop-2-snapshots')
     await fs.promises.mkdir(stagingDir, { recursive: true })
     const stagedFile = path.join(stagingDir, `pending-${Date.now()}.json`)
     await fs.promises.copyFile(filePath, stagedFile)
@@ -1232,7 +1232,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               { value: 'github', label: i18n.t('settings.themeGithub') },
             ] },
           { id: 'autoUpdate', label: i18n.t('settings.autoUpdate'), type: 'boolean', value: s.autoUpdate !== false },
-          { id: 'onLauncherClose', label: i18n.t('settings.onLauncherClose'), type: 'select', value: s.onLauncherClose || settings.defaults.onLauncherClose,
+          { id: 'onAppClose', label: i18n.t('settings.onAppClose'), type: 'select', value: s.onAppClose || settings.defaults.onAppClose,
             options: [
               { value: 'quit', label: i18n.t('settings.closeQuit') },
               { value: 'tray', label: i18n.t('settings.closeTray') },
@@ -1270,7 +1270,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
       return []
     })
-    const version = getLauncherVersion()
+    const version = getAppVersion()
     const aboutSection = {
       title: i18n.t('settings.about'),
       fields: [
@@ -1278,7 +1278,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         { label: i18n.t('settings.platform'), value: `${process.platform} (${process.arch})`, readonly: true },
       ],
       actions: [
-        { id: 'github', label: 'GitHub', url: 'https://github.com/Comfy-Org/ComfyUI-Launcher' },
+        { id: 'github', label: 'GitHub', url: 'https://github.com/Comfy-Org/ComfyUI-Desktop-2.0-Beta' },
       ],
     }
     return [...appSections, ...sourceSections, aboutSection]
@@ -1438,7 +1438,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       let markerContent: string | null
       try { markerContent = fs.readFileSync(markerPath, 'utf-8').trim() } catch { markerContent = null }
       if (!markerContent) {
-        return { ok: false, message: 'Safety check failed: this directory was not created by ComfyUI Launcher. Use Untrack to remove it from the list, then delete the files manually.' }
+        return { ok: false, message: 'Safety check failed: this directory was not created by ComfyUI Desktop 2.0. Use Untrack to remove it from the list, then delete the files manually.' }
       }
       if (markerContent !== inst.id && markerContent !== 'tracked') {
         return { ok: false, message: 'Safety check failed: the marker file does not match this installation. Use Untrack instead.' }

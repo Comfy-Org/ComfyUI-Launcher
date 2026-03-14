@@ -146,8 +146,8 @@ function getRestrictedPaths(): { path: string; issue: PathIssue }[] {
     const localAppData = process.env.LOCALAPPDATA
     if (localAppData) {
       // Updater cache directories (wiped on auto-update)
-      add('insideAppBundle', path.join(localAppData, 'comfyui-launcher-updater'))
-      add('insideAppBundle', path.join(localAppData, '@comfyorgcomfyui-launcher-updater'))
+      add('insideAppBundle', path.join(localAppData, 'comfyui-desktop-2-updater'))
+      add('insideAppBundle', path.join(localAppData, '@comfyorgcomfyui-desktop-2-updater'))
     }
 
     // OneDrive (personal, business, and generic env vars)

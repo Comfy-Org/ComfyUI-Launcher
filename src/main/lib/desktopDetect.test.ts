@@ -172,8 +172,8 @@ describe('captureDesktopSnapshot', () => {
 
     expect(snapshot.version).toBe(1)
     expect(snapshot.trigger).toBe('manual')
-    expect(snapshot.label).toBe('Desktop migration')
-    expect(snapshot.comfyui.ref).toBe('Desktop')
+    expect(snapshot.label).toBe('Legacy Desktop migration')
+    expect(snapshot.comfyui.ref).toBe('Legacy Desktop')
     expect(snapshot.customNodes).toEqual([])
     expect(snapshot.pipPackages).toEqual({})
   })

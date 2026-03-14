@@ -3,7 +3,7 @@ import os from 'os'
 import path from 'path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'comfyui-launcher-settings-'))
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'comfyui-desktop-2-settings-'))
 const homePath = path.join(tmpRoot, 'home')
 const userDataPath = path.join(tmpRoot, 'user-data')
 const xdgConfigHome = path.join(tmpRoot, 'xdg-config')
@@ -21,11 +21,11 @@ fs.mkdirSync(xdgCacheHome, { recursive: true })
 let settings: {
   set: (key: string, value: unknown) => void
   get: (key: string) => unknown
-  defaults: { onLauncherClose: 'tray' | 'quit' }
+  defaults: { onAppClose: 'tray' | 'quit' }
 }
 
 const settingsPath = process.platform === 'linux'
-  ? path.join(xdgConfigHome, 'comfyui-launcher', 'settings.json')
+  ? path.join(xdgConfigHome, 'comfyui-desktop-2', 'settings.json')
   : path.join(userDataPath, 'settings.json')
 
 function readPersistedSettings(): Record<string, unknown> {
@@ -57,14 +57,14 @@ afterAll(() => {
 
 describe('settings unset/default semantics', () => {
   it('treats undefined as unset and falls back to default', () => {
-    settings.set('onLauncherClose', 'quit')
-    expect(settings.get('onLauncherClose')).toBe('quit')
+    settings.set('onAppClose', 'quit')
+    expect(settings.get('onAppClose')).toBe('quit')
 
-    settings.set('onLauncherClose', undefined)
+    settings.set('onAppClose', undefined)
 
-    expect(settings.get('onLauncherClose')).toBe(settings.defaults.onLauncherClose)
+    expect(settings.get('onAppClose')).toBe(settings.defaults.onAppClose)
     const persisted = readPersistedSettings()
-    expect(persisted).not.toHaveProperty('onLauncherClose')
+    expect(persisted).not.toHaveProperty('onAppClose')
   })
 
   it('normalizes legacy null values to unset on write', () => {

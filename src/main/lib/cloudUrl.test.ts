@@ -11,7 +11,7 @@ describe('withCloudDistributionUtm', () => {
     const url = new URL(result)
 
     expect(url.hostname).toBe('cloud.comfy.org')
-    expect(url.searchParams.get('utm_source')).toBe('comfyui_launcher')
+    expect(url.searchParams.get('utm_source')).toBe('comfyui_desktop_2')
     expect(url.searchParams.get('utm_medium')).toBe('app_feature')
     expect(url.searchParams.has('utm_campaign')).toBe(false)
   })

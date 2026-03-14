@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import type { ChildProcess } from 'child_process'
 import todesktop from '@todesktop/runtime'
 import * as ipc from './lib/ipc'
-import { getLauncherVersion } from './lib/ipc'
+import { getAppVersion } from './lib/ipc'
 import * as updater from './lib/updater'
 import * as settings from './settings'
 import * as i18n from './lib/i18n'
@@ -19,7 +19,7 @@ import {
   cleanupTempDownloads,
   detachWindowDownloads,
   registerDownloadIpc,
-  setLauncherWindow,
+  setMainWindow,
 } from './lib/comfyDownloadManager'
 import { getModelDownloadContentScript } from './lib/comfyContentScript'
 import { shouldOpenInPopup } from './lib/allowedPopups'
@@ -28,7 +28,7 @@ todesktop.init({ autoUpdater: false })
 
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x256.png')
 const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'Comfy_Logo_x32.png')
-const LAUNCHER_VERSION = getLauncherVersion()
+const APP_VERSION = getAppVersion()
 
 interface WindowBounds {
   x: number
@@ -131,7 +131,7 @@ function attachContextMenu(comfyWindow: BrowserWindow): void {
   })
 }
 
-let launcherWindow: BrowserWindow | null = null
+let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 const comfyWindows = new Map<string, BrowserWindow>()
 
@@ -173,9 +173,9 @@ function serializeUnknownError(error: unknown): { message: string; stack?: strin
 }
 
 function forwardDatadogError(payload: DatadogForwardedError): void {
-  if (!launcherWindow || launcherWindow.isDestroyed()) return
+  if (!mainWindow || mainWindow.isDestroyed()) return
   try {
-    launcherWindow.webContents.send('dd-error', payload)
+    mainWindow.webContents.send('dd-error', payload)
   } catch {}
 }
 
@@ -223,14 +223,14 @@ function registerProcessErrorHandlers(): void {
   })
 }
 
-function createLauncherWindow(): void {
-  launcherWindow = new BrowserWindow({
+function createMainWindow(): void {
+  mainWindow = new BrowserWindow({
     width: 1470,
     height: 880,
     minWidth: 650,
     minHeight: 500,
     icon: APP_ICON,
-    title: `ComfyUI Launcher v${LAUNCHER_VERSION}`,
+    title: `ComfyUI Desktop 2.0 v${APP_VERSION}`,
     backgroundColor: '#202020',
     show: false,
     webPreferences: {
@@ -239,24 +239,24 @@ function createLauncherWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
     },
   })
-  launcherWindow.once('ready-to-show', () => {
-    launcherWindow?.show()
-    if (process.platform === 'win32') launcherWindow?.moveTop()
-    launcherWindow?.focus()
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show()
+    if (process.platform === 'win32') mainWindow?.moveTop()
+    mainWindow?.focus()
     createTray()
   })
 
-  attachContextMenu(launcherWindow)
-  launcherWindow.setMenuBarVisibility(false)
-  launcherWindow.webContents.on('did-finish-load', () => {
-    if (launcherWindow && !launcherWindow.isDestroyed()) {
-      launcherWindow.webContents.setZoomLevel(0)
+  attachContextMenu(mainWindow)
+  mainWindow.setMenuBarVisibility(false)
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.setZoomLevel(0)
     }
   })
-  launcherWindow.webContents.on('render-process-gone', (_event, details) => {
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
     forwardDatadogError({
-      source: 'launcher-render-process-gone',
-      message: `Launcher renderer process exited (${details.reason})`,
+      source: 'main-render-process-gone',
+      message: `Main renderer process exited (${details.reason})`,
       level: 'critical',
       context: {
         origin: 'main-process',
@@ -267,17 +267,17 @@ function createLauncherWindow(): void {
   })
 
   function notifyZoomLevel(): void {
-    if (launcherWindow && !launcherWindow.isDestroyed()) {
-      const level = launcherWindow.webContents.getZoomLevel()
-      launcherWindow.webContents.send('zoom-changed', level)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const level = mainWindow.webContents.getZoomLevel()
+      mainWindow.webContents.send('zoom-changed', level)
     }
   }
 
   // Pinch-to-zoom
-  launcherWindow.webContents.on('zoom-changed', () => notifyZoomLevel())
+  mainWindow.webContents.on('zoom-changed', () => notifyZoomLevel())
 
   // Keyboard zoom (Ctrl/Cmd + =/-/0)
-  launcherWindow.webContents.on('before-input-event', (_e, input) => {
+  mainWindow.webContents.on('before-input-event', (_e, input) => {
     if (input.type !== 'keyDown') return
     const mod = input.control || input.meta
     if (mod && (input.key === '=' || input.key === '+' || input.key === '-' || input.key === '0')) {
@@ -285,26 +285,26 @@ function createLauncherWindow(): void {
     }
   })
 
-  setLauncherWindow(launcherWindow)
+  setMainWindow(mainWindow)
 
-  launcherWindow.on('closed', () => {
-    launcherWindow = null
-    setLauncherWindow(null)
+  mainWindow.on('closed', () => {
+    mainWindow = null
+    setMainWindow(null)
   })
 
   if (process.env['ELECTRON_RENDERER_URL']) {
-    launcherWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    launcherWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
-  launcherWindow.on('close', (e) => {
+  mainWindow.on('close', (e) => {
     if (isQuitInProgress()) return
 
-    const onClose = (settings.get('onLauncherClose') as string | undefined) || 'tray'
+    const onClose = (settings.get('onAppClose') as string | undefined) || 'tray'
     if (onClose === 'tray') {
       e.preventDefault()
-      launcherWindow!.hide()
+      mainWindow!.hide()
       createTray()
       return
     }
@@ -313,9 +313,9 @@ function createLauncherWindow(): void {
       ipc.getActiveDetails()
         .catch(() => [] as Awaited<ReturnType<typeof ipc.getActiveDetails>>)
         .then((details) => {
-          if (launcherWindow!.isDestroyed()) return
+          if (mainWindow!.isDestroyed()) return
           if (details.length === 0) { quitApp(); return }
-          launcherWindow!.webContents.send('confirm-quit', details)
+          mainWindow!.webContents.send('confirm-quit', details)
         })
       return
     }
@@ -326,7 +326,7 @@ function createLauncherWindow(): void {
 function updateTrayMenu(): void {
   if (!tray) return
   const contextMenu = Menu.buildFromTemplate([
-    { label: i18n.t('tray.showLauncher'), click: () => showLauncher() },
+    { label: i18n.t('tray.showApp'), click: () => showMainWindow() },
     { type: 'separator' },
     { label: i18n.t('tray.quit'), click: () => quitApp() },
   ])
@@ -337,15 +337,15 @@ function createTray(): void {
   if (tray) return
 
   tray = new Tray(TRAY_ICON)
-  tray.setToolTip('ComfyUI Launcher')
+  tray.setToolTip('ComfyUI Desktop 2.0')
   updateTrayMenu()
-  tray.on('double-click', () => showLauncher())
+  tray.on('double-click', () => showMainWindow())
 }
 
-function showLauncher(): void {
-  if (launcherWindow && !launcherWindow.isDestroyed()) {
-    launcherWindow.show()
-    launcherWindow.focus()
+function showMainWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.focus()
   }
 }
 
@@ -392,8 +392,8 @@ function onComfyRestarted({ installationId, process: _proc }: { installationId?:
     })
     .catch((err) => {
       console.error(`ComfyUI restart failed for ${installationId}:`, err)
-      if (launcherWindow && !launcherWindow.isDestroyed()) {
-        launcherWindow.webContents.send('comfy-output', {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('comfy-output', {
           installationId,
           text: `\n--- Restart failed: ${err.message || err} ---\n`,
         })
@@ -435,7 +435,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     minWidth: 800,
     minHeight: 600,
     icon: APP_ICON,
-    title: `${installation.name} — Launcher v${LAUNCHER_VERSION}`,
+    title: `${installation.name} — Desktop 2.0 v${APP_VERSION}`,
     backgroundColor: '#171717',
     webPreferences: {
       nodeIntegration: false,
@@ -457,7 +457,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   })
   comfyWindow.webContents.on('page-title-updated', (e, title) => {
     e.preventDefault()
-    comfyWindow.setTitle(`${title} — ${installation.name} — Launcher v${LAUNCHER_VERSION}`)
+    comfyWindow.setTitle(`${title} — ${installation.name} — Desktop 2.0 v${APP_VERSION}`)
   })
   comfyWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (shouldOpenInPopup(url)) {
@@ -471,7 +471,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   const isLocal = !url
   attachSessionDownloadHandler(comfyWindow.webContents.session)
   comfyWindow.webContents.on('dom-ready', () => {
-    const preamble = isLocal ? '' : 'window.__comfyLauncherRemote = true;\n'
+    const preamble = isLocal ? '' : 'window.__comfyDesktop2Remote = true;\n'
     comfyWindow.webContents
       .executeJavaScript(preamble + getModelDownloadContentScript())
       .catch(() => {})
@@ -548,8 +548,8 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
 ipcMain.handle('quit-app', () => quitApp())
 
 ipcMain.handle('reset-zoom', () => {
-  if (launcherWindow && !launcherWindow.isDestroyed()) {
-    launcherWindow.webContents.setZoomLevel(0)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.setZoomLevel(0)
   }
 })
 
@@ -576,11 +576,11 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
 } else {
   if (app.isPackaged) {
     app.on('second-instance', () => {
-      if (launcherWindow && !launcherWindow.isDestroyed()) {
-        launcherWindow.show()
-        if (launcherWindow.isMinimized()) launcherWindow.restore()
-        if (process.platform === 'win32') launcherWindow.moveTop()
-        launcherWindow.focus()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show()
+        if (mainWindow.isMinimized()) mainWindow.restore()
+        if (process.platform === 'win32') mainWindow.moveTop()
+        mainWindow.focus()
       }
     })
   }
@@ -595,13 +595,13 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
     cleanupTempDownloads()
     ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
     updater.register()
-    createLauncherWindow()
+    createMainWindow()
   })
 
   app.on('activate', () => {
-    if (launcherWindow && !launcherWindow.isDestroyed()) {
-      launcherWindow.show()
-      launcherWindow.focus()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+      mainWindow.focus()
     }
   })
 

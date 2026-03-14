@@ -47,7 +47,7 @@ type DatadogTrackingConsent = 'granted' | 'not-granted'
 
 const DEFAULT_DATADOG_APPLICATION_ID = '74a97924-20d7-4890-8e55-0c2b87193373'
 const DEFAULT_DATADOG_CLIENT_TOKEN = 'pub5b0afc7fe0411fcebad80bb87274d711'
-const DEFAULT_DATADOG_SERVICE = 'comfyui-launcher'
+const DEFAULT_DATADOG_SERVICE = 'comfyui-desktop-2'
 
 const datadogClientToken = (
   import.meta.env.VITE_DATADOG_RUM_CLIENT_TOKEN

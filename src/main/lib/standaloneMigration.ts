@@ -16,7 +16,7 @@ import * as settings from '../settings'
 import * as i18n from './i18n'
 import type { SourcePlugin, FieldOption } from '../types/sources'
 
-const MARKER_FILE = '.comfyui-launcher'
+const MARKER_FILE = '.comfyui-desktop-2'
 
 export interface MigrationTools {
   sendProgress: (phase: string, detail: Record<string, unknown>) => void
@@ -239,6 +239,7 @@ export async function migrateToStandaloneFromSnapshot(
     installPath: destPath,
     pendingSnapshotRestore: stagedSnapshot.path,
     ...instData,
+    status: 'installing',
     seen: false,
   })
   ensureDefaultPrimary(entry)

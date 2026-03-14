@@ -46,7 +46,7 @@ export async function performDesktopMigration(
   const target = actionData?.target as StandaloneTargetSelection | undefined
 
   return migrateToStandaloneFromSnapshot({
-    installNameBase: 'ComfyUI (from Desktop)',
+    installNameBase: 'ComfyUI (from Legacy Desktop)',
     stagedSnapshot: { path: stagedFile, owned: ownsStagedFile },
     sourcePaths: {
       userDir: path.join(desktopInfo.basePath, 'user'),

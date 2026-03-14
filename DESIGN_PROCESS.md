@@ -1,4 +1,4 @@
-# ComfyUI-Launcher Design Process
+# ComfyUI Desktop 2.0 Design Process
 
 ## Architecture
 
@@ -98,7 +98,7 @@ standalone-install/
 ├── ComfyUI/                   # Cloned from GitHub
 │   ├── main.py
 │   └── ...
-└── .comfyui-launcher          # Marker file
+└── .comfyui-desktop-2         # Marker file
 ```
 
 #### Environment Archive Build Pipeline (CI)
@@ -137,7 +137,7 @@ Build steps (to be implemented as GitHub Actions):
 2. Download the environment archive (with progress reporting)
 3. Extract to install directory
 4. `git clone --depth 1` ComfyUI into the `ComfyUI/` subdirectory
-5. Write `.comfyui-launcher` marker file
+5. Write `.comfyui-desktop-2` marker file
 
 #### Launch Command
 
@@ -149,7 +149,7 @@ The `-s` flag prevents system site-packages from interfering. The standalone Pyt
 
 #### Resolved Decisions
 
-- **Hosting:** GitHub Releases on the ComfyUI-Launcher repo (2GB per asset limit; archives should fit)
+- **Hosting:** GitHub Releases on the ComfyUI-Desktop-2.0-Beta repo (2GB per asset limit; archives should fit)
 - **Archive format:** `.7z` on Windows (best compression for executables via LZMA2), `.tar.gz` on Linux/macOS
 - **Python-build-standalone variant:** `install_only` (smaller, includes pip via ensurepip, no build tools)
 - **Git requirement:** `pygit2` is included in the environment; the launcher can use it for cloning without requiring system git
@@ -177,7 +177,7 @@ Clones ComfyUI from a Git repository and uses `uv` to install a Python environme
 2. `uv venv --python 3.12 --python-preference only-managed` — downloads Python and creates venv
 3. `uv pip install -r requirements.compiled` — installs GPU-specific pre-compiled requirements
 4. `git clone` the selected repo/branch/commit
-5. Write `.comfyui-launcher` marker file
+5. Write `.comfyui-desktop-2` marker file
 
 ## Known Debt
 

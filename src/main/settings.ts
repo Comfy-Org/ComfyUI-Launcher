@@ -7,7 +7,7 @@ import { readFileSafe, writeFileSafe } from './lib/safe-file'
 export interface KnownSettings {
   cacheDir: string
   maxCachedFiles: number
-  onLauncherClose: 'tray' | 'quit'
+  onAppClose: 'tray' | 'quit'
   modelsDirs: string[]
   inputDir: string
   outputDir: string
@@ -25,7 +25,7 @@ export type Settings = KnownSettings & Record<string, unknown>
 type DefaultedSettingKey =
   | 'cacheDir'
   | 'maxCachedFiles'
-  | 'onLauncherClose'
+  | 'onAppClose'
   | 'modelsDirs'
   | 'inputDir'
   | 'outputDir'
@@ -38,7 +38,7 @@ const SHARED_ROOT = path.join(homeDir(), "ComfyUI-Shared")
 const SETTINGS_SCHEMA = {
   cacheDir: { nullable: false },
   maxCachedFiles: { nullable: false },
-  onLauncherClose: { nullable: false },
+  onAppClose: { nullable: false },
   modelsDirs: { nullable: false },
   inputDir: { nullable: false },
   outputDir: { nullable: false },
@@ -69,7 +69,7 @@ function isNullableKnownSettingKey(key: KnownSettingKey): key is NullableKnownSe
 export const defaults: SettingsDefaults = {
   cacheDir: path.join(cacheDir(), "download-cache"),
   maxCachedFiles: 5,
-  onLauncherClose: "tray",
+  onAppClose: "tray",
   modelsDirs: [path.join(SHARED_ROOT, "models")],
   inputDir: path.join(SHARED_ROOT, "input"),
   outputDir: path.join(SHARED_ROOT, "output"),

@@ -79,7 +79,7 @@ export function fetchJSON(url: string): Promise<unknown> {
     // (sends If-None-Match), rather than silently serving from its disk cache.
     // GitHub returns 304 for free (no rate limit cost) when the ETag matches.
     const request = net.request({ url, cache: "no-cache" })
-    request.setHeader("User-Agent", "ComfyUI-Launcher")
+    request.setHeader("User-Agent", "ComfyUI-Desktop-2")
 
     if (cached?.etag) {
       request.setHeader("If-None-Match", cached.etag)
