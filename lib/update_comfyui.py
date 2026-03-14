@@ -77,12 +77,26 @@ def main():
     # Clean any leftover merge/rebase state from a previous failed update
     repo.state_cleanup()
 
-    # Create backup branch so local modifications can be recovered manually
+    # Create backup branch so local modifications can be recovered manually.
+    # If there are uncommitted changes in the working tree, commit them onto
+    # the backup branch so they are not lost when the hard reset runs.
     backup_name = "backup_branch_%s" % datetime.today().strftime("%Y-%m-%d_%H_%M_%S")
     print("Creating backup branch: %s" % backup_name)
     try:
         repo.branches.local.create(backup_name, repo.head.peel())
         print("[BACKUP_BRANCH] %s" % backup_name)
+        repo.index.add_all()
+        repo.index.write()
+        if repo.index.diff_to_tree(repo.head.peel().tree):
+            tree = repo.index.write_tree()
+            ident = pygit2.Signature("comfyui", "comfy@ui")
+            backup_ref = "refs/heads/%s" % backup_name
+            repo.create_commit(
+                backup_ref, ident, ident,
+                "Backup of uncommitted changes before update",
+                tree, [repo.head.target],
+            )
+            print("Uncommitted changes saved to backup branch.")
     except Exception:
         print("Warning: could not create backup branch.")
 
@@ -115,7 +129,7 @@ def main():
     else:
         branch.set_target(remote_id)
     ref = repo.lookup_reference("refs/heads/master")
-    repo.checkout(ref)
+    repo.checkout(ref, strategy=pygit2.GIT_CHECKOUT_FORCE)
     repo.reset(remote_id, pygit2.GIT_RESET_HARD)
 
     # Checkout stable tag if requested
