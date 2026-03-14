@@ -93,6 +93,7 @@ const mainSections = computed(() =>
 const bottomSection = computed(() => sections.value.find((s) => s.pinBottom) ?? null)
 
 const previousInstId = ref<string | null>(null)
+const autoActionRun = ref(false)
 let sizeGeneration = 0
 
 function formatBytes(bytes: number): string {
@@ -131,6 +132,7 @@ watch(
     }
     const isNewInstallation = inst.id !== previousInstId.value
     previousInstId.value = inst.id
+    if (isNewInstallation) autoActionRun.value = false
     sections.value = await window.api.getDetailSections(inst.id)
     if (isNewInstallation) {
       const tabExists = sections.value.some((s) => s.tab === props.initialTab)
@@ -140,7 +142,8 @@ watch(
       if (inst.installPath) fetchInstallationSize(inst.id)
 
       // Auto-trigger an action if requested (e.g. from migrate pill click)
-      if (props.autoAction) {
+      if (props.autoAction && !autoActionRun.value) {
+        autoActionRun.value = true
         const actionId = props.autoAction
         for (const section of sections.value) {
           const action = section.actions?.find((a: ActionDef) => a.id === actionId)

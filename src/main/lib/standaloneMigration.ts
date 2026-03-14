@@ -245,8 +245,8 @@ export async function migrateToStandaloneFromSnapshot(
   ensureDefaultPrimary(entry)
 
   // 3. Install standalone (download + extract + setup env)
-  fs.mkdirSync(destPath, { recursive: true })
-  fs.writeFileSync(path.join(destPath, MARKER_FILE), entry.id)
+  await fs.promises.mkdir(destPath, { recursive: true })
+  await fs.promises.writeFile(path.join(destPath, MARKER_FILE), entry.id)
   const cache = createCache(settings.get('cacheDir') as string, settings.get('maxCachedFiles') as number)
   const installRecord = { ...instData, installPath: destPath } as unknown as InstallationRecord
   await standaloneSource.install!(installRecord, { sendProgress, download, cache, extract, signal })
