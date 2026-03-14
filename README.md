@@ -6,6 +6,10 @@
 
 An Electron app for managing multiple ComfyUI installations.
 
+## Related Repositories
+
+- [ComfyUI-Standalone-Environments](https://github.com/Comfy-Org/ComfyUI-Standalone-Environments) — Standalone environment definitions used by this app to provision Python environments for ComfyUI installations.
+
 ## Downloads
 
 ### Windows
