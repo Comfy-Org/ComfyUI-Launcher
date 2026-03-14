@@ -32,7 +32,7 @@ describe('desktop.getLaunchCommand', () => {
 
     const cmd = desktop.getLaunchCommand({ desktopExePath: appPath } as unknown as Parameters<typeof desktop.getLaunchCommand>[0])
     expect(cmd).not.toBeNull()
-    expect(cmd!.cmd).toBe('open')
+    expect(cmd!.cmd).toBe('/usr/bin/open')
     expect(cmd!.args).toEqual([appPath])
     expect(cmd!.skipPortWait).toBe(true)
   })

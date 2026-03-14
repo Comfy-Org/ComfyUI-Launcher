@@ -52,7 +52,7 @@ export const desktop: SourcePlugin = {
     // macOS .app bundles cannot be spawned directly — use `open` to launch them
     if (process.platform === 'darwin' && execPath.endsWith('.app')) {
       return {
-        cmd: 'open',
+        cmd: '/usr/bin/open',
         args: [execPath],
         cwd: path.dirname(execPath),
         showWindow: true,
