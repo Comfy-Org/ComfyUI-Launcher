@@ -5,9 +5,12 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'comfyui-desktop-2-settings-'))
 const homePath = path.join(tmpRoot, 'home')
-const userDataPath = path.join(tmpRoot, 'user-data')
-const xdgConfigHome = path.join(tmpRoot, 'xdg-config')
-const xdgCacheHome = path.join(tmpRoot, 'xdg-cache')
+const userDataPath = path.join(homePath, 'AppData', 'Roaming', 'comfyui-desktop-2')
+const adminHomePath = path.join(tmpRoot, 'Administrator')
+const adminUserDataPath = path.join(adminHomePath, 'AppData', 'Roaming', 'comfyui-desktop-2')
+const xdgConfigHome = path.join(homePath, '.config')
+const xdgCacheHome = path.join(homePath, '.cache')
+const adminXdgCacheHome = path.join(adminHomePath, '.cache')
 const originalXdgConfigHome = process.env.XDG_CONFIG_HOME
 const originalXdgCacheHome = process.env.XDG_CACHE_HOME
 
@@ -15,6 +18,8 @@ process.env.XDG_CONFIG_HOME = xdgConfigHome
 process.env.XDG_CACHE_HOME = xdgCacheHome
 fs.mkdirSync(homePath, { recursive: true })
 fs.mkdirSync(userDataPath, { recursive: true })
+fs.mkdirSync(adminHomePath, { recursive: true })
+fs.mkdirSync(adminUserDataPath, { recursive: true })
 fs.mkdirSync(xdgConfigHome, { recursive: true })
 fs.mkdirSync(xdgCacheHome, { recursive: true })
 
@@ -27,6 +32,13 @@ let settings: {
 const settingsPath = process.platform === 'linux'
   ? path.join(xdgConfigHome, 'comfyui-desktop-2', 'settings.json')
   : path.join(userDataPath, 'settings.json')
+const expectedCacheDir = process.platform === 'linux'
+  ? path.join(xdgCacheHome, 'comfyui-desktop-2', 'download-cache')
+  : path.join(userDataPath, 'download-cache')
+const copiedAdminCacheDir = process.platform === 'linux'
+  ? path.join(adminXdgCacheHome, 'comfyui-desktop-2', 'download-cache')
+  : path.join(adminUserDataPath, 'download-cache')
+const shouldRewriteCopiedDefaults = process.platform === 'win32'
 
 function readPersistedSettings(): Record<string, unknown> {
   const raw = fs.readFileSync(settingsPath, 'utf-8')
@@ -104,5 +116,55 @@ describe('settings unset/default semantics', () => {
     settings.set('pypiMirror', '   ')
     expect(settings.get('pypiMirror')).toBeUndefined()
     expect(readPersistedSettings()).not.toHaveProperty('pypiMirror')
+  })
+})
+
+describe('settings path sanitization', () => {
+  it('rewrites copied foreign-user defaults on Windows only', () => {
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
+    const customModelsDir = path.join(tmpRoot, 'custom-models')
+    const expectedModelsDirs = shouldRewriteCopiedDefaults
+      ? [
+          path.join(homePath, 'ComfyUI-Shared', 'models'),
+          customModelsDir,
+        ]
+      : [
+          path.join(homePath, 'ComfyUI-Shared', 'models'),
+          path.join(adminHomePath, 'ComfyUI-Shared', 'models'),
+          customModelsDir,
+        ]
+    const expectedInputDir = shouldRewriteCopiedDefaults
+      ? path.join(homePath, 'ComfyUI-Shared', 'input')
+      : path.join(adminHomePath, 'ComfyUI-Shared', 'input')
+    const expectedOutputDir = shouldRewriteCopiedDefaults
+      ? path.join(homePath, 'ComfyUI-Shared', 'output')
+      : path.join(adminHomePath, 'ComfyUI-Shared', 'output')
+    const expectedPersistedCacheDir = shouldRewriteCopiedDefaults
+      ? expectedCacheDir
+      : copiedAdminCacheDir
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        cacheDir: copiedAdminCacheDir,
+        modelsDirs: [
+          path.join(adminHomePath, 'ComfyUI-Shared', 'models'),
+          customModelsDir,
+        ],
+        inputDir: path.join(adminHomePath, 'ComfyUI-Shared', 'input'),
+        outputDir: path.join(adminHomePath, 'ComfyUI-Shared', 'output'),
+      }, null, 2),
+      'utf-8'
+    )
+
+    expect(settings.get('cacheDir')).toBe(expectedPersistedCacheDir)
+    expect(settings.get('modelsDirs')).toEqual(expectedModelsDirs)
+    expect(settings.get('inputDir')).toBe(expectedInputDir)
+    expect(settings.get('outputDir')).toBe(expectedOutputDir)
+
+    const persisted = readPersistedSettings()
+    expect(persisted['cacheDir']).toBe(expectedPersistedCacheDir)
+    expect(persisted['modelsDirs']).toEqual(expectedModelsDirs)
+    expect(persisted['inputDir']).toBe(expectedInputDir)
+    expect(persisted['outputDir']).toBe(expectedOutputDir)
   })
 })

@@ -76,6 +76,71 @@ export const defaults: SettingsDefaults = {
 }
 
 const systemDefault = defaults.modelsDirs[0]!
+const shouldSanitizeCopiedUserDefaults = process.platform === 'win32'
+
+function resolveIfNonEmpty(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? path.resolve(value) : null
+}
+
+function getRelativeDefaultFromHome(currentDefault: string): string | null {
+  const home = path.resolve(homeDir())
+  const rel = path.relative(home, path.resolve(currentDefault))
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null
+  return rel
+}
+
+function isForeignUserDefaultPath(value: unknown, currentDefault: string): boolean {
+  const candidate = resolveIfNonEmpty(value)
+  if (!candidate) return false
+
+  const currentResolved = path.resolve(currentDefault)
+  if (candidate === currentResolved) return false
+
+  const home = path.resolve(homeDir())
+  const relativeDefault = getRelativeDefaultFromHome(currentDefault)
+  if (!relativeDefault) return false
+
+  let candidateHome = candidate
+  for (const _part of relativeDefault.split(path.sep).filter(Boolean)) {
+    candidateHome = path.dirname(candidateHome)
+  }
+
+  if (candidateHome === home) return false
+  if (path.dirname(candidateHome) !== path.dirname(home)) return false
+
+  return path.resolve(path.join(candidateHome, relativeDefault)) === candidate
+}
+
+function sanitizeUserDefaultPath(value: unknown, currentDefault: string): string {
+  const candidate = resolveIfNonEmpty(value)
+  if (!candidate) return currentDefault
+  return isForeignUserDefaultPath(candidate, currentDefault) ? currentDefault : candidate
+}
+
+function sanitizeModelsDirs(value: unknown, currentDefault: string): string[] {
+  const dirs = Array.isArray(value) ? value : []
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const dir of dirs) {
+    const candidate = resolveIfNonEmpty(dir)
+    if (!candidate) continue
+    if (isForeignUserDefaultPath(candidate, currentDefault)) continue
+    if (seen.has(candidate)) continue
+    seen.add(candidate)
+    result.push(candidate)
+  }
+
+  const resolvedDefault = path.resolve(currentDefault)
+  if (!seen.has(resolvedDefault)) {
+    result.unshift(resolvedDefault)
+  } else if (result[0] !== resolvedDefault) {
+    result.splice(result.indexOf(resolvedDefault), 1)
+    result.unshift(resolvedDefault)
+  }
+
+  return result
+}
 
 function load(): Settings {
   let parsed: Record<string, unknown> | null = null
@@ -94,11 +159,45 @@ function load(): Settings {
     }
   }
   const result: Settings = { ...defaults, ...(parsed || {}) }
+  let changed = false
+
+  if (shouldSanitizeCopiedUserDefaults) {
+    const nextCacheDir = sanitizeUserDefaultPath(result.cacheDir, defaults.cacheDir)
+    if (nextCacheDir !== result.cacheDir) {
+      result.cacheDir = nextCacheDir
+      changed = true
+    }
+
+    const nextModelsDirs = sanitizeModelsDirs(result.modelsDirs, systemDefault)
+    if (
+      !Array.isArray(result.modelsDirs)
+      || nextModelsDirs.length !== result.modelsDirs.length
+      || nextModelsDirs.some((dir, index) => dir !== result.modelsDirs[index])
+    ) {
+      result.modelsDirs = nextModelsDirs
+      changed = true
+    }
+
+    const nextInputDir = sanitizeUserDefaultPath(result.inputDir, defaults.inputDir)
+    if (nextInputDir !== result.inputDir) {
+      result.inputDir = nextInputDir
+      changed = true
+    }
+
+    const nextOutputDir = sanitizeUserDefaultPath(result.outputDir, defaults.outputDir)
+    if (nextOutputDir !== result.outputDir) {
+      result.outputDir = nextOutputDir
+      changed = true
+    }
+  }
+
   // Ensure system default directory is always present in modelsDirs
   if (!Array.isArray(result.modelsDirs)) {
     result.modelsDirs = [systemDefault]
+    changed = true
   } else if (!result.modelsDirs.some((d) => path.resolve(d) === path.resolve(systemDefault))) {
     result.modelsDirs.unshift(systemDefault)
+    changed = true
   }
   // Create the system default directory and model subdirectories on disk
   try {
@@ -114,6 +213,7 @@ function load(): Settings {
       fs.mkdirSync(dir, { recursive: true })
     }
   } catch {}
+  if (changed) save(result)
   return result
 }
 
