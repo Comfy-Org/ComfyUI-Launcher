@@ -39,6 +39,9 @@ export interface LaunchCommand {
   /** When true, skip port conflict detection and port readiness waiting.
    *  The session is registered immediately after spawning. */
   skipPortWait?: boolean
+  /** When true, skip injecting shared model/input/output path args.
+   *  Used for external apps that don't accept ComfyUI CLI flags. */
+  skipSharedPaths?: boolean
 }
 
 // --- Install / action tools ---

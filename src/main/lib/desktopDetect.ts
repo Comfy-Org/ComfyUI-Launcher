@@ -7,6 +7,25 @@ import { homedir } from 'os'
 import { scanCustomNodes } from './nodes'
 import { buildExportEnvelope } from './snapshots'
 import type { Snapshot, SnapshotExportEnvelope } from './snapshots'
+import * as i18n from './i18n'
+
+/**
+ * Check that a path is readable. On macOS, accessing TCC-protected directories
+ * (Documents, Desktop, Downloads) triggers a system permission prompt. If the
+ * user misses or denies the prompt the OS returns EACCES / EPERM.  We surface
+ * a clear, actionable error instead of silently treating the path as missing.
+ */
+export function assertReadable(dirPath: string): void {
+  try {
+    fs.accessSync(dirPath, fs.constants.R_OK)
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new Error(i18n.t('errors.folderPermissionDenied', { path: dirPath }), { cause: err })
+    }
+    throw err
+  }
+}
 
 export interface DesktopInstallInfo {
   configDir: string
@@ -58,7 +77,12 @@ export function detectDesktopInstall(): DesktopInstallInfo | null {
     return null
   }
 
-  if (!fs.existsSync(basePath)) return null
+  if (!fs.existsSync(basePath)) {
+    // basePath exists in config but not on disk — check if it's a permission issue
+    assertReadable(path.dirname(basePath))
+    return null
+  }
+  assertReadable(basePath)
 
   const hasModels = fs.existsSync(path.join(basePath, 'models'))
   const hasUser = fs.existsSync(path.join(basePath, 'user'))

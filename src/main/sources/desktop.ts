@@ -32,6 +32,7 @@ export const desktop: SourcePlugin = {
     return {
       version: 'desktop',
       launchMode: 'external',
+      useSharedPaths: false,
     }
   },
 
@@ -49,12 +50,24 @@ export const desktop: SourcePlugin = {
   getLaunchCommand(installation: InstallationRecord): LaunchCommand | null {
     const execPath = (installation.desktopExePath as string | undefined) || findDesktopExecutable()
     if (!execPath || !fs.existsSync(execPath)) return null
+    // macOS .app bundles cannot be spawned directly — use `open` to launch them
+    if (process.platform === 'darwin' && execPath.endsWith('.app')) {
+      return {
+        cmd: '/usr/bin/open',
+        args: [execPath],
+        cwd: path.dirname(execPath),
+        showWindow: true,
+        skipPortWait: true,
+        skipSharedPaths: true,
+      }
+    }
     return {
       cmd: execPath,
       args: [],
       cwd: path.dirname(execPath),
       showWindow: true,
       skipPortWait: true,
+      skipSharedPaths: true,
     }
   },
 
@@ -127,6 +140,7 @@ export const desktop: SourcePlugin = {
     return {
       version: 'desktop',
       launchMode: 'external',
+      useSharedPaths: false,
       desktopExePath: findDesktopExecutable() || undefined,
     }
   },

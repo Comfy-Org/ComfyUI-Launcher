@@ -1811,7 +1811,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
       const launchCmd = launchCmdRaw
       // Inject shared paths if this installation uses them
-      if ((inst.useSharedPaths as boolean | undefined) !== false && launchCmd.args) {
+      if (!launchCmd.skipSharedPaths && (inst.useSharedPaths as boolean | undefined) !== false && launchCmd.args) {
         const modelsDirs = settings.get('modelsDirs') as string[] | undefined
         const modelPathsConfig = ensureModelPathsConfig(modelsDirs)
         if (modelPathsConfig) {

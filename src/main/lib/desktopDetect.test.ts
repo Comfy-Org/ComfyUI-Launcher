@@ -16,11 +16,13 @@ import type { DesktopInstallInfo } from './desktopDetect'
 describe('detectDesktopInstall', () => {
   let readFileSyncSpy: MockInstance
   let existsSyncSpy: MockInstance
+  let accessSyncSpy: MockInstance
 
   beforeEach(() => {
     vi.restoreAllMocks()
     readFileSyncSpy = vi.spyOn(fs, 'readFileSync')
     existsSyncSpy = vi.spyOn(fs, 'existsSync')
+    accessSyncSpy = vi.spyOn(fs, 'accessSync').mockReturnValue(undefined)
     delete process.env.APPDATA
     delete process.env.LOCALAPPDATA
   })
@@ -56,6 +58,18 @@ describe('detectDesktopInstall', () => {
     readFileSyncSpy.mockReturnValue(JSON.stringify({ basePath: '/mock/Documents/ComfyUI' }))
     existsSyncSpy.mockReturnValue(false)
     expect(detectDesktopInstall()).toBeNull()
+    vi.unstubAllGlobals()
+  })
+
+  it('throws a permission error when basePath is EACCES', () => {
+    vi.stubGlobal('process', { ...process, platform: 'win32', env: { APPDATA: '/mock/AppData/Roaming' } })
+    readFileSyncSpy.mockReturnValue(JSON.stringify({ basePath: '/mock/Documents/ComfyUI' }))
+    existsSyncSpy.mockImplementation((p: fs.PathLike) => {
+      return p.toString() === '/mock/Documents/ComfyUI'
+    })
+    const eacces = Object.assign(new Error('EACCES'), { code: 'EACCES' })
+    accessSyncSpy.mockImplementation(() => { throw eacces })
+    expect(() => detectDesktopInstall()).toThrow(/folderPermissionDenied|denied access/)
     vi.unstubAllGlobals()
   })
 
