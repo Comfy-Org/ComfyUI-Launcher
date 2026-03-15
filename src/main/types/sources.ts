@@ -61,6 +61,7 @@ export interface ActionTools {
 export interface PostInstallTools {
   sendProgress: (step: string, data: { percent: number; status: string }) => void
   update: (data: Record<string, unknown>) => Promise<void>
+  signal?: AbortSignal
 }
 
 // --- Action / detail section types ---

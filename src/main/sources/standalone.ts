@@ -214,16 +214,20 @@ async function stripMasterPackages(installPath: string): Promise<void> {
 async function createEnv(
   installPath: string,
   envName: string,
-  onProgress: (copied: number, total: number, elapsedSecs: number, etaSecs: number) => void
+  onProgress: (copied: number, total: number, elapsedSecs: number, etaSecs: number) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const uvPath = getUvPath(installPath)
   const masterPython = getMasterPythonPath(installPath)
   const envPath = path.join(installPath, ENVS_DIR, envName)
   await new Promise<void>((resolve, reject) => {
-    execFile(uvPath, ['venv', '--python', masterPython, envPath], { cwd: installPath }, (err, _stdout, stderr) => {
+    if (signal?.aborted) return reject(new Error('Cancelled'))
+    const proc = execFile(uvPath, ['venv', '--python', masterPython, envPath], { cwd: installPath }, (err, _stdout, stderr) => {
+      if (signal?.aborted) return reject(new Error('Cancelled'))
       if (err) return reject(new Error(`Failed to create environment "${envName}": ${stderr || err.message}`))
       resolve()
     })
+    signal?.addEventListener('abort', () => { try { proc.kill() } catch {} }, { once: true })
   })
 
   try {
@@ -232,7 +236,7 @@ async function createEnv(
     if (!masterSitePackages || !envSitePackages || !fs.existsSync(masterSitePackages)) {
       throw new Error(`Could not locate site-packages for environment "${envName}".`)
     }
-    await copyDirWithProgress(masterSitePackages, envSitePackages, onProgress)
+    await copyDirWithProgress(masterSitePackages, envSitePackages, onProgress, { signal })
     await codesignBinaries(envSitePackages)
   } catch (err) {
     await fs.promises.rm(envPath, { recursive: true, force: true }).catch(() => {})
@@ -644,7 +648,7 @@ export const standalone: SourcePlugin = {
     }
   },
 
-  async postInstall(installation: InstallationRecord, { sendProgress, update }: PostInstallTools): Promise<void> {
+  async postInstall(installation: InstallationRecord, { sendProgress, update, signal }: PostInstallTools): Promise<void> {
     const standaloneEnvDir = path.join(installation.installPath, 'standalone-env')
     if (process.platform !== 'win32') {
       const binDir = path.join(standaloneEnvDir, 'bin')
@@ -657,13 +661,15 @@ export const standalone: SourcePlugin = {
       } catch {}
     }
     await repairMacBinaries(installation.installPath, sendProgress)
+    if (signal?.aborted) throw new Error('Cancelled')
     sendProgress('setup', { percent: 0, status: 'Creating default Python environment…' })
     await createEnv(installation.installPath, DEFAULT_ENV, (copied, total, elapsedSecs, etaSecs) => {
       const percent = Math.round((copied / total) * 100)
       const elapsed = formatTime(elapsedSecs)
       const eta = etaSecs >= 0 ? formatTime(etaSecs) : '—'
       sendProgress('setup', { percent, status: `Copying packages… ${copied} / ${total} files  ·  ${elapsed} elapsed  ·  ${eta} remaining` })
-    })
+    }, signal)
+    if (signal?.aborted) throw new Error('Cancelled')
     const envMethods = { ...(installation.envMethods as Record<string, string> | undefined), [DEFAULT_ENV]: ENV_METHOD }
     await update({ envMethods })
     sendProgress('cleanup', { percent: -1, status: t('standalone.cleanupEnvStatus') })

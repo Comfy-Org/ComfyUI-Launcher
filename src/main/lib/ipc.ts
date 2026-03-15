@@ -699,7 +699,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         if (source.postInstall) {
           const update = (data: Record<string, unknown>): Promise<void> =>
             installations.update(installationId, data).then(() => {})
-          await source.postInstall(inst, { sendProgress, update })
+          await source.postInstall(inst, { sendProgress, update, signal: abort.signal })
         }
 
         // After postInstall, check for pending snapshot restore
@@ -1734,7 +1734,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
         const newUpdate = (data: Record<string, unknown>): Promise<void> =>
           installations.update(entry!.id, data).then(() => {})
-        await source.postInstall!(installRecord, { sendProgress, update: newUpdate })
+        await source.postInstall!(installRecord, { sendProgress, update: newUpdate, signal: abort.signal })
         installComplete = true
 
         const newInst = await installations.get(entry.id)
