@@ -24,7 +24,8 @@ vi.stubGlobal('window', {
   ...window,
   api: {
     getInstallations: vi.fn(),
-    onInstallationsChanged: vi.fn()
+    onInstallationsChanged: vi.fn(),
+    onInstallationsVersionsUpdated: vi.fn(),
   }
 })
 

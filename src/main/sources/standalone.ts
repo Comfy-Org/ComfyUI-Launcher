@@ -12,7 +12,8 @@ import type { ComfyVersion } from '../lib/version'
 import { deleteAction, untrackAction } from '../lib/actions'
 import { downloadAndExtract, downloadAndExtractMulti } from '../lib/installer'
 import { copyDirWithProgress } from '../lib/copy'
-import { readGitHead, countCommitsAhead } from '../lib/git'
+import { readGitHead } from '../lib/git'
+import { resolveLocalVersion, clearVersionCache } from '../lib/version-resolve'
 import { parseArgs, extractPort, formatTime } from '../lib/util'
 import { PYTORCH_RE, installFilteredRequirements, getPipIndexArgs } from '../lib/pip'
 import { t } from '../lib/i18n'
@@ -410,7 +411,7 @@ export const standalone: SourcePlugin = {
 
     const infoFields: Record<string, unknown>[] = [
       { label: t('common.installMethod'), value: installation.sourceLabel as string },
-      { label: t('standalone.comfyui'), value: installation.comfyVersion ? formatComfyVersion(installation.comfyVersion as ComfyVersion, 'detail') : (installation.version as string | undefined) || 'unknown' },
+      { key: 'comfyui-version', label: t('standalone.comfyui'), value: installation.comfyVersion ? formatComfyVersion(installation.comfyVersion as ComfyVersion, 'detail') : (installation.version as string | undefined) || 'unknown' },
       { label: t('common.release'), value: (installation.releaseTag as string | undefined) || '—' },
       { label: t('standalone.variant'), value: (installation.variant as string | undefined) ? getVariantLabel(installation.variant as string) : '—' },
       { label: t('standalone.python'), value: (installation.pythonVersion as string | undefined) || '—' },
@@ -681,11 +682,7 @@ export const standalone: SourcePlugin = {
     const headCommit = readGitHead(comfyuiDir)
     if (headCommit) {
       const ref = installation.version as string | undefined
-      const comfyVersion: ComfyVersion = {
-        commit: headCommit,
-        baseTag: ref,
-        commitsAhead: 0,
-      }
+      const comfyVersion = await resolveLocalVersion(comfyuiDir, headCommit, ref)
       await update({ comfyVersion })
       // Use updated installation for snapshot so it captures the version
       installation = { ...installation, comfyVersion } as InstallationRecord
@@ -724,9 +721,8 @@ export const standalone: SourcePlugin = {
       const comfyuiDir = path.join(dirPath, 'ComfyUI')
       const commit = readGitHead(comfyuiDir)
       if (commit) {
-        const baseTag = version !== 'unknown' ? version : undefined
-        const commitsAhead = baseTag ? await countCommitsAhead(comfyuiDir, baseTag) : undefined
-        comfyVersion = { commit, baseTag, commitsAhead }
+        const manifestTag = version !== 'unknown' ? version : undefined
+        comfyVersion = await resolveLocalVersion(comfyuiDir, commit, manifestTag)
       }
     }
 
@@ -844,11 +840,27 @@ export const standalone: SourcePlugin = {
 
       // Restore update channel and version/lastRollback state so the
       // release cache sees accurate state for the restored channel.
+      // Recompute comfyVersion from git state so that old snapshots captured
+      // before the baseTag fix don't propagate stale version metadata.
+      const comfyuiDir = path.join(installation.installPath, 'ComfyUI')
+      const restoredHead = comfyResult.commit || readGitHead(comfyuiDir)
+      let freshComfyVersion: ComfyVersion | undefined
+      if (!comfyResult.error && restoredHead) {
+        freshComfyVersion = await resolveLocalVersion(comfyuiDir, restoredHead)
+      }
       const restoreState = snapshots.buildPostRestoreState(
         targetSnapshot, comfyResult,
         installation.updateInfoByChannel as Record<string, Record<string, unknown>> | undefined,
         installation.comfyVersion as ComfyVersion | undefined
       )
+      // Override the snapshot-based comfyVersion with the freshly resolved one
+      if (freshComfyVersion) {
+        restoreState.comfyVersion = freshComfyVersion
+        const tag = formatComfyVersion(freshComfyVersion, 'short')
+        const channelInfo = restoreState.updateInfoByChannel as Record<string, Record<string, unknown>>
+        const ch = targetSnapshot.updateChannel || 'stable'
+        channelInfo[ch] = { ...channelInfo[ch], installedTag: tag }
+      }
       await update(restoreState)
 
       // Capture a new snapshot reflecting the restored state
@@ -1179,6 +1191,10 @@ export const standalone: SourcePlugin = {
 
       const cachedRelease = releaseCache.get(COMFYUI_REPO, channel) || {}
       const fullPostHead = markers.POST_UPDATE_HEAD || null
+
+      // Tags may have changed after the update; clear the cache so
+      // subsequent resolveLocalVersion calls see the new tags.
+      clearVersionCache()
 
       // Build structured comfyVersion from raw data.
       // For stable updates, CHECKED_OUT_TAG is the most reliable baseTag source

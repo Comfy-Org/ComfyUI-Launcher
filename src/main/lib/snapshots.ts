@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import { spawn } from 'child_process'
-import { readGitHead, isGitAvailable, gitClone, gitCheckoutCommit, gitFetchAndCheckout } from './git'
+import { readGitHead, isGitAvailable, gitClone, gitCheckoutCommit, gitFetchAndCheckout, hasGitDir } from './git'
+import { resolveLocalVersion } from './version-resolve'
 import { scanCustomNodes, nodeKey } from './nodes'
 import { pipFreeze, runUvPip as sharedRunUvPip, installFilteredRequirements, getPipIndexArgs } from './pip'
 import { installCnrNode, switchCnrVersion, isSafePathComponent } from './cnr'
@@ -11,11 +12,42 @@ import type { InstallationRecord } from '../installations'
 import { formatComfyVersion } from './version'
 import type { ComfyVersion } from './version'
 
-export function formatSnapshotVersion(comfyui: Snapshot['comfyui'], style: 'short' | 'detail'): string {
+export function formatSnapshotVersion(comfyui: { ref: string; commit: string | null; baseTag?: string; commitsAhead?: number }, style: 'short' | 'detail'): string {
   if (comfyui.commit) {
     return formatComfyVersion({ commit: comfyui.commit, baseTag: comfyui.baseTag, commitsAhead: comfyui.commitsAhead }, style)
   }
   return comfyui.ref
+}
+
+/**
+ * Resolve the version for a snapshot's commit from local git state, then
+ * format for display.  Falls back to stored baseTag/commitsAhead when git
+ * is unavailable or the commit is missing from the repo.
+ */
+/** Subset of Snapshot['comfyui'] needed for version resolution. */
+interface VersionResolvable {
+  ref: string
+  commit: string | null
+  baseTag?: string
+  commitsAhead?: number
+}
+
+async function resolveSnapshotVersion(
+  installPath: string,
+  comfyui: VersionResolvable,
+  style: 'short' | 'detail',
+): Promise<string> {
+  if (!comfyui.commit) return comfyui.ref
+  const comfyuiDir = path.join(installPath, 'ComfyUI')
+  if (!hasGitDir(comfyuiDir)) {
+    return formatSnapshotVersion(comfyui, style)
+  }
+  try {
+    const cv = await resolveLocalVersion(comfyuiDir, comfyui.commit)
+    return formatComfyVersion(cv, style)
+  } catch {
+    return formatSnapshotVersion(comfyui, style)
+  }
 }
 
 // --- Types ---
@@ -558,7 +590,9 @@ export async function diffAgainstCurrent(
     label: null,
     ...state,
   }
-  return diffSnapshots(current, target)
+  const diff = diffSnapshots(current, target)
+  await resolveDiffVersions(installPath, diff)
+  return diff
 }
 
 /**
@@ -1518,6 +1552,11 @@ function summarizeDiff(diff: SnapshotDiff): SnapshotDiffSummary {
 
 export async function getSnapshotListData(installPath: string): Promise<{ snapshots: SnapshotSummary[]; totalCount: number }> {
   const entries = await listSnapshots(installPath)
+  // Resolve versions for all unique commits in parallel (cache makes dupes free)
+  const versionPromises = entries.map((entry) =>
+    resolveSnapshotVersion(installPath, entry.snapshot.comfyui, 'short')
+  )
+  const resolvedVersions = await Promise.all(versionPromises)
   const summaries: SnapshotSummary[] = entries.map((entry, i) => {
     const s = entry.snapshot
     const summary: SnapshotSummary = {
@@ -1525,7 +1564,7 @@ export async function getSnapshotListData(installPath: string): Promise<{ snapsh
       createdAt: s.createdAt,
       trigger: s.trigger,
       label: s.label,
-      comfyuiVersion: formatSnapshotVersion(s.comfyui, 'short'),
+      comfyuiVersion: resolvedVersions[i]!,
       nodeCount: s.customNodes.length,
       pipPackageCount: Object.keys(s.pipPackages).length,
     }
@@ -1552,7 +1591,7 @@ export async function getSnapshotDetailData(installPath: string, filename: strin
     createdAt: snapshot.createdAt,
     trigger: snapshot.trigger,
     label: snapshot.label,
-    comfyuiVersion: formatSnapshotVersion(snapshot.comfyui, 'detail'),
+    comfyuiVersion: await resolveSnapshotVersion(installPath, snapshot.comfyui, 'detail'),
     comfyui: snapshot.comfyui,
     pythonVersion: snapshot.pythonVersion,
     updateChannel: snapshot.updateChannel,
@@ -1578,6 +1617,7 @@ export async function getSnapshotDiffVsPrevious(installPath: string, filename: s
   const current = entries[idx]!.snapshot
   const prev = entries[idx + 1]!.snapshot
   const diff = diffSnapshots(prev, current)
+  await resolveDiffVersions(installPath, diff)
   const prevDate = new Date(prev.createdAt).toLocaleString()
   return {
     mode: 'previous',
@@ -1587,4 +1627,18 @@ export async function getSnapshotDiffVsPrevious(installPath: string, filename: s
            diff.nodesChanged.length === 0 && diff.pipsAdded.length === 0 && diff.pipsRemoved.length === 0 &&
            diff.pipsChanged.length === 0,
   }
+}
+
+/**
+ * Post-process a diff to resolve formattedVersion fields from git state.
+ * Mutates diff.comfyui in place.
+ */
+async function resolveDiffVersions(installPath: string, diff: SnapshotDiff): Promise<void> {
+  if (!diff.comfyui) return
+  const [fromVersion, toVersion] = await Promise.all([
+    resolveSnapshotVersion(installPath, diff.comfyui.from, 'detail'),
+    resolveSnapshotVersion(installPath, diff.comfyui.to, 'detail'),
+  ])
+  diff.comfyui.from.formattedVersion = fromVersion
+  diff.comfyui.to.formattedVersion = toVersion
 }

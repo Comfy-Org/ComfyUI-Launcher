@@ -588,6 +588,7 @@ export interface ElectronApi {
   onLocaleChanged(callback: (messages: Record<string, unknown>) => void): Unsubscribe
   onConfirmQuit(callback: (details: QuitActiveItem[]) => void): Unsubscribe
   onInstallationsChanged(callback: () => void): Unsubscribe
+  onInstallationsVersionsUpdated(callback: (updates: { id: string; version: string }[]) => void): Unsubscribe
   onUpdateAvailable(callback: (info: UpdateInfo) => void): Unsubscribe
   onUpdateDownloadProgress(callback: (progress: UpdateDownloadProgress) => void): Unsubscribe
   onUpdateDownloaded(callback: (info: UpdateInfo) => void): Unsubscribe

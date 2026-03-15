@@ -9,6 +9,7 @@ import * as installations from '../installations'
 import type { InstallationRecord } from '../installations'
 import { formatComfyVersion } from './version'
 import type { ComfyVersion } from './version'
+import { resolveLocalVersion } from './version-resolve'
 import * as settings from '../settings'
 import { defaultInstallDir } from './paths'
 import { download } from './download'
@@ -289,6 +290,33 @@ function _broadcastToRenderer(channel: string, data: Record<string, unknown>): v
   BrowserWindow.getAllWindows().forEach((win) => {
     if (!win.isDestroyed()) win.webContents.send(channel, data)
   })
+}
+
+/**
+ * Resolve versions from git state for all installations in parallel and
+ * broadcast updates to the renderer if any resolved version differs from
+ * the stored one.  Called in the background after get-installations returns.
+ */
+async function _resolveAndBroadcastVersions(list: InstallationRecord[]): Promise<void> {
+  const updates: { id: string; version: string }[] = []
+  await Promise.all(list.map(async (inst) => {
+    const cv = inst.comfyVersion as ComfyVersion | undefined
+    if (!cv?.commit || !inst.installPath) return
+    const comfyuiDir = path.join(inst.installPath, 'ComfyUI')
+    try {
+      const resolved = await resolveLocalVersion(comfyuiDir, cv.commit)
+      const resolvedStr = formatComfyVersion(resolved, 'short')
+      const storedStr = formatComfyVersion(cv, 'short')
+      if (resolvedStr !== storedStr) {
+        updates.push({ id: inst.id, version: resolvedStr })
+      }
+    } catch {
+      // ignore — keep stored version
+    }
+  }))
+  if (updates.length > 0) {
+    _broadcastToRenderer('installations-versions-updated', { updates })
+  }
 }
 
 function _addSession(installationId: string, { proc, port, url, mode, installationName }: Omit<SessionInfo, 'startedAt'>): void {
@@ -576,7 +604,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
     }
 
-    return list.map((inst) => {
+    const result = list.map((inst) => {
       const source = sourceMap[inst.sourceId]
       if (!source) return inst
       const listPreview = source.getListPreview ? source.getListPreview(inst) : undefined
@@ -585,8 +613,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         : inst.status === 'failed'
         ? { label: i18n.t('errors.installFailed'), style: 'danger' }
         : (source.getStatusTag ? source.getStatusTag(inst) : undefined)
-      // Derive version display string from comfyVersion ground truth, falling back to legacy string.
+      // Derive version display string from stored comfyVersion, falling back to legacy string.
       // Omit version when it just duplicates the source type (e.g. 'cloud', 'desktop').
+      // Resolved versions are sent asynchronously via 'installations-versions-updated'.
       const cv = inst.comfyVersion as ComfyVersion | undefined
       const rawVersion = cv ? formatComfyVersion(cv, 'short') : (inst.version as string | undefined)
       const version = rawVersion === inst.sourceId ? undefined : rawVersion
@@ -600,6 +629,12 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         ...(statusTag ? { statusTag } : {}),
       }
     })
+
+    // Resolve versions from git state in the background; push updates to
+    // the renderer if any differ from the stored values.
+    _resolveAndBroadcastVersions(list).catch(() => {})
+
+    return result
   })
 
   ipcMain.handle('get-unique-name', async (_event, baseName: string) => {
@@ -878,7 +913,31 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         },
       ]
     }
-    return source.getDetailSections(inst)
+    const sections = source.getDetailSections(inst)
+
+    // Resolve version from git state for the detail view so it stays
+    // consistent with snapshot cards (which also use resolveLocalVersion).
+    const cv = inst.comfyVersion as ComfyVersion | undefined
+    if (cv?.commit && inst.installPath) {
+      const comfyuiDir = path.join(inst.installPath, 'ComfyUI')
+      try {
+        const resolved = await resolveLocalVersion(comfyuiDir, cv.commit)
+        const display = formatComfyVersion(resolved, 'detail')
+        for (const section of sections) {
+          const fields = (section as Record<string, unknown>).fields as Record<string, unknown>[] | undefined
+          if (!fields) continue
+          for (const f of fields) {
+            if ((f as Record<string, unknown>).key === 'comfyui-version') {
+              (f as Record<string, unknown>).value = display
+            }
+          }
+        }
+      } catch {
+        // Fall through with stored version
+      }
+    }
+
+    return sections
   })
 
   // Snapshots

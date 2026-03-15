@@ -20,6 +20,13 @@ export const useInstallationStore = defineStore('installation', () => {
     fetchInstallations()
   })
 
+  window.api.onInstallationsVersionsUpdated((updates) => {
+    for (const { id, version } of updates) {
+      const inst = installations.value.find((i) => i.id === id)
+      if (inst) inst.version = version
+    }
+  })
+
   function getById(id: string): Installation | undefined {
     return installations.value.find((i) => i.id === id)
   }
