@@ -744,7 +744,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   border-color: var(--border-hover);
 }
 .timeline-entry.selected .timeline-card {
-  border-color: var(--accent);
+  border-color: var(--selected);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
   border-bottom-color: transparent;
@@ -950,7 +950,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 /* Inspector (inline below the card) */
 .snapshot-inspector {
   background: var(--surface);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--selected);
   border-top: none;
   border-radius: 0 0 8px 8px;
   padding: 12px 14px;
