@@ -7,7 +7,7 @@ vi.mock('child_process', async (importOriginal) => {
 })
 
 import { execFile } from 'child_process'
-import { countCommitsAhead } from './git'
+import { countCommitsAhead, findNearestTag, findLatestVersionTag } from './git'
 
 const mockedExecFile = vi.mocked(execFile)
 
@@ -36,5 +36,48 @@ describe('countCommitsAhead', () => {
   it('returns undefined for non-numeric output', async () => {
     mockExecFile((_cmd, _args, _opts, cb) => { cb(null, 'bad\n', '') })
     expect(await countCommitsAhead('/repo', 'v0.14.2')).toBeUndefined()
+  })
+})
+
+describe('findNearestTag', () => {
+  beforeEach(() => { vi.resetAllMocks() })
+
+  it('returns the tag when git describe succeeds', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(null, 'v0.17.0\n', '') })
+    expect(await findNearestTag('/repo')).toBe('v0.17.0')
+  })
+
+  it('returns undefined when git fails', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(new Error('no tags'), '', '') })
+    expect(await findNearestTag('/repo')).toBeUndefined()
+  })
+
+  it('returns undefined for empty output', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(null, '\n', '') })
+    expect(await findNearestTag('/repo')).toBeUndefined()
+  })
+})
+
+describe('findLatestVersionTag', () => {
+  beforeEach(() => { vi.resetAllMocks() })
+
+  it('returns the first tag from version-sorted output', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(null, 'v0.17.1\nv0.17.0\nv0.16.4\n', '') })
+    expect(await findLatestVersionTag('/repo')).toBe('v0.17.1')
+  })
+
+  it('returns the tag when only one exists', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(null, 'v0.17.1\n', '') })
+    expect(await findLatestVersionTag('/repo')).toBe('v0.17.1')
+  })
+
+  it('returns undefined when git fails', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(new Error('no tags'), '', '') })
+    expect(await findLatestVersionTag('/repo')).toBeUndefined()
+  })
+
+  it('returns undefined for empty output', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(null, '\n', '') })
+    expect(await findLatestVersionTag('/repo')).toBeUndefined()
   })
 })

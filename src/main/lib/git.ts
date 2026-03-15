@@ -108,6 +108,47 @@ export function countCommitsAhead(repoPath: string, tag: string): Promise<number
   })
 }
 
+/**
+ * Find the nearest ancestor tag reachable from HEAD.  Runs `git describe`
+ * asynchronously (local operation, no network).  Returns undefined if git is
+ * unavailable, no tags exist, or any error occurs.
+ */
+export function findNearestTag(repoPath: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile('git', ['describe', '--tags', '--abbrev=0', 'HEAD'], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      windowsHide: true,
+      timeout: 1000,
+    }, (error, stdout) => {
+      if (error) { resolve(undefined); return }
+      const tag = stdout.trim()
+      resolve(tag || undefined)
+    })
+  })
+}
+
+/**
+ * Find the highest version tag in the repository.  Runs `git tag` with
+ * version-sort, so it works even when the latest release is a backport on
+ * a separate branch (not an ancestor of HEAD).  Returns undefined if git
+ * is unavailable, no `v*` tags exist, or any error occurs.
+ */
+export function findLatestVersionTag(repoPath: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile('git', ['tag', '-l', 'v*', '--sort=-v:refname'], {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      windowsHide: true,
+      timeout: 1000,
+    }, (error, stdout) => {
+      if (error) { resolve(undefined); return }
+      const tag = stdout.trim().split('\n')[0]?.trim()
+      resolve(tag || undefined)
+    })
+  })
+}
+
 /** Check whether a path has a .git directory or file (worktree/submodule). */
 export function hasGitDir(nodePath: string): boolean {
   return resolveGitDir(nodePath) !== null

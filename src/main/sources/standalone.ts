@@ -12,7 +12,7 @@ import type { ComfyVersion } from '../lib/version'
 import { deleteAction, untrackAction } from '../lib/actions'
 import { downloadAndExtract, downloadAndExtractMulti } from '../lib/installer'
 import { copyDirWithProgress } from '../lib/copy'
-import { readGitHead, countCommitsAhead } from '../lib/git'
+import { readGitHead, countCommitsAhead, findNearestTag, findLatestVersionTag } from '../lib/git'
 import { parseArgs, extractPort, formatTime } from '../lib/util'
 import { PYTORCH_RE, installFilteredRequirements, getPipIndexArgs } from '../lib/pip'
 import { t } from '../lib/i18n'
@@ -675,10 +675,24 @@ export const standalone: SourcePlugin = {
     const headCommit = readGitHead(comfyuiDir)
     if (headCommit) {
       const ref = installation.version as string | undefined
+      // Use the nearest ancestor tag as the primary source.  When HEAD is
+      // ahead of it (latest channel), upgrade to the highest version tag in
+      // the repo so backport releases (e.g. v0.17.1 on a release branch)
+      // are reported correctly.
+      const [ancestorTag, latestTag] = await Promise.all([
+        findNearestTag(comfyuiDir),
+        findLatestVersionTag(comfyuiDir),
+      ])
+      const ancestorDist = ancestorTag ? await countCommitsAhead(comfyuiDir, ancestorTag) : undefined
+      const useLatest = latestTag && ancestorDist !== undefined && ancestorDist > 0
+      const baseTag = (useLatest ? latestTag : ancestorTag) ?? ref
+      const commitsAhead = baseTag
+        ? (useLatest ? await countCommitsAhead(comfyuiDir, baseTag) ?? ancestorDist ?? 0 : ancestorDist ?? 0)
+        : undefined
       const comfyVersion: ComfyVersion = {
         commit: headCommit,
-        baseTag: ref,
-        commitsAhead: 0,
+        baseTag,
+        commitsAhead,
       }
       await update({ comfyVersion })
       // Use updated installation for snapshot so it captures the version
@@ -718,8 +732,23 @@ export const standalone: SourcePlugin = {
       const comfyuiDir = path.join(dirPath, 'ComfyUI')
       const commit = readGitHead(comfyuiDir)
       if (commit) {
-        const baseTag = version !== 'unknown' ? version : undefined
-        const commitsAhead = baseTag ? await countCommitsAhead(comfyuiDir, baseTag) : undefined
+        // Use the nearest ancestor tag as the primary source.  When HEAD is
+        // ahead of it (latest channel), upgrade to the highest version tag
+        // in the repo so backport releases (e.g. v0.17.1 on a release
+        // branch) are reported correctly.  When HEAD is exactly on a tag
+        // (stable channel / rollback), keep the ancestor tag as-is.
+        // Falls back to the manifest's comfyui_ref when no tags exist.
+        const manifestTag = version !== 'unknown' ? version : undefined
+        const [ancestorTag, latestTag] = await Promise.all([
+          findNearestTag(comfyuiDir),
+          findLatestVersionTag(comfyuiDir),
+        ])
+        const ancestorDist = ancestorTag ? await countCommitsAhead(comfyuiDir, ancestorTag) : undefined
+        const useLatest = latestTag && ancestorDist !== undefined && ancestorDist > 0
+        const baseTag = (useLatest ? latestTag : ancestorTag) ?? manifestTag
+        const commitsAhead = useLatest
+          ? await countCommitsAhead(comfyuiDir, latestTag) ?? ancestorDist
+          : ancestorDist
         comfyVersion = { commit, baseTag, commitsAhead }
       }
     }
