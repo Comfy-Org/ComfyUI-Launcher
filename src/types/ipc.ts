@@ -469,6 +469,12 @@ export interface SnapshotFilePreview {
   newestSnapshot: SnapshotDetailData
 }
 
+// --- Error detail (async follow-up after a locked-file error) ---
+export interface ErrorDetailData {
+  installationId: string
+  message: string
+}
+
 // --- IPC API interface ---
 export interface ElectronApi {
   // Sources / New Install
@@ -592,6 +598,7 @@ export interface ElectronApi {
   onModelDownloadProgress(callback: (progress: ModelDownloadProgress) => void): Unsubscribe
   onTelemetrySettingChanged(callback: (enabled: boolean | undefined) => void): Unsubscribe
   onDatadogError(callback: (payload: DatadogForwardedError) => void): Unsubscribe
+  onErrorDetail(callback: (data: ErrorDetailData) => void): Unsubscribe
 }
 
 /** Action IDs that require the installation to be stopped before running.

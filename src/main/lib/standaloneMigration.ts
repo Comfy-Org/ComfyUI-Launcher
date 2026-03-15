@@ -15,6 +15,7 @@ import type { InstallationRecord } from '../installations'
 import * as settings from '../settings'
 import * as i18n from './i18n'
 import type { SourcePlugin, FieldOption } from '../types/sources'
+import { assertReadable } from './desktopDetect'
 
 const MARKER_FILE = '.comfyui-desktop-2'
 
@@ -166,6 +167,11 @@ async function copyMigrationData(
   labels: SharedMigrationInput['labels'],
   sendProgress: MigrationTools['sendProgress'],
 ): Promise<void> {
+  // Verify read access to source directories before copying (macOS TCC may block)
+  for (const dir of [sourcePaths.userDir, sourcePaths.inputDir, sourcePaths.outputDir, sourcePaths.modelsDir]) {
+    if (dir && fs.existsSync(dir)) assertReadable(dir)
+  }
+
   // User data
   if (sourcePaths.userDir && fs.existsSync(sourcePaths.userDir)) {
     sendProgress('migrate', { percent: 0, status: labels.userData })
@@ -245,8 +251,8 @@ export async function migrateToStandaloneFromSnapshot(
   ensureDefaultPrimary(entry)
 
   // 3. Install standalone (download + extract + setup env)
-  fs.mkdirSync(destPath, { recursive: true })
-  fs.writeFileSync(path.join(destPath, MARKER_FILE), entry.id)
+  await fs.promises.mkdir(destPath, { recursive: true })
+  await fs.promises.writeFile(path.join(destPath, MARKER_FILE), entry.id)
   const cache = createCache(settings.get('cacheDir') as string, settings.get('maxCachedFiles') as number)
   const installRecord = { ...instData, installPath: destPath } as unknown as InstallationRecord
   await standaloneSource.install!(installRecord, { sendProgress, download, cache, extract, signal })

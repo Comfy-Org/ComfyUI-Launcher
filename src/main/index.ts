@@ -461,7 +461,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   })
   comfyWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (shouldOpenInPopup(url)) {
-      return { action: 'allow' }
+      return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { preload: undefined } } }
     }
     shell.openExternal(url)
     return { action: 'deny' }

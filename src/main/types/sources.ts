@@ -39,6 +39,9 @@ export interface LaunchCommand {
   /** When true, skip port conflict detection and port readiness waiting.
    *  The session is registered immediately after spawning. */
   skipPortWait?: boolean
+  /** When true, skip injecting shared model/input/output path args.
+   *  Used for external apps that don't accept ComfyUI CLI flags. */
+  skipSharedPaths?: boolean
 }
 
 // --- Install / action tools ---
@@ -61,6 +64,7 @@ export interface ActionTools {
 export interface PostInstallTools {
   sendProgress: (step: string, data: { percent: number; status: string }) => void
   update: (data: Record<string, unknown>) => Promise<void>
+  signal?: AbortSignal
 }
 
 // --- Action / detail section types ---

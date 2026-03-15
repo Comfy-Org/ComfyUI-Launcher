@@ -1,5 +1,5 @@
 import path from 'path'
-import { describe, expect, it, vi, beforeEach, type MockInstance } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach, type MockInstance } from 'vitest'
 import fs from 'fs'
 
 vi.mock('electron', () => ({
@@ -11,6 +11,50 @@ vi.mock('electron', () => ({
 }))
 
 import { desktop } from './desktop'
+
+describe('desktop.getLaunchCommand', () => {
+  let existsSyncSpy: MockInstance
+  const originalPlatform = process.platform
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    existsSyncSpy = vi.spyOn(fs, 'existsSync')
+  })
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform })
+  })
+
+  it('uses `open` for .app bundles on macOS', () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    const appPath = '/Applications/ComfyUI.app'
+    existsSyncSpy.mockReturnValue(true)
+
+    const cmd = desktop.getLaunchCommand({ desktopExePath: appPath } as unknown as Parameters<typeof desktop.getLaunchCommand>[0])
+    expect(cmd).not.toBeNull()
+    expect(cmd!.cmd).toBe('/usr/bin/open')
+    expect(cmd!.args).toEqual([appPath])
+    expect(cmd!.skipPortWait).toBe(true)
+  })
+
+  it('uses the executable directly on Windows', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    const exePath = 'C:\\Programs\\ComfyUI\\ComfyUI.exe'
+    existsSyncSpy.mockReturnValue(true)
+
+    const cmd = desktop.getLaunchCommand({ desktopExePath: exePath } as unknown as Parameters<typeof desktop.getLaunchCommand>[0])
+    expect(cmd).not.toBeNull()
+    expect(cmd!.cmd).toBe(exePath)
+    expect(cmd!.args).toEqual([])
+  })
+
+  it('returns null when executable does not exist', () => {
+    existsSyncSpy.mockReturnValue(false)
+
+    const cmd = desktop.getLaunchCommand({ desktopExePath: '/missing/ComfyUI.app' } as unknown as Parameters<typeof desktop.getLaunchCommand>[0])
+    expect(cmd).toBeNull()
+  })
+})
 
 describe('desktop.probeInstallation', () => {
   let existsSyncSpy: MockInstance
@@ -33,7 +77,7 @@ describe('desktop.probeInstallation', () => {
 
     const result = await desktop.probeInstallation(dir)
     expect(result).not.toBeNull()
-    expect(result!.version).toBe('desktop')
+    expect(result!.version).toBeUndefined()
     expect(result!.launchMode).toBe('external')
   })
 

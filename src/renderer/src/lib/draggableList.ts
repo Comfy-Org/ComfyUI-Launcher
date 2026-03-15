@@ -24,6 +24,10 @@ export class DraggableList {
   private lastClientX = 0
   private lastClientY = 0
   private itemsGap = 0
+  private dragStartTop = 0
+  private listMinY = 0
+  private listMaxY = 0
+  private dragHeight = 0
   private scrollParent: HTMLElement | null = null
 
   private boundDragStart = this.dragStart.bind(this)
@@ -98,6 +102,20 @@ export class DraggableList {
     this.initDraggableItem()
     this.initItemsState()
 
+    // Snapshot the dragged item's original top and the full list extent before
+    // any transforms are applied, so clamping stays stable throughout the drag.
+    const dragRect = item.getBoundingClientRect()
+    this.dragStartTop = dragRect.top
+    this.dragHeight = dragRect.height
+    const idleItems = this.getIdleItems()
+    if (idleItems.length > 0) {
+      this.listMinY = Math.min(dragRect.top, idleItems[0]!.getBoundingClientRect().top)
+      this.listMaxY = Math.max(dragRect.bottom, idleItems[idleItems.length - 1]!.getBoundingClientRect().bottom)
+    } else {
+      this.listMinY = dragRect.top
+      this.listMaxY = dragRect.bottom
+    }
+
     this.boundDrag = this.drag.bind(this)
     document.addEventListener('mousemove', this.boundDrag)
 
@@ -113,7 +131,9 @@ export class DraggableList {
     this.lastClientX = e.clientX
     this.lastClientY = e.clientY
 
-    // Auto-scroll when pointer is outside the scroll parent
+    // Auto-scroll when pointer is outside the scroll parent.
+    // The drag clamp prevents the dragged item from extending the container,
+    // so simple scroll-room checks are sufficient here.
     if (this.scrollParent) {
       const scrollRect = this.scrollParent.getBoundingClientRect()
       if (e.clientY > scrollRect.bottom && this.scrollParent.scrollTop < this.scrollParent.scrollHeight - this.scrollParent.clientHeight) {
@@ -135,7 +155,13 @@ export class DraggableList {
     if (!this.draggableItem) return
     const scrollOffset = this.container.getBoundingClientRect().top - this.containerStartTop
     const offsetX = this.lastClientX - this.pointerStartX
-    const offsetY = this.lastClientY - this.pointerStartY - scrollOffset
+    let offsetY = this.lastClientY - this.pointerStartY - scrollOffset
+
+    // Clamp vertical offset so the dragged item stays within the list bounds.
+    // Uses positions snapshotted at drag start so swap animations don't shift the clamp.
+    const minY = this.listMinY - this.dragStartTop - this.dragHeight / 2
+    const maxY = this.listMaxY - this.dragStartTop - this.dragHeight / 2
+    offsetY = Math.max(minY, Math.min(maxY, offsetY))
 
     this.updateIdleItemsStateAndPosition()
     this.draggableItem.style.transform = `translate(${offsetX}px, ${offsetY}px)`

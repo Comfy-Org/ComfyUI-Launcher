@@ -210,6 +210,11 @@ const api: ElectronApi = {
     ipcRenderer.on('dd-error', handler)
     return () => ipcRenderer.removeListener('dd-error', handler)
   },
+  onErrorDetail: (callback) => {
+    const handler = (_event: IpcRendererEvent, data: unknown) => callback(data as Parameters<typeof callback>[0])
+    ipcRenderer.on('error-detail', handler)
+    return () => ipcRenderer.removeListener('error-detail', handler)
+  },
 }
 
 if (process.contextIsolated) {

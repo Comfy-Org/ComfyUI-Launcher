@@ -5,6 +5,8 @@
 export const POPUP_ALLOWED_PREFIXES = [
   'https://dreamboothy.firebaseapp.com/',
   'https://checkout.comfy.org/',
+  'https://accounts.google.com/',
+  'https://github.com/login/oauth/',
 ]
 
 export function shouldOpenInPopup(url: string): boolean {

@@ -19,43 +19,6 @@ from datetime import datetime
 import sys
 
 
-def pull(repo, ident, remote_name="origin", branch="master"):
-    remote_ref = repo.lookup_reference("refs/remotes/%s/%s" % (remote_name, branch))
-    remote_id = remote_ref.target
-    merge_result, _ = repo.merge_analysis(remote_id)
-
-    if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
-        print("Already up to date.")
-        return
-
-    if merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
-        repo.checkout_tree(repo.get(remote_id))
-        try:
-            local_ref = repo.lookup_reference("refs/heads/%s" % branch)
-            local_ref.set_target(remote_id)
-        except KeyError:
-            repo.create_branch(branch, repo.get(remote_id))
-        repo.head.set_target(remote_id)
-        return
-
-    if merge_result & pygit2.GIT_MERGE_ANALYSIS_NORMAL:
-        repo.merge(remote_id)
-        if repo.index.conflicts is not None:
-            for conflict in repo.index.conflicts:
-                entry = next((x for x in conflict if x is not None), None)
-                print("Conflict in: %s" % (entry.path if entry else "unknown"))
-            raise RuntimeError("Merge conflicts detected. Aborting.")
-        tree = repo.index.write_tree()
-        repo.create_commit(
-            "HEAD", ident, ident, "Merge!",
-            tree, [repo.head.target, remote_id],
-        )
-        repo.state_cleanup()
-        return
-
-    raise RuntimeError("Unknown merge analysis result")
-
-
 def find_latest_stable_tag(repo):
     versions = []
     for ref_name in repo.references:
@@ -106,37 +69,34 @@ def main():
             print(err)
         print(".git contents: %s" % os.listdir(git_dir))
         sys.exit(1)
-    ident = pygit2.Signature("comfyui", "comfy@ui")
 
     # Emit pre-update HEAD
     pre_head = str(repo.head.target)
     print("[PRE_UPDATE_HEAD] %s" % pre_head)
 
-    # Stash local changes
-    print("Stashing current changes…")
-    did_stash = False
-    try:
-        repo.stash(ident)
-        did_stash = True
-    except KeyError:
-        print("Nothing to stash.")
-    except Exception:
-        print("Could not stash, cleaning index and trying again.")
-        repo.state_cleanup()
-        repo.index.read_tree(repo.head.peel().tree)
-        repo.index.write()
-        try:
-            repo.stash(ident)
-            did_stash = True
-        except KeyError:
-            print("Nothing to stash.")
+    # Clean any leftover merge/rebase state from a previous failed update
+    repo.state_cleanup()
 
-    # Create backup branch
+    # Create backup branch so local modifications can be recovered manually.
+    # If there are uncommitted changes in the working tree, commit them onto
+    # the backup branch so they are not lost when the hard reset runs.
     backup_name = "backup_branch_%s" % datetime.today().strftime("%Y-%m-%d_%H_%M_%S")
     print("Creating backup branch: %s" % backup_name)
     try:
         repo.branches.local.create(backup_name, repo.head.peel())
         print("[BACKUP_BRANCH] %s" % backup_name)
+        repo.index.add_all()
+        repo.index.write()
+        if repo.index.diff_to_tree(repo.head.peel().tree):
+            tree = repo.index.write_tree()
+            ident = pygit2.Signature("comfyui", "comfy@ui")
+            backup_ref = "refs/heads/%s" % backup_name
+            repo.create_commit(
+                backup_ref, ident, ident,
+                "Backup of uncommitted changes before update",
+                tree, [repo.head.target],
+            )
+            print("Uncommitted changes saved to backup branch.")
     except Exception:
         print("Warning: could not create backup branch.")
 
@@ -155,18 +115,22 @@ def main():
                 sys.exit(1)
             break
 
-    # Checkout master — create local branch if needed
-    print("Checking out master branch…")
+    # Hard-reset master to origin/master.
+    # Launcher-managed installations should not have local modifications to
+    # tracked files. Using a hard reset instead of merge/stash avoids merge
+    # conflicts and stash-pop conflict markers that can corrupt working-tree
+    # files (see issue #245).
+    print("Resetting to origin/master…")
+    remote_ref = repo.lookup_reference("refs/remotes/origin/master")
+    remote_id = remote_ref.target
     branch = repo.lookup_branch("master")
     if branch is None:
-        ref = repo.lookup_reference("refs/remotes/origin/master")
-        repo.create_branch("master", repo.get(ref.target))
+        repo.create_branch("master", repo.get(remote_id))
+    else:
+        branch.set_target(remote_id)
     ref = repo.lookup_reference("refs/heads/master")
-    repo.checkout(ref)
-
-    # Pull latest (fast-forward or merge against already-fetched origin/master)
-    print("Pulling latest changes…")
-    pull(repo, ident)
+    repo.checkout(ref, strategy=pygit2.GIT_CHECKOUT_FORCE)
+    repo.reset(remote_id, pygit2.GIT_RESET_HARD)
 
     # Checkout stable tag if requested
     if stable:
@@ -178,16 +142,6 @@ def main():
             print("[CHECKED_OUT_TAG] %s" % tag_name)
         else:
             print("No stable tags found, staying on master.")
-
-    # Restore stashed changes
-    if did_stash:
-        print("Restoring stashed changes…")
-        try:
-            repo.stash_pop()
-            print("Stashed changes restored successfully.")
-        except Exception as e:
-            print("Could not restore stashed changes (conflicts likely): %s" % e)
-            print("Your changes are still saved in the stash — run 'git stash pop' manually to recover them.")
 
     # Emit post-update HEAD
     post_head = str(repo.head.target)

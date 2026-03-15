@@ -697,6 +697,7 @@
     "installFailed": "Install Failed",
     "deleteInterrupted": "Delete Interrupted",
     "deleteLocked": "A file could not be deleted because it is in use by another program. Close any applications that may have files open in this directory and try again.\n{path}",
+    "deleteLockedBy": "A file could not be deleted because it is in use by: {processes}. Close these applications and try again.\n{path}",
     "cannotAdd": "Cannot Add",
     "dirNotExist": "Directory does not exist: {path}",
     "cannotOpenDir": "Could not open directory: {error}",
@@ -718,7 +719,8 @@
     "cancelOperation": "Cancel Operation",
     "stopRequired": "This installation is currently running and must be stopped first.",
     "stopRequiredConfirm": "This installation is currently running. Would you like to stop it to continue?",
-    "stopRunning": "Stop Running"
+    "stopRunning": "Stop Running",
+    "folderPermissionDenied": "macOS denied access to \"{path}\". Please open System Settings → Privacy & Security → Files and Folders, grant access to ComfyUI Desktop 2.0, then retry."
   },
 
   "tooltips": {
