@@ -30,6 +30,7 @@
   --color-text-muted: #8a8a8a;
   --color-accent: #60a5fa;
   --color-accent-hover: #93c5fd;
+  --color-selected: rgba(255, 255, 255, 0.85);
   --color-surface: #262729;
   --color-border: #494a50;
   --color-border-hover: #3c3d42;
@@ -45,6 +46,7 @@
   --text-faint: #55565e;
   --accent: #60a5fa;
   --accent-hover: #93c5fd;
+  --selected: rgba(255, 255, 255, 0.85);
   --surface: #262729;
   --border: #494a50;
   --border-hover: #3c3d42;
@@ -64,6 +66,7 @@
   --text-faint: #586e75;
   --accent: #60a5fa;
   --accent-hover: #93c5fd;
+  --selected: rgba(255, 255, 255, 0.85);
   --surface: #073642;
   --border: #657b83;
   --border-hover: #586e75;
@@ -82,6 +85,7 @@
   --text-faint: #545d70;
   --accent: #60a5fa;
   --accent-hover: #93c5fd;
+  --selected: rgba(255, 255, 255, 0.85);
   --surface: #2e3440;
   --border: #545d70;
   --border-hover: #434c5e;
@@ -100,6 +104,7 @@
   --text-faint: #5c626d;
   --accent: #60a5fa;
   --accent-hover: #93c5fd;
+  --selected: rgba(255, 255, 255, 0.85);
   --surface: #2b2f38;
   --border: #6e7581;
   --border-hover: #5c626d;
@@ -118,6 +123,7 @@
   --text-faint: #30363d;
   --accent: #60a5fa;
   --accent-hover: #93c5fd;
+  --selected: rgba(255, 255, 255, 0.85);
   --surface: #161b22;
   --border: #30363d;
   --border-hover: #262c33;
@@ -451,7 +457,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   cursor: pointer; transition: border-color 0.15s;
 }
 .channel-card:hover { border-color: var(--border-hover); }
-.channel-card.selected { border-color: var(--accent); }
+.channel-card.selected { border-color: var(--selected); }
 .channel-card.current:not(.selected) { border-color: var(--border-hover); }
 .channel-card-header { display: flex; align-items: center; gap: 8px; }
 .channel-card-label { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -864,7 +870,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   transition: border-color 0.15s;
 }
 .source-card:hover { border-color: var(--border-hover); }
-.source-card.selected { border-color: var(--accent); }
+.source-card.selected { border-color: var(--selected); }
 
 .source-card-hero {
   padding: 24px;
@@ -908,7 +914,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   transition: border-color 0.15s;
 }
 .variant-card:hover { border-color: var(--border-hover); }
-.variant-card.selected { border-color: var(--accent); }
+.variant-card.selected { border-color: var(--selected); }
 
 .variant-card-icon {
   width: 96px; height: 96px; border-radius: 12px;
