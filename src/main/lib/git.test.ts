@@ -7,7 +7,7 @@ vi.mock('child_process', async (importOriginal) => {
 })
 
 import { execFile } from 'child_process'
-import { countCommitsAhead, findNearestTag, findLatestVersionTag, isAncestorOf } from './git'
+import { countCommitsAhead, findNearestTag, findLatestVersionTag, isAncestorOf, findMergeBase, revParseRef, fetchTags } from './git'
 
 const mockedExecFile = vi.mocked(execFile)
 
@@ -93,5 +93,47 @@ describe('isAncestorOf', () => {
   it('returns false when git exits with error', async () => {
     mockExecFile((_cmd, _args, _opts, cb) => { cb(new Error('not ancestor'), '', '') })
     expect(await isAncestorOf('/repo', 'v0.18.0', 'v0.17.1')).toBe(false)
+  })
+})
+
+describe('findMergeBase', () => {
+  beforeEach(() => { vi.resetAllMocks() })
+
+  it('returns SHA when git succeeds', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(null, 'abc123def456\n', '') })
+    expect(await findMergeBase('/repo', 'v0.17.0', 'HEAD')).toBe('abc123def456')
+  })
+
+  it('returns undefined when git fails', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(new Error('no merge base'), '', '') })
+    expect(await findMergeBase('/repo', 'v0.17.0', 'HEAD')).toBeUndefined()
+  })
+})
+
+describe('revParseRef', () => {
+  beforeEach(() => { vi.resetAllMocks() })
+
+  it('returns SHA when git succeeds', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(null, 'abc123def\n', '') })
+    expect(await revParseRef('/repo', 'v0.17.0')).toBe('abc123def')
+  })
+
+  it('returns undefined when git fails', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(new Error('bad ref'), '', '') })
+    expect(await revParseRef('/repo', 'nonexistent')).toBeUndefined()
+  })
+})
+
+describe('fetchTags', () => {
+  beforeEach(() => { vi.resetAllMocks() })
+
+  it('returns true when git exits with 0', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(null, '', '') })
+    expect(await fetchTags('/repo')).toBe(true)
+  })
+
+  it('returns false when git exits with error', async () => {
+    mockExecFile((_cmd, _args, _opts, cb) => { cb(new Error('network error'), '', '') })
+    expect(await fetchTags('/repo')).toBe(false)
   })
 })

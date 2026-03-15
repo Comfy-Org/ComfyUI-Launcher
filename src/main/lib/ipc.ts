@@ -9,7 +9,9 @@ import * as installations from '../installations'
 import type { InstallationRecord } from '../installations'
 import { formatComfyVersion } from './version'
 import type { ComfyVersion } from './version'
-import { resolveLocalVersion } from './version-resolve'
+import { resolveLocalVersion, clearVersionCache } from './version-resolve'
+import type { LatestTagOverride } from './version-resolve'
+import { readGitRemoteUrl, fetchTags, findLatestVersionTag, revParseRef, hasGitDir } from './git'
 import * as settings from '../settings'
 import { defaultInstallDir } from './paths'
 import { download } from './download'
@@ -293,21 +295,74 @@ function _broadcastToRenderer(channel: string, data: Record<string, unknown>): v
 }
 
 /**
- * Resolve versions from git state for all installations in parallel and
- * broadcast updates to the renderer if any resolved version differs from
- * the stored one.  Called in the background after get-installations returns.
+ * Fetch tags once per unique remote origin, resolve the latest tag name +
+ * SHA, then return a map from origin URL to the override info.
+ */
+async function _fetchAndResolveLatestTags(
+  installs: Array<{ comfyuiDir: string }>
+): Promise<Map<string, LatestTagOverride>> {
+  // Group by remote origin URL
+  const originGroups = new Map<string, string[]>()
+  for (const { comfyuiDir } of installs) {
+    const origin = readGitRemoteUrl(comfyuiDir)
+    if (!origin) continue
+    const group = originGroups.get(origin) ?? []
+    group.push(comfyuiDir)
+    originGroups.set(origin, group)
+  }
+
+  const result = new Map<string, LatestTagOverride>()
+  await Promise.all([...originGroups.entries()].map(async ([origin, dirs]) => {
+    // Fetch tags into ALL repos in the group so every repo has the
+    // commit objects needed for SHA-based merge-base / ancestry checks.
+    await Promise.all(dirs.map((d) => fetchTags(d)))
+    const representative = dirs[0]!
+    const tagName = await findLatestVersionTag(representative)
+    if (!tagName) return
+    const sha = await revParseRef(representative, tagName)
+    if (!sha) return
+    result.set(origin, { name: tagName, sha })
+  }))
+  return result
+}
+
+/**
+ * Resolve versions from git state for all installations, fetch tags once
+ * per unique remote origin, persist updates to the installation records,
+ * and broadcast changes to the renderer.  Called in the background after
+ * get-installations returns.
  */
 async function _resolveAndBroadcastVersions(list: InstallationRecord[]): Promise<void> {
-  const updates: { id: string; version: string }[] = []
-  await Promise.all(list.map(async (inst) => {
+  // Collect installations with ComfyUI git repos
+  const candidates = list.flatMap((inst) => {
     const cv = inst.comfyVersion as ComfyVersion | undefined
-    if (!cv?.commit || !inst.installPath) return
+    if (!cv?.commit || !inst.installPath) return []
     const comfyuiDir = path.join(inst.installPath, 'ComfyUI')
+    if (!hasGitDir(comfyuiDir)) return []
+    return [{ inst, cv, comfyuiDir }]
+  })
+  if (candidates.length === 0) return
+
+  // Fetch tags once per unique origin and resolve latest tag info
+  const tagOverrides = await _fetchAndResolveLatestTags(candidates)
+
+  // Clear cache AFTER fetching so concurrent resolveLocalVersion calls
+  // during the fetch don't repopulate the cache with stale data.
+  clearVersionCache()
+
+  // Resolve each installation's version
+  const updates: { id: string; version: string }[] = []
+  await Promise.all(candidates.map(async ({ inst, cv, comfyuiDir }) => {
+    const origin = readGitRemoteUrl(comfyuiDir)
+    const override = origin ? tagOverrides.get(origin) : undefined
     try {
-      const resolved = await resolveLocalVersion(comfyuiDir, cv.commit)
+      const resolved = await resolveLocalVersion(comfyuiDir, cv.commit, undefined, override)
       const resolvedStr = formatComfyVersion(resolved, 'short')
       const storedStr = formatComfyVersion(cv, 'short')
       if (resolvedStr !== storedStr) {
+        // Persist to the installation record so all surfaces (Status tab,
+        // Update tab, etc.) read the same resolved version.
+        await installations.update(inst.id, { comfyVersion: resolved })
         updates.push({ id: inst.id, version: resolvedStr })
       }
     } catch {
@@ -913,31 +968,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         },
       ]
     }
-    const sections = source.getDetailSections(inst)
-
-    // Resolve version from git state for the detail view so it stays
-    // consistent with snapshot cards (which also use resolveLocalVersion).
-    const cv = inst.comfyVersion as ComfyVersion | undefined
-    if (cv?.commit && inst.installPath) {
-      const comfyuiDir = path.join(inst.installPath, 'ComfyUI')
-      try {
-        const resolved = await resolveLocalVersion(comfyuiDir, cv.commit)
-        const display = formatComfyVersion(resolved, 'detail')
-        for (const section of sections) {
-          const fields = (section as Record<string, unknown>).fields as Record<string, unknown>[] | undefined
-          if (!fields) continue
-          for (const f of fields) {
-            if ((f as Record<string, unknown>).key === 'comfyui-version') {
-              (f as Record<string, unknown>).value = display
-            }
-          }
-        }
-      } catch {
-        // Fall through with stored version
-      }
-    }
-
-    return sections
+    return source.getDetailSections(inst)
   })
 
   // Snapshots
@@ -1055,14 +1086,52 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     return { ok: true, imported: result.imported, skipped: result.skipped }
   })
 
-  function buildSnapshotPreview(filePath: string, envelope: SnapshotExportEnvelope): Record<string, unknown> {
+  /**
+   * Find a reference ComfyUI git repo from existing installations that
+   * can be used to resolve versions for imported snapshots.  Returns the
+   * repo dir and a latestTagOverride if available.
+   */
+  async function _findReferenceRepo(): Promise<{ comfyuiDir: string; override?: LatestTagOverride } | null> {
+    const all = await installations.list()
+    for (const inst of all) {
+      if (!inst.installPath) continue
+      const comfyuiDir = path.join(inst.installPath, 'ComfyUI')
+      if (!hasGitDir(comfyuiDir)) continue
+      // Try to get the latest tag info from this repo
+      const tagName = await findLatestVersionTag(comfyuiDir)
+      if (tagName) {
+        const sha = await revParseRef(comfyuiDir, tagName)
+        if (sha) return { comfyuiDir, override: { name: tagName, sha } }
+      }
+      return { comfyuiDir }
+    }
+    return null
+  }
+
+  async function buildSnapshotPreview(filePath: string, envelope: SnapshotExportEnvelope): Promise<Record<string, unknown>> {
+    // Find a reference repo to resolve versions from git state
+    const ref = await _findReferenceRepo()
+
+    const resolveVersion = async (comfyui: { ref: string; commit: string | null; baseTag?: string; commitsAhead?: number }, style: 'short' | 'detail'): Promise<string> => {
+      if (!comfyui.commit || !ref) return formatSnapshotVersion(comfyui, style)
+      try {
+        const cv = await resolveLocalVersion(ref.comfyuiDir, comfyui.commit, undefined, ref.override)
+        return formatComfyVersion(cv, style)
+      } catch {
+        return formatSnapshotVersion(comfyui, style)
+      }
+    }
+
     const newest = envelope.snapshots[0]!
+    const resolvedVersions = await Promise.all(
+      envelope.snapshots.map((s) => resolveVersion(s.comfyui, 'short'))
+    )
     const snapshots = envelope.snapshots.map((s, i) => ({
       filename: `imported-${i}`,
       createdAt: s.createdAt,
       trigger: s.trigger,
       label: s.label,
-      comfyuiVersion: formatSnapshotVersion(s.comfyui, 'short'),
+      comfyuiVersion: resolvedVersions[i]!,
       nodeCount: s.customNodes.length,
       pipPackageCount: Object.keys(s.pipPackages).length,
     }))
@@ -1076,7 +1145,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         createdAt: newest.createdAt,
         trigger: newest.trigger,
         label: newest.label,
-        comfyuiVersion: formatSnapshotVersion(newest.comfyui, 'detail'),
+        comfyuiVersion: await resolveVersion(newest.comfyui, 'detail'),
         comfyui: newest.comfyui,
         pythonVersion: newest.pythonVersion,
         updateChannel: newest.updateChannel,
@@ -1111,7 +1180,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const { envelope, stagedFile } = await stageDesktopSnapshot(desktopInfo)
 
       _lastDesktopPreviewFile = stagedFile
-      return { ok: true, preview: buildSnapshotPreview(stagedFile, envelope), snapshotPath: stagedFile }
+      return { ok: true, preview: await buildSnapshotPreview(stagedFile, envelope), snapshotPath: stagedFile }
     } catch (err) {
       console.warn('preview-desktop-migration failed:', err)
       return { ok: false, message: (err as Error)?.message ?? String(err) }
@@ -1137,7 +1206,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       )
 
       _lastLocalPreviewFiles.set(installationId, stagedFile)
-      return { ok: true, preview: buildSnapshotPreview(stagedFile, envelope), snapshotPath: stagedFile }
+      return { ok: true, preview: await buildSnapshotPreview(stagedFile, envelope), snapshotPath: stagedFile }
     } catch (err) {
       console.warn('preview-local-migration failed:', err)
       return { ok: false, message: (err as Error)?.message ?? String(err) }
@@ -1160,7 +1229,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     let envelope: SnapshotExportEnvelope
     try { envelope = validateExportEnvelope(parsed) } catch (err) { return { ok: false, message: (err as Error).message } }
 
-    return { ok: true, preview: buildSnapshotPreview(filePaths[0]!, envelope) }
+    return { ok: true, preview: await buildSnapshotPreview(filePaths[0]!, envelope) }
   })
 
   ipcMain.handle('preview-snapshot-path', async (_event, filePath: string) => {
@@ -1172,7 +1241,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     let envelope: SnapshotExportEnvelope
     try { envelope = validateExportEnvelope(parsed) } catch (err) { return { ok: false, message: (err as Error).message } }
 
-    return { ok: true, preview: buildSnapshotPreview(filePath, envelope) }
+    return { ok: true, preview: await buildSnapshotPreview(filePath, envelope) }
   })
 
   ipcMain.handle('create-from-snapshot', async (_event, filePath: string, customName?: string, releaseTag?: string, variantId?: string) => {

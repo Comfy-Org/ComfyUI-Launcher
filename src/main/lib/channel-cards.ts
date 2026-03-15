@@ -34,8 +34,13 @@ export function buildChannelCards(
   const cv = installation.comfyVersion as ComfyVersion | undefined
   return channelDefs.map((def) => {
     const info = releaseCache.getEffectiveInfo(repo, def.value, installation)
+    // When the latest release commit matches the installed commit, reuse
+    // the git-resolved version (which is cherry-pick–aware) instead of the
+    // raw GitHub API comparison data.
     const latestCv = info?.commitSha
-      ? { commit: info.commitSha, baseTag: info.baseTag, commitsAhead: info.commitsAhead } as ComfyVersion
+      ? (cv && cv.commit === info.commitSha && cv.baseTag
+        ? cv
+        : { commit: info.commitSha, baseTag: info.baseTag, commitsAhead: info.commitsAhead } as ComfyVersion)
       : undefined
     return {
       ...def,
