@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useSessionStore } from './sessionStore'
 import type {
   ActionResult,
+  ErrorDetailData,
   ProgressData,
   ProgressStep,
   ComfyOutputData,
@@ -35,6 +36,16 @@ export const useProgressStore = defineStore('progress', () => {
   const sessionStore = useSessionStore()
 
   const operations = reactive(new Map<string, Operation>())
+
+  // Listen for async error detail updates (e.g. locking process names resolved after the initial error)
+  window.api.onErrorDetail((data: ErrorDetailData) => {
+    const op = operations.get(data.installationId)
+    if (op?.error) {
+      op.error = data.message
+      const session = sessionStore.errorInstances.get(data.installationId)
+      if (session) session.message = data.message
+    }
+  })
 
   function cleanupOperation(installationId: string): void {
     const op = operations.get(installationId)

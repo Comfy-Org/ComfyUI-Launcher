@@ -27,6 +27,7 @@ export class DraggableList {
   private dragStartTop = 0
   private listMinY = 0
   private listMaxY = 0
+  private dragHeight = 0
   private scrollParent: HTMLElement | null = null
 
   private boundDragStart = this.dragStart.bind(this)
@@ -105,6 +106,7 @@ export class DraggableList {
     // any transforms are applied, so clamping stays stable throughout the drag.
     const dragRect = item.getBoundingClientRect()
     this.dragStartTop = dragRect.top
+    this.dragHeight = dragRect.height
     const idleItems = this.getIdleItems()
     if (idleItems.length > 0) {
       this.listMinY = Math.min(dragRect.top, idleItems[0]!.getBoundingClientRect().top)
@@ -157,9 +159,8 @@ export class DraggableList {
 
     // Clamp vertical offset so the dragged item stays within the list bounds.
     // Uses positions snapshotted at drag start so swap animations don't shift the clamp.
-    const dragHeight = this.draggableItem.offsetHeight
-    const minY = this.listMinY - this.dragStartTop - dragHeight / 2
-    const maxY = this.listMaxY - this.dragStartTop - dragHeight / 2
+    const minY = this.listMinY - this.dragStartTop - this.dragHeight / 2
+    const maxY = this.listMaxY - this.dragStartTop - this.dragHeight / 2
     offsetY = Math.max(minY, Math.min(maxY, offsetY))
 
     this.updateIdleItemsStateAndPosition()

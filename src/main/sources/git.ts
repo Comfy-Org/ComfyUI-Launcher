@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { spawn, execFile } from 'child_process'
 import { fetchJSON } from '../lib/fetch'
-import { deleteAction, untrackAction } from '../lib/actions'
+import { untrackAction } from '../lib/actions'
 import { parseArgs, extractPort } from '../lib/util'
 import { t } from '../lib/i18n'
 import type { InstallationRecord } from '../installations'
@@ -227,7 +227,6 @@ export const gitSource: SourcePlugin = {
               confirmLabel: t('migrate.migrateToStandaloneConfirm'),
             },
           },
-          deleteAction(installation),
           untrackAction(),
         ],
       },

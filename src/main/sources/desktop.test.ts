@@ -77,7 +77,7 @@ describe('desktop.probeInstallation', () => {
 
     const result = await desktop.probeInstallation(dir)
     expect(result).not.toBeNull()
-    expect(result!.version).toBe('desktop')
+    expect(result!.version).toBeUndefined()
     expect(result!.launchMode).toBe('external')
   })
 

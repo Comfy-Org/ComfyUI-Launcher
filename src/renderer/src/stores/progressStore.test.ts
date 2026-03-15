@@ -25,6 +25,7 @@ vi.stubGlobal('window', {
     onInstanceStarted: vi.fn(() => vi.fn()),
     onInstanceStopped: vi.fn(() => vi.fn()),
     onComfyExited: vi.fn(() => vi.fn()),
+    onErrorDetail: vi.fn(() => vi.fn()),
   }
 })
 

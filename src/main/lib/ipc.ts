@@ -41,6 +41,7 @@ import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import { REQUIRES_STOPPED } from '../../types/ipc'
 import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
+import { findLockingProcesses } from './file-lock-info'
 import type { LaunchCmd } from './process'
 
 const MARKER_FILE = '.comfyui-desktop-2'
@@ -385,7 +386,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     {
       name: 'Comfy Cloud',
       sourceId: 'cloud',
-      version: 'cloud',
       remoteUrl: 'https://cloud.comfy.org/',
       launchMode: 'window',
       browserPartition: 'shared',
@@ -394,7 +394,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   installations.ensureExists('cloud', {
     name: 'Comfy Cloud',
     sourceId: 'cloud',
-    version: 'cloud',
     remoteUrl: 'https://cloud.comfy.org/',
     launchMode: 'window',
     browserPartition: 'shared',
@@ -409,7 +408,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         name: 'ComfyUI Legacy Desktop',
         sourceId: 'desktop',
         installPath: desktopInfo.basePath,
-        version: 'desktop',
         launchMode: 'external',
         desktopExePath: desktopInfo.executablePath || undefined,
         status: 'installed',
@@ -587,12 +585,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         : inst.status === 'failed'
         ? { label: i18n.t('errors.installFailed'), style: 'danger' }
         : (source.getStatusTag ? source.getStatusTag(inst) : undefined)
-      // Derive version display string from comfyVersion ground truth, falling back to legacy string
+      // Derive version display string from comfyVersion ground truth, falling back to legacy string.
+      // Omit version when it just duplicates the source type (e.g. 'cloud', 'desktop').
       const cv = inst.comfyVersion as ComfyVersion | undefined
-      const version = cv ? formatComfyVersion(cv, 'short') : (inst.version as string | undefined)
+      const rawVersion = cv ? formatComfyVersion(cv, 'short') : (inst.version as string | undefined)
+      const version = rawVersion === inst.sourceId ? undefined : rawVersion
       return {
         ...inst,
-        ...(version != null ? { version } : {}),
+        version,
         sourceLabel: source.label,
         sourceCategory: source.category,
         hasConsole: source.hasConsole !== false,
@@ -699,7 +699,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         if (source.postInstall) {
           const update = (data: Record<string, unknown>): Promise<void> =>
             installations.update(installationId, data).then(() => {})
-          await source.postInstall(inst, { sendProgress, update })
+          await source.postInstall(inst, { sendProgress, update, signal: abort.signal })
         }
 
         // After postInstall, check for pending snapshot restore
@@ -1473,6 +1473,17 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         let message = raw.message
         if (raw.code === 'EBUSY' || raw.code === 'EPERM') {
           message = i18n.t('errors.deleteLocked', { path: raw.path ?? '' })
+          // Fire-and-forget: resolve which process holds the lock, then push an updated message
+          const lockedPath = raw.path
+          if (lockedPath) {
+            findLockingProcesses(lockedPath).then((procs) => {
+              if (procs.length > 0 && !sender.isDestroyed()) {
+                const names = [...new Set(procs.map((p) => p.name))].join(', ')
+                const detail = i18n.t('errors.deleteLockedBy', { processes: names, path: lockedPath })
+                sender.send('error-detail', { installationId, message: detail })
+              }
+            }).catch((err) => { console.error('Failed to identify locking processes:', err) })
+          }
         }
         return { ok: false, message }
       }
@@ -1734,7 +1745,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
         const newUpdate = (data: Record<string, unknown>): Promise<void> =>
           installations.update(entry!.id, data).then(() => {})
-        await source.postInstall!(installRecord, { sendProgress, update: newUpdate })
+        await source.postInstall!(installRecord, { sendProgress, update: newUpdate, signal: abort.signal })
         installComplete = true
 
         const newInst = await installations.get(entry.id)
