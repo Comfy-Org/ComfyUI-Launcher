@@ -41,6 +41,7 @@ import { getVariantLabel } from '../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../types/sources'
 import { REQUIRES_STOPPED } from '../../types/ipc'
 import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
+import { findLockingProcesses } from './file-lock-info'
 import type { LaunchCmd } from './process'
 
 const MARKER_FILE = '.comfyui-desktop-2'
@@ -1473,6 +1474,17 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         let message = raw.message
         if (raw.code === 'EBUSY' || raw.code === 'EPERM') {
           message = i18n.t('errors.deleteLocked', { path: raw.path ?? '' })
+          // Fire-and-forget: resolve which process holds the lock, then push an updated message
+          const lockedPath = raw.path
+          if (lockedPath) {
+            findLockingProcesses(lockedPath).then((procs) => {
+              if (procs.length > 0 && !sender.isDestroyed()) {
+                const names = [...new Set(procs.map((p) => p.name))].join(', ')
+                const detail = i18n.t('errors.deleteLockedBy', { processes: names, path: lockedPath })
+                sender.send('error-detail', { installationId, message: detail })
+              }
+            }).catch((err) => { console.error('Failed to identify locking processes:', err) })
+          }
         }
         return { ok: false, message }
       }
