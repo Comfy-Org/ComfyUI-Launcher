@@ -341,11 +341,11 @@ defineExpose({ refresh })
               <span v-else-if="part.class" :class="part.class">{{ part.text }}</span>
               <template v-else>{{ part.text }}</template>
             </template>
-            <template v-if="inst.statusTag?.style === 'update'">
+            <template v-if="inst.statusTag?.style === 'update' && !isInProgress(inst.id)">
               <template v-if="getMetaParts(inst).length > 0"> · </template>
               <span class="update-pill" role="button" tabindex="0" @click.stop="emit('show-detail', inst, 'update')" @keydown.enter.stop="emit('show-detail', inst, 'update')" @keydown.space.prevent.stop="emit('show-detail', inst, 'update')">{{ inst.statusTag.label }}</span>
             </template>
-            <template v-if="inst.statusTag?.style === 'migrate'">
+            <template v-if="inst.statusTag?.style === 'migrate' && !isInProgress(inst.id)">
               <template v-if="getMetaParts(inst).length > 0"> · </template>
               <span class="migrate-pill" role="button" tabindex="0" @click.stop="emit('show-migrate', inst)" @keydown.enter.stop="emit('show-migrate', inst)" @keydown.space.prevent.stop="emit('show-migrate', inst)">{{ inst.statusTag.label }}</span>
             </template>

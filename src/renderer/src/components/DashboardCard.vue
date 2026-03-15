@@ -85,11 +85,11 @@ function stopComfyUI(): void {
         <span> · </span>
         <span class="status-danger">{{ $t('running.crashed') }}</span>
       </template>
-      <template v-if="installation.statusTag?.style === 'update'">
+      <template v-if="installation.statusTag?.style === 'update' && !progress">
         <span> · </span>
         <span class="update-pill" role="button" tabindex="0" @click.stop="emit('show-update', installation)" @keydown.enter.stop="emit('show-update', installation)" @keydown.space.prevent.stop="emit('show-update', installation)">{{ installation.statusTag.label }}</span>
       </template>
-      <template v-if="installation.statusTag?.style === 'migrate'">
+      <template v-if="installation.statusTag?.style === 'migrate' && !progress">
         <span> · </span>
         <span class="migrate-pill" role="button" tabindex="0" @click.stop="emit('show-migrate', installation)" @keydown.enter.stop="emit('show-migrate', installation)" @keydown.space.prevent.stop="emit('show-migrate', installation)">{{ installation.statusTag.label }}</span>
       </template>
