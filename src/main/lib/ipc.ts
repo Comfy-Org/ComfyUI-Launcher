@@ -591,7 +591,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       const version = rawVersion === inst.sourceId ? undefined : rawVersion
       return {
         ...inst,
-        ...(version != null ? { version } : {}),
+        version,
         sourceLabel: source.label,
         sourceCategory: source.category,
         hasConsole: source.hasConsole !== false,
