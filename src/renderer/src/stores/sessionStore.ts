@@ -23,6 +23,7 @@ export const useSessionStore = defineStore('session', () => {
   const activeSessions = reactive(new Map<string, ActiveSession>())
   const errorInstances = reactive(new Map<string, ErrorInstance>())
   const stoppingInstances = reactive(new Set<string>())
+  const stoppingTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
   const sessions = reactive(new Map<string, SessionBuffer>())
 
   const runningTabCount = computed(() => activeSessions.size + runningInstances.size)
@@ -41,6 +42,15 @@ export const useSessionStore = defineStore('session', () => {
 
   function isStopping(installationId: string): boolean {
     return stoppingInstances.has(installationId)
+  }
+
+  function clearStoppingState(installationId: string): void {
+    stoppingInstances.delete(installationId)
+    const timeout = stoppingTimeouts.get(installationId)
+    if (timeout) {
+      clearTimeout(timeout)
+      stoppingTimeouts.delete(installationId)
+    }
   }
 
   function setActiveSession(installationId: string, label: string): void {
@@ -125,10 +135,14 @@ export const useSessionStore = defineStore('session', () => {
       }),
       window.api.onInstanceStopped((data: { installationId: string }) => {
         runningInstances.delete(data.installationId)
-        stoppingInstances.delete(data.installationId)
+        clearStoppingState(data.installationId)
       }),
       window.api.onInstanceStopping((data: { installationId: string }) => {
         stoppingInstances.add(data.installationId)
+        const timeout = setTimeout(() => {
+          clearStoppingState(data.installationId)
+        }, 30_000)
+        stoppingTimeouts.set(data.installationId, timeout)
       }),
       window.api.onComfyOutput((data: ComfyOutputData) => {
         appendOutput(data.installationId, data.text)
@@ -155,6 +169,8 @@ export const useSessionStore = defineStore('session', () => {
   function dispose(): void {
     for (const fn of cleanups) fn()
     cleanups.length = 0
+    for (const timeout of stoppingTimeouts.values()) clearTimeout(timeout)
+    stoppingTimeouts.clear()
   }
 
   return {

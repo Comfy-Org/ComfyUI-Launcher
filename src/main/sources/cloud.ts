@@ -28,7 +28,6 @@ export const cloud: SourcePlugin = {
     const url = selections.url?.value || DEFAULT_URL
     const parsed = parseUrl(url)
     return {
-      version: 'cloud',
       remoteUrl: parsed ? parsed.href : url,
       launchMode: 'window',
       browserPartition: 'shared',

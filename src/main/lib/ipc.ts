@@ -386,7 +386,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     {
       name: 'Comfy Cloud',
       sourceId: 'cloud',
-      version: 'cloud',
       remoteUrl: 'https://cloud.comfy.org/',
       launchMode: 'window',
       browserPartition: 'shared',
@@ -395,7 +394,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   installations.ensureExists('cloud', {
     name: 'Comfy Cloud',
     sourceId: 'cloud',
-    version: 'cloud',
     remoteUrl: 'https://cloud.comfy.org/',
     launchMode: 'window',
     browserPartition: 'shared',
@@ -410,7 +408,6 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         name: 'ComfyUI Legacy Desktop',
         sourceId: 'desktop',
         installPath: desktopInfo.basePath,
-        version: 'desktop',
         launchMode: 'external',
         desktopExePath: desktopInfo.executablePath || undefined,
         status: 'installed',
@@ -588,12 +585,14 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         : inst.status === 'failed'
         ? { label: i18n.t('errors.installFailed'), style: 'danger' }
         : (source.getStatusTag ? source.getStatusTag(inst) : undefined)
-      // Derive version display string from comfyVersion ground truth, falling back to legacy string
+      // Derive version display string from comfyVersion ground truth, falling back to legacy string.
+      // Omit version when it just duplicates the source type (e.g. 'cloud', 'desktop').
       const cv = inst.comfyVersion as ComfyVersion | undefined
-      const version = cv ? formatComfyVersion(cv, 'short') : (inst.version as string | undefined)
+      const rawVersion = cv ? formatComfyVersion(cv, 'short') : (inst.version as string | undefined)
+      const version = rawVersion === inst.sourceId ? undefined : rawVersion
       return {
         ...inst,
-        ...(version != null ? { version } : {}),
+        version,
         sourceLabel: source.label,
         sourceCategory: source.category,
         hasConsole: source.hasConsole !== false,
