@@ -101,6 +101,7 @@ export interface DetailField {
   options?: DetailFieldOption[]
   refreshSection?: boolean
   onChangeAction?: string
+  tooltip?: string
 }
 
 export interface ActionDef {
@@ -231,6 +232,7 @@ export interface SettingsField {
   placeholder?: string
   min?: number
   max?: number
+  tooltip?: string
 }
 
 // --- Models types ---

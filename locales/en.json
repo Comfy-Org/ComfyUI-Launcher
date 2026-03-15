@@ -721,6 +721,19 @@
     "stopRunning": "Stop Running"
   },
 
+  "tooltips": {
+    "standalone": "A self-contained install with its own bundled Python and dependencies. Easy to update and manage.",
+    "portable": "The official portable Windows build with embedded Python. Runs from a single folder without a system-wide install.",
+    "git": "A git-based install cloned from the ComfyUI repository. Requires git and Python to be installed on your system.",
+    "snapshot": "A saved record of your environment's state — ComfyUI version, custom nodes, and pip packages — that can be restored later.",
+    "updateChannel": "Controls where updates come from. 'Stable' uses tested releases; 'Latest' pulls the newest commits directly from GitHub.",
+    "startupArgs": "Command-line arguments passed to ComfyUI when it starts, such as --port or --lowvram.",
+    "browserPartition": "Controls whether this install shares browser cache (cookies, local storage) with other installs or keeps its own separate cache.",
+    "sharedDirs": "Directories shared across all installations for models, inputs, and outputs. Avoids duplicating large model files.",
+    "customNodes": "Third-party extensions that add new node types and functionality to ComfyUI.",
+    "pipPackages": "Python packages installed in the environment. Custom nodes often install their own pip dependencies."
+  },
+
   "contextMenu": {
     "openLinkInBrowser": "Open Link in Browser",
     "copyLinkAddress": "Copy Link Address",

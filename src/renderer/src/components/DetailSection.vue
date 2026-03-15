@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, nextTick } from 'vue'
 import type { DetailItem, DetailField, DetailFieldOption, ActionDef } from '../types/ipc'
+import InfoTooltip from './InfoTooltip.vue'
 
 interface Props {
   title?: string
@@ -131,7 +132,7 @@ v-for="a in item.actions" :key="a.id"
         <div v-for="f in fields" :key="f.id">
           <!-- Channel cards -->
           <template v-if="f.editable && f.editType === 'channel-cards'">
-            <div class="detail-field-label">{{ f.label }}</div>
+            <div class="detail-field-label">{{ f.label }}<InfoTooltip v-if="f.tooltip" :text="f.tooltip" /></div>
             <div class="channel-cards-row">
               <button
                 v-for="opt in f.options" :key="opt.value"
@@ -184,7 +185,7 @@ v-for="a in item.actions" :key="a.id"
             </div>
           </template>
           <template v-else>
-            <div class="detail-field-label">{{ f.label }}</div>
+            <div class="detail-field-label">{{ f.label }}<InfoTooltip v-if="f.tooltip" :text="f.tooltip" /></div>
             <!-- Select -->
             <select
 v-if="f.editable && f.editType === 'select'" class="detail-field-input"
