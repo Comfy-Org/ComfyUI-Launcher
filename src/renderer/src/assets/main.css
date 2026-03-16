@@ -344,7 +344,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   --card-pad-y: 14px; --card-pad-x: 16px;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; padding: var(--card-pad-y) var(--card-pad-x);
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
 }
 .instance-card.is-idle { transition: transform 0.12s ease; }
 .instance-card.is-draggable { z-index: 10; user-select: none; }
