@@ -34,7 +34,7 @@ import { formatTime } from './util'
 import { getActiveDownloads } from './comfyDownloadManager'
 import * as releaseCache from './release-cache'
 import * as i18n from './i18n'
-import { ensureModelPathsConfig } from './models'
+import { ensureModelPathsConfig, syncCustomModelFolders } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease } from './comfyui-releases'
@@ -1952,7 +1952,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       // Inject shared paths if this installation uses them
       if (!launchCmd.skipSharedPaths && (inst.useSharedPaths as boolean | undefined) !== false && launchCmd.args) {
         const modelsDirs = settings.get('modelsDirs') as string[] | undefined
-        const modelPathsConfig = ensureModelPathsConfig(modelsDirs)
+        // Sync any custom-node model dirs from the install into the shared root
+        // BEFORE generating the YAML, so they're included when ComfyUI loads it.
+        console.log('[models] === PRE-LAUNCH SYNC ===')
+        console.log('[models] pre-launch: installPath =', inst.installPath, 'modelsDirs =', modelsDirs)
+        syncCustomModelFolders(inst.installPath, modelsDirs)
+        const modelPathsConfig = ensureModelPathsConfig(modelsDirs, 'pre-launch')
+        console.log('[models] pre-launch: YAML path =', modelPathsConfig)
         if (modelPathsConfig) {
           launchCmd.args.push('--extra-model-paths-config', modelPathsConfig)
         }
@@ -2249,6 +2255,15 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             }
           })
           .catch((err) => console.warn('Snapshot capture failed:', err))
+      }
+
+      // Sync custom-node model directories to shared models root
+      if ((inst.useSharedPaths as boolean | undefined) !== false) {
+        const syncModelsDirs = settings.get('modelsDirs') as string[] | undefined
+        console.log('[models] === POST-LAUNCH SYNC ===')
+        console.log('[models] post-launch: installPath =', inst.installPath, 'modelsDirs =', syncModelsDirs)
+        syncCustomModelFolders(inst.installPath, syncModelsDirs)
+        console.log('[models] === POST-LAUNCH SYNC DONE ===')
       }
 
       function attachExitHandler(p: ChildProcess): void {
