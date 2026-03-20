@@ -18,6 +18,8 @@ export interface KnownSettings {
   telemetryEnabled?: boolean
   primaryInstallId?: string
   pinnedInstallIds?: string[]
+  oemManagedModelDirs?: string[]
+  oemWorkflowImportVersion?: number
 }
 
 export type Settings = KnownSettings & Record<string, unknown>
@@ -49,6 +51,8 @@ const SETTINGS_SCHEMA = {
   telemetryEnabled: { nullable: false },
   primaryInstallId: { nullable: false },
   pinnedInstallIds: { nullable: false },
+  oemManagedModelDirs: { nullable: false },
+  oemWorkflowImportVersion: { nullable: false },
 } as const satisfies Record<keyof KnownSettings, { nullable: boolean }>
 
 export type KnownSettingKey = keyof typeof SETTINGS_SCHEMA
