@@ -10,8 +10,6 @@ interface OemManifestFile {
   version?: unknown
   modelDirs?: unknown
   workflowDirs?: unknown
-  modelPath?: unknown
-  workflowPath?: unknown
 }
 
 interface ResolvedOemManifest {
@@ -133,14 +131,8 @@ async function loadManifest(): Promise<ResolvedOemManifest | null> {
 
   if (parsed.version !== 1) return null
 
-  const modelDirs = await loadExistingDirs(root, [
-    ...toPathList(parsed.modelDirs),
-    ...toPathList(parsed.modelPath),
-  ])
-  const workflowDirs = await loadExistingDirs(root, [
-    ...toPathList(parsed.workflowDirs),
-    ...toPathList(parsed.workflowPath),
-  ])
+  const modelDirs = await loadExistingDirs(root, toPathList(parsed.modelDirs))
+  const workflowDirs = await loadExistingDirs(root, toPathList(parsed.workflowDirs))
 
   return { modelDirs, workflowDirs }
 }
