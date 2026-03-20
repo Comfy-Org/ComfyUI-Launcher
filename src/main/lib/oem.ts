@@ -146,7 +146,8 @@ export function getOemRoot(): string | null {
 
 export async function syncOemSeed(): Promise<void> {
   const manifest = await loadManifest()
+  const modelDirs = manifest ? manifest.modelDirs : []
 
-  applyManagedModelDirs(manifest?.modelDirs || [])
+  applyManagedModelDirs(modelDirs)
   await importWorkflowsForInstalls(manifest)
 }
