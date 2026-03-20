@@ -23,6 +23,7 @@ import {
   spawnProcess, waitForPort, waitForUrl, killProcessTree, killByPort,
   findPidsByPort, getProcessInfo, looksLikeComfyUI, setPortArg,
   findAvailablePort, writePortLock, readPortLock, removePortLock,
+  COMFY_BOOT_TIMEOUT_MS,
 } from './process'
 import { detectGPU, validateHardware, checkNvidiaDriver } from './gpu'
 import { detectDesktopInstall, stageDesktopSnapshot } from './desktopDetect'
@@ -2195,7 +2196,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         try {
           await Promise.race([
             waitForPort(launchCmd.port!, '127.0.0.1', {
-              timeoutMs: 120000,
+              timeoutMs: COMFY_BOOT_TIMEOUT_MS,
               signal: abort.signal,
               onPoll: ({ elapsedMs }) => {
                 const secs = Math.round(elapsedMs / 1000)

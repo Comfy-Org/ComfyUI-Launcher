@@ -6,6 +6,9 @@ import path from 'path'
 import net from 'net'
 import { stateDir } from './paths'
 
+/** Default timeout for waiting for ComfyUI to boot (5 minutes). */
+export const COMFY_BOOT_TIMEOUT_MS = 300_000
+
 export interface WaitOptions {
   timeoutMs?: number
   intervalMs?: number
