@@ -6,3 +6,5 @@ out/
 result
 test-results/
 playwright-report/
+resources/vc_redist.x64.exe
+resources/vc_redist.x64.exe.tmp

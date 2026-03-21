@@ -21,6 +21,7 @@
     "start": "electron-vite preview",
     "postinstall": "node ./scripts/postinstall.mjs",
     "todesktop:beforeInstall": "./scripts/todesktop-beforeInstall.cjs",
+    "todesktop:afterPack": "./scripts/todesktop-afterPack.cjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json --composite false",
