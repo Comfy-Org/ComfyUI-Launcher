@@ -76,7 +76,7 @@ export const remote: SourcePlugin = {
             editType: 'select', options: [
               { value: 'shared', label: t('common.partitionShared') },
               { value: 'unique', label: t('common.partitionUnique') },
-            ] },
+            ], tooltip: t('tooltips.browserPartition') },
         ],
       },
       {

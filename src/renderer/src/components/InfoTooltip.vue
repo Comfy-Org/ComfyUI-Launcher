@@ -1,25 +1,62 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { CircleHelp } from 'lucide-vue-next'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     text: string
     side?: 'top' | 'bottom'
   }>(),
   { side: 'top' }
 )
+
+const iconRef = ref<HTMLElement | null>(null)
+const bubbleStyle = ref<Record<string, string>>({})
+const visible = ref(false)
+
+function show(): void {
+  if (!iconRef.value) return
+  const rect = iconRef.value.getBoundingClientRect()
+  const x = rect.left + rect.width / 2
+  if (props.side === 'bottom') {
+    bubbleStyle.value = {
+      top: `${rect.bottom + 6}px`,
+      left: `${x}px`,
+    }
+  } else {
+    bubbleStyle.value = {
+      bottom: `${window.innerHeight - rect.top + 6}px`,
+      left: `${x}px`,
+    }
+  }
+  visible.value = true
+}
+
+function hide(): void {
+  visible.value = false
+}
 </script>
 
 <template>
-  <span class="info-tooltip-wrapper">
+  <span
+    ref="iconRef"
+    class="info-tooltip-trigger"
+    @mouseenter="show"
+    @mouseleave="hide"
+  >
     <CircleHelp :size="14" class="info-tooltip-icon" />
-    <span class="info-tooltip-bubble" :class="`info-tooltip-${side}`">{{ text }}</span>
+    <Teleport to="body">
+      <span
+        v-if="visible"
+        class="info-tooltip-bubble"
+        :style="bubbleStyle"
+      >{{ text }}</span>
+    </Teleport>
   </span>
 </template>
 
 <style scoped>
-.info-tooltip-wrapper {
-  position: relative;
+.info-tooltip-trigger {
   display: inline-flex;
   align-items: center;
   margin-left: 4px;
@@ -34,15 +71,15 @@ withDefaults(
   flex-shrink: 0;
 }
 
-.info-tooltip-wrapper:hover .info-tooltip-icon {
+.info-tooltip-trigger:hover .info-tooltip-icon {
   opacity: 1;
   color: var(--accent);
 }
+</style>
 
+<style>
 .info-tooltip-bubble {
-  display: none;
-  position: absolute;
-  left: 50%;
+  position: fixed;
   transform: translateX(-50%);
   width: max-content;
   max-width: 260px;
@@ -54,21 +91,11 @@ withDefaults(
   font-size: 12px;
   font-weight: 400;
   line-height: 1.4;
+  text-transform: none;
+  letter-spacing: 0;
   white-space: normal;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  z-index: 9999;
+  z-index: 10001;
   pointer-events: none;
-}
-
-.info-tooltip-top {
-  bottom: calc(100% + 6px);
-}
-
-.info-tooltip-bottom {
-  top: calc(100% + 6px);
-}
-
-.info-tooltip-wrapper:hover .info-tooltip-bubble {
-  display: block;
 }
 </style>

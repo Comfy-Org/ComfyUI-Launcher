@@ -186,7 +186,7 @@ export const gitSource: SourcePlugin = {
         title: t('common.launchSettings'),
         fields: [
           { id: 'venvPath', label: t('git.venv'), value: venvPath || '', editable: true, editType: 'path' },
-          { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true },
+          { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true, tooltip: t('tooltips.startupArgs') },
           { id: 'launchMode', label: t('common.launchMode'), value: (installation.launchMode as string | undefined) || 'console', editable: true,
             editType: 'select', options: [
               { value: 'window', label: t('common.launchModeWindow') },
@@ -196,7 +196,7 @@ export const gitSource: SourcePlugin = {
             editType: 'select', options: [
               { value: 'shared', label: t('common.partitionShared') },
               { value: 'unique', label: t('common.partitionUnique') },
-            ] },
+            ], tooltip: t('tooltips.browserPartition') },
           { id: 'portConflict', label: t('common.portConflict'), value: (installation.portConflict as string | undefined) || 'ask', editable: true,
             editType: 'select', options: [
               { value: 'ask', label: t('common.portConflictAsk') },
