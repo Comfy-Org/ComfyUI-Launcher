@@ -10,7 +10,7 @@ import * as updater from './lib/updater'
 import * as settings from './settings'
 import * as i18n from './lib/i18n'
 import { configDir, migrateXdgPaths } from './lib/paths'
-import { waitForPort } from './lib/process'
+import { waitForPort, COMFY_BOOT_TIMEOUT_MS } from './lib/process'
 import { isQuitInProgress, setQuitReason } from './lib/quit-state'
 import type { InstallationRecord } from './installations'
 import type { DatadogForwardedError } from '../types/ipc'
@@ -383,7 +383,7 @@ function onComfyRestarted({ installationId, process: _proc }: { installationId?:
   const port = parseInt(url.port, 10)
   if (!port) return
 
-  waitForPort(port, '127.0.0.1', { timeoutMs: 120000 })
+  waitForPort(port, '127.0.0.1', { timeoutMs: COMFY_BOOT_TIMEOUT_MS })
     .then(() => {
       if (!win.isDestroyed()) {
         win.webContents.stop()
