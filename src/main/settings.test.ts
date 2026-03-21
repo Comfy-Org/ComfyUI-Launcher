@@ -125,13 +125,13 @@ describe('settings path sanitization', () => {
     const customModelsDir = path.join(tmpRoot, 'custom-models')
     const expectedModelsDirs = shouldRewriteCopiedDefaults
       ? [
-          path.join(homePath, 'ComfyUI-Shared', 'models'),
           customModelsDir,
+          path.join(homePath, 'ComfyUI-Shared', 'models'),
         ]
       : [
-          path.join(homePath, 'ComfyUI-Shared', 'models'),
           path.join(adminHomePath, 'ComfyUI-Shared', 'models'),
           customModelsDir,
+          path.join(homePath, 'ComfyUI-Shared', 'models'),
         ]
     const expectedInputDir = shouldRewriteCopiedDefaults
       ? path.join(homePath, 'ComfyUI-Shared', 'input')
@@ -166,5 +166,49 @@ describe('settings path sanitization', () => {
     expect(persisted['modelsDirs']).toEqual(expectedModelsDirs)
     expect(persisted['inputDir']).toBe(expectedInputDir)
     expect(persisted['outputDir']).toBe(expectedOutputDir)
+  })
+})
+
+describe('modelsDirs user ordering', () => {
+  it('preserves user-chosen primary models path across restarts', () => {
+    const userPrimary = path.join(tmpRoot, 'D-drive-models')
+    const systemDefault = path.join(homePath, 'ComfyUI-Shared', 'models')
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({ modelsDirs: [userPrimary, systemDefault] }, null, 2),
+      'utf-8'
+    )
+
+    expect(settings.get('modelsDirs')).toEqual([userPrimary, systemDefault])
+    expect((settings.get('modelsDirs') as string[])[0]).toBe(userPrimary)
+  })
+
+  it('appends system default when missing from user list', () => {
+    const userDir = path.join(tmpRoot, 'only-my-models')
+    const systemDefault = path.join(homePath, 'ComfyUI-Shared', 'models')
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({ modelsDirs: [userDir] }, null, 2),
+      'utf-8'
+    )
+
+    const dirs = settings.get('modelsDirs') as string[]
+    expect(dirs).toEqual([userDir, systemDefault])
+    expect(dirs[0]).toBe(userDir)
+  })
+
+  it('injects system default when modelsDirs is empty', () => {
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({ modelsDirs: [] }, null, 2),
+      'utf-8'
+    )
+
+    const dirs = settings.get('modelsDirs') as string[]
+    expect(dirs.length).toBe(1)
+    expect(path.resolve(dirs[0]!)).toBe(path.join(homePath, 'ComfyUI-Shared', 'models'))
   })
 })

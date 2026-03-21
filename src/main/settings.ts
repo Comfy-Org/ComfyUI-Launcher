@@ -135,12 +135,11 @@ function sanitizeModelsDirs(value: unknown, currentDefault: string): string[] {
     result.push(candidate)
   }
 
+  // Ensure the system default is present, but preserve user ordering.
+  // Append (don't prepend) so the user's chosen primary path stays at [0].
   const resolvedDefault = path.resolve(currentDefault)
   if (!seen.has(resolvedDefault)) {
-    result.unshift(resolvedDefault)
-  } else if (result[0] !== resolvedDefault) {
-    result.splice(result.indexOf(resolvedDefault), 1)
-    result.unshift(resolvedDefault)
+    result.push(resolvedDefault)
   }
 
   return result
@@ -195,12 +194,17 @@ function load(): Settings {
     }
   }
 
-  // Ensure system default directory is always present in modelsDirs
-  if (!Array.isArray(result.modelsDirs)) {
+  // Ensure modelsDirs is a valid array of non-empty strings; inject system default only as a fallback
+  if (Array.isArray(result.modelsDirs)) {
+    const before = result.modelsDirs.length
+    result.modelsDirs = result.modelsDirs.filter((d): d is string => typeof d === 'string' && d.trim() !== '')
+    if (result.modelsDirs.length !== before) changed = true
+  }
+  if (!Array.isArray(result.modelsDirs) || result.modelsDirs.length === 0) {
     result.modelsDirs = [systemDefault]
     changed = true
   } else if (!result.modelsDirs.some((d) => path.resolve(d) === path.resolve(systemDefault))) {
-    result.modelsDirs.unshift(systemDefault)
+    result.modelsDirs.push(systemDefault)
     changed = true
   }
   // Create the system default directory and model subdirectories on disk
