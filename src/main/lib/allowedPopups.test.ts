@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect } from 'vitest'
 import { POPUP_ALLOWED_PREFIXES, shouldOpenInPopup } from './allowedPopups'
 
 describe('POPUP_ALLOWED_PREFIXES', () => {
@@ -42,5 +42,28 @@ describe('shouldOpenInPopup', () => {
 
   it('returns false for partial prefix matches', () => {
     expect(shouldOpenInPopup('https://dreamboothy.firebaseapp.com.evil.com/')).toBe(false)
+  })
+})
+
+describe('shouldOpenInPopup on macOS', () => {
+  const originalPlatform = process.platform
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform })
+  })
+
+  it('returns false for Google accounts URL on macOS (passkey workaround)', () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    expect(shouldOpenInPopup('https://accounts.google.com/o/oauth2/auth?client_id=abc')).toBe(false)
+  })
+
+  it('returns true for Google accounts URL on non-macOS', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    expect(shouldOpenInPopup('https://accounts.google.com/o/oauth2/auth?client_id=abc')).toBe(true)
+  })
+
+  it('returns true for non-Google allowed URLs on macOS', () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    expect(shouldOpenInPopup('https://dreamboothy.firebaseapp.com/__/auth/handler')).toBe(true)
   })
 })
