@@ -6,6 +6,7 @@ import { ChevronDown } from 'lucide-vue-next'
 import { emitTelemetryAction, toCountBucket } from '../lib/telemetry'
 import SnapshotDiffView from './SnapshotDiffView.vue'
 import RestoreModal from './RestoreModal.vue'
+import InfoTooltip from './InfoTooltip.vue'
 import type {
   ActionDef,
   CopyEvent,
@@ -541,7 +542,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
                 class="inspector-section-title collapsible"
                 @click="nodesExpanded = !nodesExpanded"
               >
-                <span>{{ t('snapshots.customNodes') }} ({{ detail.customNodes.length }})</span>
+                <span>{{ t('snapshots.customNodes') }} ({{ detail.customNodes.length }})<InfoTooltip :text="t('tooltips.customNodes')" side="bottom" /></span>
                 <span class="collapse-indicator">{{ nodesExpanded ? '▾' : '▸' }}</span>
               </div>
               <template v-if="nodesExpanded">
@@ -573,7 +574,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
                 class="inspector-section-title collapsible"
                 @click="pipExpanded = !pipExpanded"
               >
-                <span>{{ t('snapshots.pipPackages') }} ({{ detail.pipPackageCount }})</span>
+                <span>{{ t('snapshots.pipPackages') }} ({{ detail.pipPackageCount }})<InfoTooltip :text="t('tooltips.pipPackages')" side="bottom" /></span>
                 <span class="collapse-indicator">{{ pipExpanded ? '▾' : '▸' }}</span>
               </div>
               <template v-if="pipExpanded">

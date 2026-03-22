@@ -524,7 +524,7 @@ export const standalone: SourcePlugin = {
 
     const updateFields: Record<string, unknown>[] = [
       { id: 'updateChannel', label: t('standalone.updateChannel'), value: channel, editable: true,
-        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions },
+        refreshSection: true, onChangeAction: 'check-update', editType: 'channel-cards', options: channelOptions, tooltip: t('tooltips.updateChannel') },
     ]
     const updateActions: Record<string, unknown>[] = [
       { id: 'check-update', label: t('actions.checkForUpdate'), style: 'default', enabled: installed },
@@ -541,8 +541,8 @@ export const standalone: SourcePlugin = {
         tab: 'settings',
         title: t('common.launchSettings'),
         fields: [
-          { id: 'useSharedPaths', label: t('common.useSharedPaths'), value: (installation.useSharedPaths as boolean | undefined) !== false, editable: true, editType: 'boolean' },
-          { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true },
+          { id: 'useSharedPaths', label: t('common.useSharedPaths'), value: (installation.useSharedPaths as boolean | undefined) !== false, editable: true, editType: 'boolean', tooltip: t('tooltips.useSharedPaths') },
+          { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true, tooltip: t('tooltips.startupArgs') },
           { id: 'launchMode', label: t('common.launchMode'), value: (installation.launchMode as string | undefined) || 'window', editable: true,
             editType: 'select', options: [
               { value: 'window', label: t('common.launchModeWindow') },
@@ -552,7 +552,7 @@ export const standalone: SourcePlugin = {
             editType: 'select', options: [
               { value: 'shared', label: t('common.partitionShared') },
               { value: 'unique', label: t('common.partitionUnique') },
-            ] },
+            ], tooltip: t('tooltips.browserPartition') },
           { id: 'portConflict', label: t('common.portConflict'), value: (installation.portConflict as string | undefined) || 'ask', editable: true,
             editType: 'select', options: [
               { value: 'ask', label: t('common.portConflictAsk') },

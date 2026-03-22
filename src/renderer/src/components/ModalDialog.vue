@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useModal, type ModalOption } from '../composables/useModal'
 import { sortedCardOptions, getVariantImage } from '../lib/variants'
 import type { FieldOption } from '../types/ipc'
+import InfoTooltip from './InfoTooltip.vue'
+
+const { t } = useI18n()
 
 const { state, close, updateConfirm } = useModal()
 
@@ -216,7 +220,7 @@ onUnmounted(() => {
 
             <div class="sp-subsection">
               <div class="sp-subsection-title" @click="spNodesExpanded = !spNodesExpanded">
-                <span>{{ $t('snapshots.customNodes') }} ({{ state.snapshotPreview.customNodes.length }})</span>
+                <span>{{ $t('snapshots.customNodes') }} ({{ state.snapshotPreview.customNodes.length }})<InfoTooltip :text="t('tooltips.customNodes')" side="bottom" /></span>
                 <span class="sp-collapse">{{ spNodesExpanded ? '▾' : '▸' }}</span>
               </div>
               <template v-if="spNodesExpanded">
@@ -234,7 +238,7 @@ onUnmounted(() => {
 
             <div class="sp-subsection">
               <div class="sp-subsection-title" @click="spPipExpanded = !spPipExpanded">
-                <span>{{ $t('snapshots.pipPackages') }} ({{ state.snapshotPreview.pipPackageCount }})</span>
+                <span>{{ $t('snapshots.pipPackages') }} ({{ state.snapshotPreview.pipPackageCount }})<InfoTooltip :text="t('tooltips.pipPackages')" side="bottom" /></span>
                 <span class="sp-collapse">{{ spPipExpanded ? '▾' : '▸' }}</span>
               </div>
               <template v-if="spPipExpanded">

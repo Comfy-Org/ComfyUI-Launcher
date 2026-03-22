@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import SettingField from '../components/SettingField.vue'
+import InfoTooltip from '../components/InfoTooltip.vue'
 import type { SettingsSection } from '../types/ipc'
 
 const sections = ref<SettingsSection[]>([])
@@ -28,7 +29,7 @@ defineExpose({ loadMedia })
         :key="sIdx"
         class="settings-section"
       >
-        <div v-if="section.title" class="detail-section-title">{{ section.title }}</div>
+        <div v-if="section.title" class="detail-section-title">{{ section.title }}<InfoTooltip :text="$t('tooltips.sharedDirs')" /></div>
 
         <div class="detail-fields">
           <SettingField

@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import type { SettingsField } from '../types/ipc'
 import { emitTelemetryAction } from '../lib/telemetry'
+import InfoTooltip from './InfoTooltip.vue'
 
 interface Props {
   field: SettingsField
@@ -80,7 +81,7 @@ async function addPath(): Promise<void> {
 
 <template>
   <div class="field">
-    <div class="detail-field-label">{{ field.label }}</div>
+    <div class="detail-field-label">{{ field.label }}<InfoTooltip v-if="field.tooltip" :text="field.tooltip" /></div>
 
     <!-- Readonly -->
     <div v-if="field.readonly" class="detail-field-value">

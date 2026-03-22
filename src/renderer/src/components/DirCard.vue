@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import InfoTooltip from './InfoTooltip.vue'
+
 interface Props {
   path: string
   isPrimary: boolean
@@ -18,8 +20,8 @@ const emit = defineEmits<{
   <div class="dir-card">
     <div class="dir-card-info">
       <span class="dir-card-path" :title="path">{{ path }}</span>
-      <span v-if="isPrimary" class="dir-card-tag tag-primary">{{ $t('models.primary') }}</span>
-      <span v-if="isDefault" class="dir-card-tag tag-default">{{ $t('models.default') }}</span>
+      <span v-if="isPrimary" class="dir-card-tag tag-primary">{{ $t('models.primary') }}<InfoTooltip :text="$t('tooltips.modelsPrimary')" /></span>
+      <span v-if="isDefault" class="dir-card-tag tag-default">{{ $t('models.default') }}<InfoTooltip :text="$t('tooltips.modelsDefault')" /></span>
     </div>
     <div class="dir-card-actions">
       <button @click="emit('open')">{{ $t('settings.open') }}</button>
