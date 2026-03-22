@@ -2,13 +2,12 @@ import { expect, test } from '@playwright/test'
 import { launchLauncherAppDev } from './support/electronHarness'
 
 test.describe('Main window visibility in dev mode (#283)', () => {
-  test('main window becomes visible when loaded via ELECTRON_RENDERER_URL @macos @windows @linux', async () => {
+  test('main window becomes visible even when dev server is not ready @macos @windows @linux', async () => {
     const { application, cleanup } = await launchLauncherAppDev()
     try {
-      const mainWindow = await application.firstWindow()
-
-      // The window must become visible even when the renderer is loaded via URL
-      // (the code path used by `pnpm dev` / electron-vite dev).
+      // The window must become visible even when ELECTRON_RENDERER_URL
+      // points at a port with nothing listening (simulates the Vite dev
+      // server not being ready yet — the exact scenario from issue #283).
       await expect
         .poll(
           async () => {
@@ -25,10 +24,6 @@ test.describe('Main window visibility in dev mode (#283)', () => {
           },
         )
         .toBe(true)
-
-      // Sanity: the renderer loaded (the #app mount point exists)
-      const appDiv = mainWindow.locator('#app')
-      await expect(appDiv).toBeAttached({ timeout: 10_000 })
     } finally {
       await cleanup()
     }

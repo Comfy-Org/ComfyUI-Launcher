@@ -1,5 +1,5 @@
-import http from 'node:http'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import net from 'node:net'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -70,9 +70,29 @@ export async function launchLauncherApp(): Promise<LauncherAppHandle> {
 }
 
 /**
- * Launch the app in simulated dev mode: a minimal HTTP server stands in for the
- * Vite dev server, and ELECTRON_RENDERER_URL is set so the main process loads
- * the renderer via URL (the same code path as `pnpm dev`).
+ * Reserve a port by binding to :0, record the assigned port, then close
+ * the server so nothing is listening.  This guarantees the port is free
+ * (no accidental collisions) but has nothing behind it — exactly the
+ * state the Vite dev server is in when it hasn't started yet.
+ */
+async function findDeadPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer()
+    srv.listen(0, '127.0.0.1', () => {
+      const port = (srv.address() as net.AddressInfo).port
+      srv.close((err) => (err ? reject(err) : resolve(port)))
+    })
+    srv.on('error', reject)
+  })
+}
+
+/**
+ * Launch the app in simulated dev mode where the Vite dev server is NOT
+ * ready yet: ELECTRON_RENDERER_URL points at a port with nothing listening.
+ *
+ * This reproduces issue #283 — loadURL fails with ERR_CONNECTION_REFUSED,
+ * ready-to-show never fires, and the window stays invisible unless the
+ * main process has a fallback.
  */
 export async function launchLauncherAppDev(): Promise<LauncherAppHandle> {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'comfyui-launcher-e2e-'))
@@ -81,18 +101,8 @@ export async function launchLauncherAppDev(): Promise<LauncherAppHandle> {
     await mkdir(path.join(homeDir, 'AppData', 'Roaming'), { recursive: true })
   }
 
-  // Serve the built renderer index.html from a local HTTP server so Electron
-  // takes the loadURL(ELECTRON_RENDERER_URL) branch instead of loadFile.
-  const rendererHtml = await readFile(
-    path.resolve('out', 'renderer', 'index.html'),
-    'utf-8',
-  )
-  const server = http.createServer((_req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/html' })
-    res.end(rendererHtml)
-  })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const port = (server.address() as { port: number }).port
+  // Point at a port where nothing is listening — connection will be refused.
+  const deadPort = await findDeadPort()
 
   const args = ['.']
   if (process.platform === 'linux') {
@@ -100,7 +110,7 @@ export async function launchLauncherAppDev(): Promise<LauncherAppHandle> {
   }
 
   const env = buildIsolatedEnv(homeDir)
-  env['ELECTRON_RENDERER_URL'] = `http://127.0.0.1:${port}`
+  env['ELECTRON_RENDERER_URL'] = `http://127.0.0.1:${deadPort}`
 
   const application = await electron.launch({ args, env })
 
@@ -113,7 +123,6 @@ export async function launchLauncherAppDev(): Promise<LauncherAppHandle> {
     } catch {
       // Application already closed / disconnected.
     }
-    server.close()
     await rm(homeDir, { recursive: true, force: true })
   }
 
