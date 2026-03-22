@@ -2,7 +2,6 @@
 import { ref, onMounted } from 'vue'
 import DirCard from '../components/DirCard.vue'
 import DownloadsPanel from '../components/DownloadsPanel.vue'
-import InfoTooltip from '../components/InfoTooltip.vue'
 import type { ModelsSection } from '../types/ipc'
 
 const systemDefault = ref('')
@@ -81,7 +80,7 @@ defineExpose({ loadModels })
 
         <div class="detail-fields">
           <div v-for="field in section.fields" :key="field.id" class="field">
-            <label>{{ field.label }}<InfoTooltip v-if="field.tooltip" :text="field.tooltip" /></label>
+            <label>{{ field.label }}</label>
 
             <div class="dir-card-list">
               <DirCard

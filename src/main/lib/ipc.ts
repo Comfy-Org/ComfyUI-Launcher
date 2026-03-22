@@ -1454,7 +1454,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         {
           title: i18n.t('models.directories'),
           fields: [
-            { id: 'modelsDirs', label: i18n.t('models.directoriesDesc'), type: 'pathList', value: s.modelsDirs || [], tooltip: i18n.t('tooltips.sharedModelsDirs') },
+            { id: 'modelsDirs', label: i18n.t('models.directoriesDesc'), type: 'pathList', value: s.modelsDirs || [] },
           ],
         },
       ],

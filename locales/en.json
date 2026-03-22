@@ -71,7 +71,7 @@
   "models": {
     "title": "Models",
     "directories": "Shared Directories",
-    "directoriesDesc": "Directories shared across all installs. The first directory is the primary (default for ComfyUI).",
+    "directoriesDesc": "Model directories shared across all installations. Models placed here are available to every ComfyUI install, avoiding duplicate downloads. The first directory is the primary (default for ComfyUI).",
     "addDir": "Add Directory",
     "removeDir": "Remove",
     "primary": "primary",
@@ -732,7 +732,6 @@
     "startupArgs": "Command-line arguments passed to ComfyUI when it starts, such as --port or --lowvram.",
     "browserPartition": "Controls whether this install shares browser cache (cookies, local storage) with other installs or keeps its own separate cache.",
     "sharedDirs": "Directories shared across all installations for models, inputs, and outputs. Avoids duplicating large model files.",
-    "sharedModelsDirs": "Model directories shared across all installations. Models placed here are available to every ComfyUI install, avoiding duplicate downloads.",
     "modelsPrimary": "The primary directory is where ComfyUI saves newly downloaded models by default.",
     "modelsDefault": "The system default directory. This path is created automatically and cannot be removed.",
     "useSharedPaths": "When enabled, this install can access models, inputs, and outputs from the shared directories. Disable to use only this install's own local paths.",
