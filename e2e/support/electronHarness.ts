@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -15,7 +15,7 @@ function buildIsolatedEnv(homeDir: string): Record<string, string> {
     Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
   )
 
-  return {
+  const env: Record<string, string> = {
     ...inheritedEnv,
     HOME: homeDir,
     USERPROFILE: homeDir,
@@ -24,12 +24,32 @@ function buildIsolatedEnv(homeDir: string): Record<string, string> {
     XDG_DATA_HOME: path.join(homeDir, '.local', 'share'),
     XDG_STATE_HOME: path.join(homeDir, '.local', 'state'),
   }
+
+  // On Windows, Electron resolves userData via APPDATA (%APPDATA%\<appName>).
+  // Point it into the isolated home so the app doesn't touch the real profile.
+  if (process.platform === 'win32') {
+    env['APPDATA'] = path.join(homeDir, 'AppData', 'Roaming')
+  }
+
+  return env
 }
 
 export async function launchLauncherApp(): Promise<LauncherAppHandle> {
   const homeDir = await mkdtemp(path.join(os.tmpdir(), 'comfyui-launcher-e2e-'))
+
+  // Pre-create directories that Electron expects to exist
+  if (process.platform === 'win32') {
+    await mkdir(path.join(homeDir, 'AppData', 'Roaming'), { recursive: true })
+  }
+
+  // Linux CI runners lack the SUID sandbox binary; disable it the same way linux-dev.sh does.
+  const args = ['.']
+  if (process.platform === 'linux') {
+    args.push('--no-sandbox')
+  }
+
   const application = await electron.launch({
-    args: ['.'],
+    args,
     env: buildIsolatedEnv(homeDir),
   })
 

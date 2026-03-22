@@ -239,7 +239,16 @@ function createMainWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
     },
   })
+  const isDev = !!process.env['ELECTRON_RENDERER_URL']
+  const loadTarget = process.env['ELECTRON_RENDERER_URL'] || 'index.html (file)'
+
+  if (isDev) {
+    console.log(`[main] dev mode — loading renderer from ${loadTarget}`)
+    console.log(`[main] platform=${process.platform} electron=${process.versions.electron} chrome=${process.versions.chrome}`)
+  }
+
   mainWindow.once('ready-to-show', () => {
+    if (isDev) console.log('[main] ready-to-show fired')
     mainWindow?.show()
     if (process.platform === 'win32') mainWindow?.moveTop()
     mainWindow?.focus()
@@ -249,10 +258,17 @@ function createMainWindow(): void {
   attachContextMenu(mainWindow)
   mainWindow.setMenuBarVisibility(false)
   mainWindow.webContents.on('did-finish-load', () => {
+    if (isDev) console.log(`[main] did-finish-load — url=${mainWindow?.webContents.getURL()}`)
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.setZoomLevel(0)
     }
   })
+
+  mainWindow.webContents.on('did-fail-load', (_e, code, description, failUrl, isMainFrame) => {
+    if (!isMainFrame) return
+    console.error(`[main] did-fail-load: code=${code} desc="${description}" url=${failUrl}`)
+  })
+
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     forwardDatadogError({
       source: 'main-render-process-gone',

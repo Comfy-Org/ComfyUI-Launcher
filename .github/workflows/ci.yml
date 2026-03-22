@@ -57,6 +57,12 @@ jobs:
           - platform: macos
             os: macos-latest
             command: pnpm run test:e2e:macos
+          - platform: windows
+            os: windows-latest
+            command: pnpm run test:e2e:windows
+          - platform: linux
+            os: ubuntu-latest
+            command: pnpm run test:e2e:linux
 
     steps:
       - name: Checkout
@@ -78,4 +84,4 @@ jobs:
         run: pnpm run build
 
       - name: Run E2E (${{ matrix.platform }})
-        run: ${{ matrix.command }}
+        run: ${{ matrix.platform == 'linux' && format('xvfb-run --auto-servernum {0}', matrix.command) || matrix.command }}
