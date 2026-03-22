@@ -14,9 +14,12 @@ function openUrl(url: string): void {
 
 const sections = ref<SettingsSection[]>([])
 const checkingForUpdates = ref(false)
+const systemManaged = ref(false)
 
 async function loadSettings(): Promise<void> {
   sections.value = await window.api.getSettingsSections()
+  const caps = await window.api.getUpdateCapabilities()
+  systemManaged.value = caps.systemManaged
 }
 
 async function handleAction(action: SettingsAction): Promise<void> {
@@ -29,7 +32,8 @@ async function handleAction(action: SettingsAction): Promise<void> {
     try {
       const result = await window.api.checkForUpdate()
       if (!result.available && !result.error) {
-        await modal.alert({ title: t('update.updateCheck'), message: t('update.upToDate') })
+        const message = systemManaged.value ? t('update.debUpToDate') : t('update.upToDate')
+        await modal.alert({ title: t('update.updateCheck'), message })
       } else if (result.error) {
         await modal.alert({ title: t('update.updateError'), message: result.error })
       }

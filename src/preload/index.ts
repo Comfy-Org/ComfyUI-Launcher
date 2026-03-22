@@ -108,6 +108,7 @@ const api: ElectronApi = {
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
   getPendingUpdate: () => ipcRenderer.invoke('get-pending-update'),
+  getUpdateCapabilities: () => ipcRenderer.invoke('get-update-capabilities'),
 
   // Event listeners (return unsubscribe functions)
   onInstallProgress: (callback) => {
