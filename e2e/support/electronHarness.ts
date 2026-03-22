@@ -42,8 +42,14 @@ export async function launchLauncherApp(): Promise<LauncherAppHandle> {
     await mkdir(path.join(homeDir, 'AppData', 'Roaming'), { recursive: true })
   }
 
+  // Linux CI runners lack the SUID sandbox binary; disable it the same way linux-dev.sh does.
+  const args = ['.']
+  if (process.platform === 'linux') {
+    args.push('--no-sandbox')
+  }
+
   const application = await electron.launch({
-    args: ['.'],
+    args,
     env: buildIsolatedEnv(homeDir),
   })
 
