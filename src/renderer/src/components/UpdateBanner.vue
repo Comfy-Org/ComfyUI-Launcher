@@ -18,20 +18,24 @@ const { t } = useI18n()
 
 const state = ref<UpdateState | null>(null)
 const visible = ref(false)
+const canAutoUpdate = ref(true)
+const systemManaged = ref(false)
 
-function boldify(text: string): string {
-  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+function formatMarkdown(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>')
 }
 
 const bannerMessage = computed<string>(() => {
   if (!state.value) return ''
   switch (state.value.type) {
     case 'available':
-      return boldify(t('update.available', { version: state.value.version }))
+      return formatMarkdown(systemManaged.value
+        ? t('update.debAvailable', { version: state.value.version })
+        : t('update.available', { version: state.value.version }))
     case 'downloading':
       return t('update.downloading', { progress: `${state.value.transferred} / ${state.value.total} MB (${Math.round(state.value.percent)}%)` })
     case 'ready':
-      return boldify(t('update.ready', { version: state.value.version }))
+      return formatMarkdown(t('update.ready', { version: state.value.version }))
     case 'error':
       return t('update.checkFailed')
     default:
@@ -111,6 +115,9 @@ listen<{ message: string }>(api.onUpdateError, (err) => {
 })
 
 onMounted(async () => {
+  const caps = await api.getUpdateCapabilities()
+  canAutoUpdate.value = caps.canAutoUpdate
+  systemManaged.value = caps.systemManaged
   const pending = await api.getPendingUpdate()
   if (pending) {
     state.value = { type: 'ready', version: pending.version }
@@ -126,7 +133,9 @@ onMounted(async () => {
     <div class="update-banner-actions">
       <!-- available -->
       <template v-if="state.type === 'available'">
-        <button class="primary" @click="download">{{ $t('update.download') }}</button>
+        <template v-if="canAutoUpdate">
+          <button class="primary" @click="download">{{ $t('update.download') }}</button>
+        </template>
         <button @click="dismiss">{{ $t('update.dismiss') }}</button>
       </template>
 

@@ -567,6 +567,7 @@ export interface ElectronApi {
   downloadUpdate(): Promise<void>
   installUpdate(): Promise<void>
   getPendingUpdate(): Promise<UpdateInfo | null>
+  getUpdateCapabilities(): Promise<{ canAutoUpdate: boolean; systemManaged: boolean }>
 
   // Model downloads
   listModelDownloads(): Promise<ModelDownloadProgress[]>

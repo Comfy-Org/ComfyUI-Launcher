@@ -317,7 +317,9 @@
     "retry": "Retry",
     "updateCheck": "Update Check",
     "updateError": "Update Error",
-    "upToDate": "You are running the latest version of ComfyUI Desktop 2.0."
+    "upToDate": "You are running the latest version of ComfyUI Desktop 2.0.",
+    "debAvailable": "Update **v{version}** is available. Run `sudo apt update && sudo apt upgrade` to update, or download the new .deb from the releases page.",
+    "debUpToDate": "You are running the latest version. Updates for .deb installs are delivered through your system package manager (apt)."
   },
 
   "modal": {

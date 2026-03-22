@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { app, ipcMain, BrowserWindow } from 'electron'
 import todesktop from '@todesktop/runtime'
 import * as settings from '../settings'
 import { clearQuitReason, setQuitReason } from './quit-state'
@@ -12,6 +12,14 @@ let _listenersBound = false
 
 const NO_UPDATE_AVAILABLE_MESSAGE = 'No update available. Try checking for updates first.'
 const UPDATER_UNAVAILABLE_MESSAGE = 'ToDesktop auto-updater is unavailable.'
+
+function isSystemPackageInstall(): boolean {
+  if (process.platform !== 'linux' || !app.isPackaged) return false
+  if (process.env.APPIMAGE) return false
+  // .deb installs place the app under /opt/ or /usr/; check the executable path
+  const appPath = app.getPath('exe')
+  return appPath.startsWith('/opt/') || appPath.startsWith('/usr/')
+}
 
 function broadcast(channel: string, data: unknown): void {
   BrowserWindow.getAllWindows().forEach((win) => {
@@ -152,6 +160,11 @@ export function register(): void {
   })
 
   ipcMain.handle('get-pending-update', () => _updateInfo)
+
+  ipcMain.handle('get-update-capabilities', () => {
+    const systemManaged = isSystemPackageInstall()
+    return { canAutoUpdate: !systemManaged, systemManaged }
+  })
 
   // Check on startup and periodically (respects autoUpdate setting at each check)
   const runIfEnabled = (): void => {
