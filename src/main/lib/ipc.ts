@@ -36,7 +36,7 @@ import { formatTime } from './util'
 import { getActiveDownloads } from './comfyDownloadManager'
 import * as releaseCache from './release-cache'
 import * as i18n from './i18n'
-import { ensureModelPathsConfig } from './models'
+import { syncCustomModelFolders, discoverExtraModelFolders } from './models'
 import { copyDirWithProgress } from './copy'
 import { fetchJSON } from './fetch'
 import { fetchLatestRelease } from './comfyui-releases'
@@ -2002,18 +2002,28 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       }
       const launchCmd = launchCmdRaw
       // Inject shared paths if this installation uses them
-      if (!launchCmd.skipSharedPaths && (inst.useSharedPaths as boolean | undefined) !== false && launchCmd.args) {
-        const modelsDirs = settings.get('modelsDirs') as string[] | undefined
-        const modelPathsConfig = ensureModelPathsConfig(modelsDirs)
-        if (modelPathsConfig) {
-          launchCmd.args.push('--extra-model-paths-config', modelPathsConfig)
+      const useSharedPaths = !launchCmd.skipSharedPaths && (inst.useSharedPaths as boolean | undefined) !== false && !!launchCmd.args
+      let preLaunchExtras: string[] = []
+      let sharedModelsDirs: string[] | undefined
+      if (useSharedPaths) {
+        sharedModelsDirs = settings.get('modelsDirs') as string[] | undefined
+        // Sync all model folders from the install to shared dirs and generate YAML
+        const { config } = syncCustomModelFolders(inst.installPath, sharedModelsDirs)
+        if (config) {
+          launchCmd.args!.push('--extra-model-paths-config', config.yamlPath)
         }
+        // Baseline = union of extras in shared dirs + install's models/ dir.
+        // This prevents spurious relaunches when ComfyUI itself adds new core
+        // folder types that aren't in our KNOWN_MODEL_FOLDERS list.
+        const installExtras = discoverExtraModelFolders(inst.installPath)
+        const baselineSet = new Set([...(config?.extraFolders ?? []), ...installExtras])
+        preLaunchExtras = [...baselineSet].sort()
         const inputDir = (settings.get('inputDir') as string | undefined) || settings.defaults.inputDir
         const outputDir = (settings.get('outputDir') as string | undefined) || settings.defaults.outputDir
         fs.mkdirSync(inputDir, { recursive: true })
         fs.mkdirSync(outputDir, { recursive: true })
-        launchCmd.args.push('--input-directory', inputDir)
-        launchCmd.args.push('--output-directory', outputDir)
+        launchCmd.args!.push('--input-directory', inputDir)
+        launchCmd.args!.push('--output-directory', outputDir)
       }
 
       const sender = _event.sender
@@ -2312,10 +2322,61 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           .catch((err) => console.warn('Snapshot capture failed:', err))
       }
 
+      // Check if custom nodes created new model folders during startup.
+      // If so, sync them to the shared root, rewrite the YAML, and relaunch
+      // so ComfyUI picks them up in this session (not the next one).
+      if (useSharedPaths) {
+        const { newFolders } = syncCustomModelFolders(inst.installPath, sharedModelsDirs, preLaunchExtras)
+        if (newFolders.length > 0) {
+          sendOutput(`\n--- Restarting: new model folders detected (${newFolders.join(', ')}) ---\n\n`)
+          await killProcessTree(proc)
+          const respawned = spawnComfy()
+          proc = respawned.proc
+          const session = _runningSessions.get(installationId)
+          if (session) session.proc = proc
+          writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
+          await waitForPort(launchCmd.port!, '127.0.0.1', {
+            timeoutMs: COMFY_BOOT_TIMEOUT_MS,
+            signal: abort.signal,
+            onPoll: ({ elapsedMs }) => {
+              const secs = Math.round(elapsedMs / 1000)
+              sendProgress('launch', { percent: -1, status: i18n.t('launch.waitingTime', { secs }) })
+            },
+          })
+        }
+      }
+
+      // Mutable set of known extra folders — used to detect truly new folders
+      // across reboot cycles without blocking subsequent checks.
+      const knownExtras = new Set(preLaunchExtras)
+      // Set when we intentionally kill ComfyUI for a model-folder relaunch so
+      // the exit handler knows to respawn instead of reporting a crash.
+      let pendingModelFolderRelaunch = false
+      // AbortController for the post-reboot waitForPort; cancelled when the
+      // session is stopped so dangling promises don't kill the wrong process.
+      let rebootModelCheckAbort: AbortController | null = null
+
       function attachExitHandler(p: ChildProcess): void {
         p.on('exit', (code) => {
-          if (checkRebootMarker(sessionPath)) {
-            sendOutput('\n--- ComfyUI restarting ---\n\n')
+          // Cancel any pending model-folder check from a previous reboot
+          if (rebootModelCheckAbort) {
+            rebootModelCheckAbort.abort()
+            rebootModelCheckAbort = null
+          }
+
+          if (pendingModelFolderRelaunch || checkRebootMarker(sessionPath)) {
+            const isModelRelaunch = pendingModelFolderRelaunch
+            pendingModelFolderRelaunch = false
+            if (!isModelRelaunch) {
+              sendOutput('\n--- ComfyUI restarting ---\n\n')
+            }
+            // Sync model folders before respawning so the YAML is up to date
+            if (useSharedPaths) {
+              const { config } = syncCustomModelFolders(inst.installPath, sharedModelsDirs)
+              if (config) {
+                for (const f of config.extraFolders) knownExtras.add(f)
+              }
+            }
             const spawned = spawnComfy()
             proc = spawned.proc
             const session = _runningSessions.get(installationId)
@@ -2323,6 +2384,31 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
             attachExitHandler(proc)
             if (_onComfyRestarted) _onComfyRestarted({ installationId, process: proc })
+            // After port is ready, check for new model folders and relaunch if needed
+            if (useSharedPaths) {
+              rebootModelCheckAbort = new AbortController()
+              const checkSignal = rebootModelCheckAbort.signal
+              waitForPort(launchCmd.port!, '127.0.0.1', { timeoutMs: COMFY_BOOT_TIMEOUT_MS, signal: checkSignal })
+                .then(() => {
+                  if (checkSignal.aborted) return
+                  // Verify the session still belongs to this process
+                  const currentSession = _runningSessions.get(installationId)
+                  if (!currentSession || currentSession.proc !== proc) return
+                  const currentExtras = discoverExtraModelFolders(inst.installPath)
+                  const newFolders = currentExtras.filter((f) => !knownExtras.has(f))
+                  if (newFolders.length > 0) {
+                    const { config } = syncCustomModelFolders(inst.installPath, sharedModelsDirs)
+                    if (config) {
+                      for (const f of config.extraFolders) knownExtras.add(f)
+                    }
+                    for (const f of newFolders) knownExtras.add(f)
+                    sendOutput(`\n--- Restarting: new model folders detected (${newFolders.join(', ')}) ---\n\n`)
+                    pendingModelFolderRelaunch = true
+                    killProcessTree(proc)
+                  }
+                })
+                .catch(() => {})
+            }
             // Capture snapshot after Manager-triggered restart
             if (inst.sourceId === 'standalone') {
               installations.get(installationId).then((currentInst) => {
