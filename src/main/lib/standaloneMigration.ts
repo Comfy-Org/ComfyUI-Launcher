@@ -47,6 +47,8 @@ export interface SharedMigrationInput {
     models: string
   }
   target?: StandaloneTargetSelection
+  sourceInstallationId?: string
+  sourceInstallationName?: string
 }
 
 export type StandaloneTargetSelection =
@@ -247,6 +249,12 @@ export async function migrateToStandaloneFromSnapshot(
     ...instData,
     status: 'installing',
     seen: false,
+    ...(input.sourceInstallationId ? {
+      copiedFrom: input.sourceInstallationId,
+      copiedFromName: input.sourceInstallationName,
+      copiedAt: new Date().toISOString(),
+      copyReason: 'standalone-migration',
+    } : {}),
   })
   ensureDefaultPrimary(entry)
 
