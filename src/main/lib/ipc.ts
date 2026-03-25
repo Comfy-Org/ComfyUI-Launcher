@@ -699,7 +699,17 @@ export function register(callbacks: RegisterCallbacks = {}): void {
 
   // Installations
   ipcMain.handle('get-installations', async () => {
-    const list = (await installations.list()).filter((i) => i.status !== 'installing')
+    const allInstalls = await installations.list()
+
+    // Hide source installs that have been migrated to standalone, as long as
+    // at least one child install (with copiedFrom pointing to them) still exists.
+    const migratedSourceIds = new Set(
+      allInstalls
+        .filter((i) => (i.copyReason as string | undefined) === 'standalone-migration' && i.status !== 'installing')
+        .map((i) => i.copiedFrom as string)
+        .filter(Boolean)
+    )
+    const list = allInstalls.filter((i) => i.status !== 'installing' && !migratedSourceIds.has(i.id))
 
     // Ensure a primary is always set when promotable local installs exist
     const currentPrimary = settings.get('primaryInstallId')
@@ -1841,7 +1851,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
           ensureDefaultPrimary,
         }
         const result = inst.sourceId === 'desktop'
-          ? await performDesktopMigration(actionData, migrationTools)
+          ? await performDesktopMigration(actionData, migrationTools, { id: inst.id, name: inst.name })
           : await performLocalMigration(inst, actionData, migrationTools)
         entry = result.entry
         destPath = result.destPath

@@ -10,6 +10,7 @@ import type { SourcePlugin, FieldOption, ActionResult, ActionTools, LaunchComman
 
 const DEFAULT_REPO = 'https://github.com/Comfy-Org/ComfyUI/'
 const DEFAULT_LAUNCH_ARGS = ''
+const DEFAULT_GIT_SETTINGS = { launchArgs: DEFAULT_LAUNCH_ARGS, launchMode: 'window', browserPartition: 'shared' } as const
 
 const VENV_CANDIDATES = ['.venv', 'venv', '.env', 'env']
 
@@ -100,7 +101,7 @@ export const gitSource: SourcePlugin = {
   skipInstall: true,
 
   getDefaults() {
-    return { launchArgs: DEFAULT_LAUNCH_ARGS, launchMode: 'console', browserPartition: 'shared' }
+    return { ...DEFAULT_GIT_SETTINGS }
   },
 
   buildInstallation(selections: Record<string, FieldOption | undefined>): Record<string, unknown> {
@@ -110,9 +111,7 @@ export const gitSource: SourcePlugin = {
       branch: selections.branch?.value ?? '',
       commit: selections.commit?.value ?? '',
       commitMessage: selections.commit?.label ?? '',
-      launchArgs: DEFAULT_LAUNCH_ARGS,
-      launchMode: 'console',
-      browserPartition: 'shared',
+      ...DEFAULT_GIT_SETTINGS,
     }
   },
 
@@ -187,7 +186,7 @@ export const gitSource: SourcePlugin = {
         fields: [
           { id: 'venvPath', label: t('git.venv'), value: venvPath || '', editable: true, editType: 'path' },
           { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true, editType: 'args-builder', tooltip: t('tooltips.startupArgs') },
-          { id: 'launchMode', label: t('common.launchMode'), value: (installation.launchMode as string | undefined) || 'console', editable: true,
+          { id: 'launchMode', label: t('common.launchMode'), value: (installation.launchMode as string | undefined) || DEFAULT_GIT_SETTINGS.launchMode, editable: true,
             editType: 'select', options: [
               { value: 'window', label: t('common.launchModeWindow') },
               { value: 'console', label: t('common.launchModeConsole') },
@@ -277,6 +276,8 @@ export const gitSource: SourcePlugin = {
       info.venvPath = venv
       info.venvName = path.basename(venv)
     }
+    info.launchMode = DEFAULT_GIT_SETTINGS.launchMode
+    info.browserPartition = DEFAULT_GIT_SETTINGS.browserPartition
     return info
   },
 

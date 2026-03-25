@@ -189,5 +189,7 @@ export async function performLocalMigration(
       models: i18n.t('migrate.addingModels'),
     },
     target,
+    sourceInstallationId: sourceInstallation.id,
+    sourceInstallationName: sourceInstallation.name,
   }, tools)
 }
