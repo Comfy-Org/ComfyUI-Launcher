@@ -3,12 +3,14 @@
  * webview pages via webContents.executeJavaScript().
  *
  * The script intercepts model downloads triggered by the "Missing Models"
- * dialog and routes them through the Launcher's download manager (exposed
- * as window.__comfyDesktop2 by comfyPreload.ts) so that model files land
- * in the correct shared-models subdirectory.
+ * dialog or the right side panel Errors tab and routes them through the
+ * Launcher's download manager (exposed as window.__comfyDesktop2 by
+ * comfyPreload.ts) so that model files land in the correct shared-models
+ * subdirectory.
  *
- * It supports both the legacy dialog (PrimeVue Listbox with class
- * "comfy-missing-models") and the newer redesigned dialog.
+ * It supports the legacy dialog (PrimeVue Listbox with class
+ * "comfy-missing-models"), the newer redesigned dialog, and the right side
+ * panel's Missing Models error section.
  */
 export function getModelDownloadContentScript(): string {
   return `(function() {
@@ -92,33 +94,102 @@ export function getModelDownloadContentScript(): string {
     }
   }
 
-  var dialogWasOpen = false;
+  // ---- Scrape the right side panel Errors tab (Missing Models section) ----
+  function scrapeErrorsTab() {
+    var panel = document.querySelector('[data-testid="properties-panel"]');
+    if (!panel) return;
 
-  function scrapeDialog() {
+    // Find category containers: each holds a directory header + model rows.
+    // MissingModelCard.vue renders these with a distinctive class set.
+    var categories = panel.querySelectorAll(
+      '.flex.w-full.flex-col.border-t.border-interface-stroke.py-2,' +
+      '.flex.w-full.flex-col.border-t.border-interface-stroke.py-2.first\\\\:border-t-0'
+    );
+    // Fallback: also match first category which has first:border-t-0 first:pt-0
+    if (categories.length === 0) {
+      categories = panel.querySelectorAll(
+        '[class*="flex"][class*="w-full"][class*="flex-col"][class*="border-t"][class*="py-2"]'
+      );
+    }
+
+    for (var c = 0; c < categories.length; c++) {
+      var cat = categories[c];
+      // Extract directory name from the category header span
+      // e.g. "clip_vision (1)" → "clip_vision"
+      var headerSpan = cat.querySelector('p[class*="text-destructive-background-hover"] span');
+      if (!headerSpan) continue;
+      var headerText = headerSpan.textContent.trim();
+      // Strip the trailing count e.g. " (1)" or " (3)"
+      var dirMatch = headerText.match(/^(.+?)\\s*\\(\\d+\\)\\s*$/);
+      var directory = dirMatch ? dirMatch[1].trim() : headerText;
+      if (!directory) continue;
+
+      // Find all model name elements within this category
+      var modelNames = cat.querySelectorAll('p[title][class*="text-foreground"]');
+      for (var m = 0; m < modelNames.length; m++) {
+        var name = modelNames[m].getAttribute('title');
+        if (name && !modelNameCache[name]) {
+          modelNameCache[name] = directory;
+        }
+      }
+    }
+  }
+
+  var dialogWasOpen = false;
+  var errorsTabWasOpen = false;
+
+  function updateMissingModelsCache() {
     var legacyOpen = !!document.querySelector('.comfy-missing-models');
     var newOpen = !!document.querySelector('[aria-labelledby="global-missing-models-warning"]');
     var isOpen = legacyOpen || newOpen;
+
+    // Check if the right side panel Errors tab has missing models
+    var panel = document.querySelector('[data-testid="properties-panel"]');
+    var errorsTabOpen = false;
+    if (panel) {
+      // The Missing Models section title contains "Missing Models" in a
+      // span with the destructive-background-hover style, but we need a
+      // more specific check: look for a download button with aria-label
+      // starting with "Download " inside the panel, which only appears in
+      // the missing models section.
+      var downloadBtns = panel.querySelectorAll('button[aria-label^="Download "]');
+      errorsTabOpen = downloadBtns.length > 0;
+    }
 
     if (isOpen) {
       dialogWasOpen = true;
       if (legacyOpen) scrapeLegacyDialog();
       scrapeNewDialog();
     } else if (dialogWasOpen) {
-      // Dialog just closed — clear cache to remove click() wrapping overhead
+      // Dialog just closed — clear dialog-sourced cache entries
       dialogWasOpen = false;
       modelCache = {};
-      modelNameCache = {};
+      // Only clear modelNameCache if errors tab is also not providing data
+      if (!errorsTabOpen) {
+        modelNameCache = {};
+      }
+    }
+
+    if (errorsTabOpen) {
+      errorsTabWasOpen = true;
+      scrapeErrorsTab();
+    } else if (errorsTabWasOpen) {
+      errorsTabWasOpen = false;
+      // Only clear modelNameCache if dialog is also not providing data
+      if (!dialogWasOpen) {
+        modelNameCache = {};
+      }
     }
   }
 
-  // ---- MutationObserver: populate cache when the dialog appears ----
+  // ---- MutationObserver: populate cache when the dialog or errors tab appears ----
   function startObserver() {
     var target = document.body || document.documentElement;
-    var observer = new MutationObserver(function() { scrapeDialog(); });
+    var observer = new MutationObserver(function() { updateMissingModelsCache(); });
     observer.observe(target, { childList: true, subtree: true });
   }
 
-  // Only observe the Missing Models dialog and intercept downloads for local sessions
+  // Only observe missing models UI and intercept downloads for local sessions
   if (!window.__comfyDesktop2Remote) {
     if (document.body) {
       startObserver();

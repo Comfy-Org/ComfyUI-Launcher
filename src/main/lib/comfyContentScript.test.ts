@@ -47,4 +47,28 @@ describe('getModelDownloadContentScript', () => {
     // onDownloadProgress listener should not be inside the remote guard
     expect(script).toContain('onDownloadProgress')
   })
+
+  it('contains scrapeErrorsTab function for right side panel missing models', () => {
+    expect(script).toContain('scrapeErrorsTab')
+  })
+
+  it('detects the properties panel via data-testid', () => {
+    expect(script).toContain('[data-testid="properties-panel"]')
+  })
+
+  it('extracts directory names from category headers with destructive style', () => {
+    expect(script).toContain('text-destructive-background-hover')
+  })
+
+  it('tracks errorsTabWasOpen state separately from dialogWasOpen', () => {
+    expect(script).toContain('errorsTabWasOpen')
+    expect(script).toContain('dialogWasOpen')
+  })
+
+  it('only clears modelNameCache when both dialog and errors tab are closed', () => {
+    // When dialog closes, it should check errorsTabOpen before clearing
+    // When errors tab closes, it should check dialogWasOpen before clearing
+    const occurrences = script.split('modelNameCache = {}').length - 1
+    expect(occurrences).toBeGreaterThanOrEqual(2)
+  })
 })
