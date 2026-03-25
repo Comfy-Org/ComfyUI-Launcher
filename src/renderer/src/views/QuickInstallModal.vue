@@ -448,7 +448,7 @@ defineExpose({ open })
       </div>
       <div class="view-modal-body">
         <div class="view-scroll">
-          <div v-if="loading" class="wizard-loading">
+          <div v-if="loading" class="wizard-loading with-spinner">
             {{ $t('newInstall.loading') }}
           </div>
 
@@ -546,6 +546,7 @@ defineExpose({ open })
           <div></div>
           <button
             class="primary quick-install-btn"
+            :class="{ loading: installing }"
             :disabled="!canInstall"
             @click="handleInstall"
           >

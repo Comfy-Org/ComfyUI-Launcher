@@ -314,7 +314,7 @@ defineExpose({ open })
               @dragleave="handleDragLeave"
               @drop="handleDrop"
             >
-              <div v-if="loading" class="ls-drop-text">{{ $t('newInstall.loading') }}</div>
+              <div v-if="loading" class="ls-drop-loading with-spinner">{{ $t('newInstall.loading') }}</div>
               <template v-else>
                 <div class="ls-drop-text">{{ $t('list.snapshotDropHint') }}</div>
                 <div class="ls-drop-or">{{ $t('common.or') }}</div>
@@ -357,7 +357,7 @@ defineExpose({ open })
                     {{ opt.label }}{{ opt.recommended ? ` (${$t('newInstall.latest')})` : '' }}
                   </option>
                 </select>
-                <span v-else-if="releaseLoading" class="ls-value">{{ $t('newInstall.loading') }}</span>
+                <span v-else-if="releaseLoading" class="ls-value ls-value-loading with-spinner">{{ $t('newInstall.loading') }}</span>
                 <span v-else class="ls-value">{{ $t('newInstall.noOptions') }}</span>
                 <span v-if="preview.newestSnapshot.comfyui.releaseTag" class="ls-release-hint">
                   {{ $t('list.snapshotOriginalRelease', { tag: preview.newestSnapshot.comfyui.releaseTag }) }}
@@ -369,7 +369,7 @@ defineExpose({ open })
             <div class="ls-section">
               <div class="ls-field">
                 <span class="ls-label">{{ $t('list.snapshotDevice') }}</span>
-                <div v-if="variantLoading" class="ls-value">{{ $t('newInstall.loading') }}</div>
+                <div v-if="variantLoading" class="ls-value ls-value-loading with-spinner">{{ $t('newInstall.loading') }}</div>
                 <div
                   v-else-if="variantOptions.length > 0"
                   class="variant-cards"
@@ -548,6 +548,13 @@ defineExpose({ open })
   pointer-events: none;
 }
 
+.ls-drop-loading {
+  flex-direction: column;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
 .ls-drop-text {
   font-size: 14px;
   color: var(--text-muted);
@@ -610,6 +617,10 @@ defineExpose({ open })
   font-size: 14px;
   color: var(--text);
   user-select: text;
+}
+
+.ls-value-loading {
+  color: var(--text-muted);
 }
 
 .ls-name-input {

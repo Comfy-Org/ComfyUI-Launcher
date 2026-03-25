@@ -64,6 +64,7 @@ const scrollRef = ref<HTMLDivElement | null>(null)
 const mouseDownOnOverlay = ref(false)
 
 const sections = ref<DetailSection[]>([])
+const sectionsLoading = ref(false)
 const installationSize = ref<number | null>(null)
 const installationSizeLoading = ref(false)
 
@@ -122,6 +123,7 @@ watch(
   async (inst) => {
     if (!inst) {
       sections.value = []
+      sectionsLoading.value = false
       previousInstId.value = null
       installationSize.value = null
       installationSizeLoading.value = false
@@ -133,7 +135,12 @@ watch(
     const isNewInstallation = inst.id !== previousInstId.value
     previousInstId.value = inst.id
     if (isNewInstallation) autoActionRun.value = false
-    sections.value = await window.api.getDetailSections(inst.id)
+    if (isNewInstallation) sectionsLoading.value = true
+    try {
+      sections.value = await window.api.getDetailSections(inst.id)
+    } finally {
+      sectionsLoading.value = false
+    }
     if (isNewInstallation) {
       const tabExists = sections.value.some((s) => s.tab === props.initialTab)
       activeTab.value = tabExists ? props.initialTab : 'status'
@@ -543,8 +550,9 @@ onUnmounted(() => {
           </button>
         </div>
         <div ref="scrollRef" class="view-scroll">
+          <div v-if="sectionsLoading" class="modal-loading with-spinner">{{ $t('common.loading') }}</div>
           <SnapshotTab
-            v-if="activeTab === 'snapshots'"
+            v-else-if="activeTab === 'snapshots'"
             :installation-id="installation.id"
             @run-action="runAction"
             @refresh-all="refreshAllSections"

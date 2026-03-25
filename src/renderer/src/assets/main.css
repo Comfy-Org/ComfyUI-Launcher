@@ -677,6 +677,8 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 
 .modal-loading { display: flex; align-items: center; gap: 10px; padding: 24px 0; justify-content: center; color: var(--text-muted); font-size: 14px; }
 .modal-loading-spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: btn-spin 0.6s linear infinite; }
+.with-spinner { display: flex; align-items: center; gap: 10px; }
+.with-spinner::before { content: ""; display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: btn-spin 0.6s linear infinite; flex-shrink: 0; }
 
 .modal-select-box { min-width: 340px; max-width: 440px; }
 .modal-select-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; max-height: 40vh; overflow-y: auto; }
@@ -861,6 +863,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .wizard-step { display: flex; flex-direction: column; gap: 12px; }
 .wizard-loading { font-size: 14px; color: var(--text-muted); padding: 12px 0; }
 .wizard-error { font-size: 14px; color: var(--danger); padding: 12px 0; }
+.track-probing { font-size: 14px; color: var(--text-muted); padding: 8px 0; margin-top: 6px; }
 
 /* Source cards (Step 1) */
 .source-card {

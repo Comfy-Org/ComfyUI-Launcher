@@ -322,8 +322,11 @@ async function changePrimary(): Promise<void> {
 <template>
   <div class="view active">
     <div class="view-scroll">
+      <!-- Loading state -->
+      <div v-if="!primaryInstall && installationStore.loading" class="modal-loading with-spinner">{{ $t('common.loading') }}</div>
+
       <!-- Welcome state: no local installations -->
-      <div v-if="!primaryInstall" class="dashboard-welcome">
+      <div v-else-if="!primaryInstall" class="dashboard-welcome">
         <div class="dashboard-welcome-icon">
           <Download :size="48" />
         </div>

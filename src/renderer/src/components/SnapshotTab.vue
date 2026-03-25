@@ -390,7 +390,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="snapshot-loading">{{ t('common.loading') }}</div>
+    <div v-if="loading" class="snapshot-loading with-spinner">{{ t('common.loading') }}</div>
 
     <!-- Timeline -->
     <div v-if="!loading && snapshots.length > 0" class="snapshot-timeline">
@@ -476,7 +476,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 
           <!-- Inspector (inline, shown when selected) -->
           <div v-if="selectedFilename === item.snapshot.filename" class="snapshot-inspector" @click.stop>
-          <div v-if="detailLoading" class="snapshot-loading">{{ t('common.loading') }}</div>
+          <div v-if="detailLoading" class="snapshot-loading with-spinner">{{ t('common.loading') }}</div>
           <template v-else-if="detail">
             <!-- Diff toggle buttons -->
             <div class="diff-toggle">
@@ -503,7 +503,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
               </div>
               <SnapshotDiffView v-else :diff="diffData.diff" />
             </div>
-            <div v-else-if="diffMode && diffLoading" class="snapshot-loading">{{ t('common.loading') }}</div>
+            <div v-else-if="diffMode && diffLoading" class="snapshot-loading with-spinner">{{ t('common.loading') }}</div>
 
             <!-- Environment info -->
             <div class="inspector-section">

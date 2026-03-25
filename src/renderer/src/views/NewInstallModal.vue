@@ -689,7 +689,7 @@ defineExpose({ open })
         <div class="view-scroll">
           <!-- Step 1: Source Selection -->
           <div v-if="currentStep === 1" class="wizard-step">
-            <div v-if="sourcesLoading || initializing" class="wizard-loading">
+            <div v-if="sourcesLoading || initializing" class="wizard-loading with-spinner">
               {{ $t('newInstall.loading') }}
             </div>
             <template v-else>
@@ -812,7 +812,7 @@ defineExpose({ open })
 
                   <!-- Card-rendered select field -->
                   <template v-else-if="field.renderAs === 'cards'">
-                    <div v-if="fieldLoading.get(field.id)" class="wizard-loading">
+                    <div v-if="fieldLoading.get(field.id)" class="wizard-loading with-spinner">
                       {{ $t('newInstall.loading') }}
                     </div>
                     <div

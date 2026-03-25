@@ -4,7 +4,7 @@ import type { Installation } from '../types/ipc'
 
 export const useInstallationStore = defineStore('installation', () => {
   const installations = ref<Installation[]>([])
-  const loading = ref(false)
+  const loading = ref(true)
 
   async function fetchInstallations(): Promise<Installation[]> {
     loading.value = true

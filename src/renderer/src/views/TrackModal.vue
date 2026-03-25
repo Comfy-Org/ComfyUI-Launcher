@@ -208,13 +208,14 @@ defineExpose({ open })
           <!-- Detected type -->
           <div class="field">
             <label for="track-source">{{ $t('track.detectedType') }}</label>
+            <div v-if="probing" class="track-probing with-spinner">{{ $t('track.detecting') }}</div>
             <select
+              v-else
               id="track-source"
               :disabled="probeResults.length <= 1"
               @change="handleSourceChange"
             >
-              <option v-if="probing">{{ $t('track.detecting') }}</option>
-              <option v-else-if="probeResults.length === 0">
+              <option v-if="probeResults.length === 0">
                 {{
                   trackPath
                     ? $t('track.noDetected')

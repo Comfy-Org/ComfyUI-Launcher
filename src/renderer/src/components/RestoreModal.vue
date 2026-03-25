@@ -57,7 +57,7 @@ onUnmounted(() => {
       <div class="modal-box restore-modal-box">
         <div class="modal-title">{{ t('snapshots.restorePreviewTitle') }}</div>
 
-        <div v-if="loading" class="restore-modal-loading">{{ t('common.loading') }}</div>
+        <div v-if="loading" class="restore-modal-loading with-spinner">{{ t('common.loading') }}</div>
 
         <template v-else-if="diffData">
           <div v-if="diffData.empty" class="restore-modal-empty">
@@ -110,6 +110,7 @@ onUnmounted(() => {
 }
 
 .restore-modal-loading {
+  justify-content: center;
   color: var(--text-muted);
   font-size: 13px;
   padding: 16px 0;

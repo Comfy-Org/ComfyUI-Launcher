@@ -40,7 +40,7 @@ describe('useInstallationStore', () => {
 
   it('should have empty initial state', () => {
     expect(store.installations).toEqual([])
-    expect(store.loading).toBe(false)
+    expect(store.loading).toBe(true)
   })
 
   describe('fetchInstallations', () => {
