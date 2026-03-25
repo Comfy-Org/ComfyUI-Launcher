@@ -8,7 +8,7 @@ vi.mock('child_process', async (importOriginal) => {
 
 import { execFile, spawn } from 'child_process'
 import { EventEmitter } from 'events'
-import { countCommitsAhead, findNearestTag, findLatestVersionTag, isAncestorOf, findMergeBase, revParseRef, fetchTags, configurePygit2, isGitAvailable, countUniqueCommits, gitClone, gitCheckoutCommit, gitFetchAndCheckout } from './git'
+import { countCommitsAhead, findNearestTag, findLatestVersionTag, isAncestorOf, findMergeBase, revParseRef, fetchTags, configurePygit2, isGitAvailable, resetGitAvailableCache, countUniqueCommits, gitClone, gitCheckoutCommit, gitFetchAndCheckout } from './git'
 
 const mockedExecFile = vi.mocked(execFile)
 const mockedSpawn = vi.mocked(spawn)
@@ -169,7 +169,7 @@ describe('fetchTags', () => {
 })
 
 describe('isGitAvailable (system git)', () => {
-  beforeEach(() => { vi.resetAllMocks() })
+  beforeEach(() => { vi.resetAllMocks(); resetGitAvailableCache() })
 
   it('returns true when git --version succeeds', async () => {
     mockExecFile((_cmd, _args, _opts, cb) => { cb(null, 'git version 2.40.0\n', '') })

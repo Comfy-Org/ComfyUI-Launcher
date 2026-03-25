@@ -1,6 +1,7 @@
 import { execFile, spawn, type ExecFileException } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import { app } from 'electron'
 import { killProcTree } from './process'
 
 let _pygit2Python: string | null = null
@@ -13,6 +14,26 @@ export function configurePygit2(pythonPath: string, scriptPath: string): void {
 
 export function isPygit2Configured(): boolean {
   return _pygit2Python !== null && _pygit2Script !== null
+}
+
+/**
+ * Try to configure the pygit2 fallback using a standalone installation's
+ * Python.  Validates that both the Python binary and the helper script
+ * exist before calling {@link configurePygit2}.
+ *
+ * @returns `true` if pygit2 was successfully configured.
+ */
+export function tryConfigurePygit2Fallback(installPath: string): boolean {
+  const pythonPath = process.platform === 'win32'
+    ? path.join(installPath, 'standalone-env', 'python.exe')
+    : path.join(installPath, 'standalone-env', 'bin', 'python3')
+  if (!fs.existsSync(pythonPath)) return false
+  const scriptPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'lib', 'git_operations.py')
+    : path.join(__dirname, '..', '..', 'lib', 'git_operations.py')
+  if (!fs.existsSync(scriptPath)) return false
+  configurePygit2(pythonPath, scriptPath)
+  return true
 }
 
 function runPygit2(args: string[], timeout: number = 5000): Promise<{ exitCode: number; stdout: string; stderr: string }> {
@@ -389,13 +410,22 @@ export function hasGitDir(nodePath: string): boolean {
   return resolveGitDir(nodePath) !== null
 }
 
+let _gitAvailableCache: boolean | null = null
+
 export function isGitAvailable(): Promise<boolean> {
   if (isPygit2Configured()) return Promise.resolve(true)
+  if (_gitAvailableCache !== null) return Promise.resolve(_gitAvailableCache)
   return new Promise((resolve) => {
     execFile('git', ['--version'], { windowsHide: true, timeout: 5000 }, (error) => {
-      resolve(!error)
+      _gitAvailableCache = !error
+      resolve(_gitAvailableCache)
     })
   })
+}
+
+/** Reset the cached result of {@link isGitAvailable} (for tests). */
+export function resetGitAvailableCache(): void {
+  _gitAvailableCache = null
 }
 
 export function gitClone(

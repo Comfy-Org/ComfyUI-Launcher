@@ -12,7 +12,7 @@ import type { ComfyVersion } from '../lib/version'
 import { deleteAction, untrackAction } from '../lib/actions'
 import { downloadAndExtract, downloadAndExtractMulti } from '../lib/installer'
 import { copyDirWithProgress } from '../lib/copy'
-import { readGitHead } from '../lib/git'
+import { readGitHead, isGitAvailable, isPygit2Configured, tryConfigurePygit2Fallback, fetchTags } from '../lib/git'
 import { resolveLocalVersion, clearVersionCache } from '../lib/version-resolve'
 import { parseArgs, extractPort, formatTime } from '../lib/util'
 import { PYTORCH_RE, installFilteredRequirements, getPipIndexArgs } from '../lib/pip'
@@ -678,7 +678,14 @@ export const standalone: SourcePlugin = {
 
     // Populate comfyVersion from the extracted git repo so version displays
     // are correct immediately, without waiting for the first update.
+    // On machines without a global git binary, configure pygit2 using the
+    // just-installed standalone Python so tag resolution works correctly.
+    if (!isPygit2Configured() && !await isGitAvailable()) {
+      tryConfigurePygit2Fallback(installation.installPath)
+    }
     const comfyuiDir = path.join(installation.installPath, 'ComfyUI')
+    sendProgress('cleanup', { percent: -1, status: 'Fetching version tags…' })
+    await fetchTags(comfyuiDir)
     const headCommit = readGitHead(comfyuiDir)
     if (headCommit) {
       const ref = installation.version as string | undefined
