@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { spawn } from 'child_process'
+import { app } from 'electron'
 import { fetchJSON } from '../lib/fetch'
 import { deleteAction, untrackAction } from '../lib/actions'
 import { downloadAndExtract } from '../lib/installer'
@@ -54,6 +55,7 @@ export const portable: SourcePlugin = {
   get description() { return t('portable.desc') },
   category: 'local',
   platforms: ['win32'],
+  hidden: app.isPackaged,
 
   get fields() {
     return [
