@@ -616,6 +616,7 @@
     "disabled": "Disabled",
     "restore": "Restore",
     "comfyuiUpdated": "ComfyUI updated",
+    "channelChanged": "Channel changed",
     "noPrevious": "First snapshot — no previous to compare",
     "added": "Added",
     "removed": "Removed",

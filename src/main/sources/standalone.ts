@@ -55,6 +55,18 @@ const PLATFORM_PREFIX: Record<string, string> = {
   linux: 'linux-',
 }
 
+function getChannelDefs(): ChannelDef[] {
+  return [
+    { value: 'stable', label: t('standalone.channelStable'), description: t('standalone.channelStableDesc'), recommended: true },
+    { value: 'latest', label: t('standalone.channelLatest'), description: t('standalone.channelLatestDesc') },
+  ]
+}
+
+function getChannelLabel(channel: string): string {
+  const map = buildChannelLabelMap(getChannelDefs())
+  return map[channel] || channel
+}
+
 function stripPlatform(variantId: string): string {
   return variantId.replace(/^(win|mac|linux)-/, '')
 }
@@ -354,6 +366,11 @@ export const standalone: SourcePlugin = {
     return { launchArgs: DEFAULT_LAUNCH_ARGS, launchMode: 'window', portConflict: 'auto' }
   },
 
+  getListPreview(installation: InstallationRecord): string | null {
+    const channel = (installation.updateChannel as string | undefined) || 'stable'
+    return getChannelLabel(channel)
+  },
+
   getStatusTag(installation: InstallationRecord): StatusTag | undefined {
     const channel = (installation.updateChannel as string | undefined) || 'stable'
     const info = releaseCache.getEffectiveInfo(COMFYUI_REPO, channel, installation)
@@ -458,11 +475,7 @@ export const standalone: SourcePlugin = {
     const channel = (installation.updateChannel as string | undefined) || 'stable'
 
     // Build per-channel preview info and actions for cards
-    const channelDefs: ChannelDef[] = [
-      { value: 'stable', label: t('standalone.channelStable'), description: t('standalone.channelStableDesc'), recommended: true },
-      { value: 'latest', label: t('standalone.channelLatest'), description: t('standalone.channelLatestDesc') },
-    ]
-    const channelLabelMap = buildChannelLabelMap(channelDefs)
+    const channelDefs = getChannelDefs()
     const baseCards = buildChannelCards(COMFYUI_REPO, channelDefs, installation)
 
     const channelOptions = baseCards.map((card) => {
@@ -482,7 +495,7 @@ export const standalone: SourcePlugin = {
           : 'standalone.updateConfirmMessage'
         const notes = truncateNotes(channelInfo.releaseNotes || '', 2000)
         const switchPrefix = isSwitching
-          ? t('channelCards.switchChannelPrefix', { from: channelLabelMap[channel] || channel, to: card.label })
+          ? t('channelCards.switchChannelPrefix', { from: getChannelLabel(channel), to: card.label })
           : ''
         const confirmMessage = t(msgKey, {
           installed: installedDisplay,
