@@ -369,10 +369,33 @@ async function _resolveAndBroadcastVersions(list: InstallationRecord[]): Promise
       const resolved = await resolveLocalVersion(comfyuiDir, cv.commit, undefined, override)
       const resolvedStr = formatComfyVersion(resolved, 'short')
       const storedStr = formatComfyVersion(cv, 'short')
-      if (resolvedStr !== storedStr) {
-        // Persist to the installation record so all surfaces (Status tab,
-        // Update tab, etc.) read the same resolved version.
-        await installations.update(inst.id, { comfyVersion: resolved })
+      const versionChanged = resolvedStr !== storedStr
+
+      // Reconcile stale installedTag entries in updateInfoByChannel
+      // so isUpdateAvailable doesn't report false positives.
+      // This can happen when comfyVersion was corrected in a previous
+      // startup cycle but installedTag was never updated to match.
+      const existing = inst.updateInfoByChannel as Record<string, Record<string, unknown>> | undefined
+      let reconciledChannels: Record<string, Record<string, unknown>> | undefined
+      if (existing) {
+        let changed = false
+        const reconciled: Record<string, Record<string, unknown>> = {}
+        for (const [ch, info] of Object.entries(existing)) {
+          if (info?.installedTag && info.installedTag !== resolvedStr) {
+            reconciled[ch] = { ...info, installedTag: resolvedStr }
+            changed = true
+          } else {
+            reconciled[ch] = info
+          }
+        }
+        if (changed) reconciledChannels = reconciled
+      }
+
+      if (versionChanged || reconciledChannels) {
+        const patch: Record<string, unknown> = {}
+        if (versionChanged) patch.comfyVersion = resolved
+        if (reconciledChannels) patch.updateInfoByChannel = reconciledChannels
+        await installations.update(inst.id, patch)
         updates.push({ id: inst.id, version: resolvedStr })
       }
     } catch {
@@ -579,6 +602,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Standalone-Environments/releases?per_page=30'),
         fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI-Standalone-Environments/releases/latest'),
         fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI/releases?per_page=30'),
+        fetchJSON('https://api.github.com/repos/Comfy-Org/ComfyUI/tags?per_page=30'),
       ])
     } catch {}
   })()
