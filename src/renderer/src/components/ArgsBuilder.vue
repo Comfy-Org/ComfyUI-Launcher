@@ -203,7 +203,7 @@ const searchQuery = computed(() => {
   const lastToken = val.trimEnd() === val
     ? val.split(/\s+/).pop() || ''
     : '' // trailing space means no partial token
-  if (lastToken === '--') return '--' // bare -- triggers full list
+  if (lastToken === '-' || lastToken === '--') return '--' // bare - or -- triggers full list
   if (lastToken.startsWith('--')) {
     const raw = lastToken.slice(2)
     const eqIdx = raw.indexOf('=')
