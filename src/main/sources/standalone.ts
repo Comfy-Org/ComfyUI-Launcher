@@ -595,55 +595,6 @@ export const standalone: SourcePlugin = {
           untrackAction(),
         ],
       },
-      {
-        tab: 'settings',
-        title: t('common.advanced'),
-        collapsed: true,
-        actions: [
-          { id: 'release-update', label: t('standalone.releaseUpdate'), style: 'default', enabled: installed,
-            showProgress: true, progressTitle: t('standalone.releaseUpdatingTitle'), cancellable: true,
-            fieldSelects: [
-              { sourceId: 'standalone', fieldId: 'release', field: 'releaseSelection',
-                title: t('standalone.releaseUpdateSelectRelease'),
-                message: t('standalone.releaseUpdateSelectReleaseMessage') },
-              { sourceId: 'standalone', fieldId: 'variant', field: 'variantSelection',
-                title: t('standalone.releaseUpdateSelectVariant'),
-                message: t('standalone.releaseUpdateSelectVariantMessage') },
-            ],
-            prompt: {
-              title: t('standalone.releaseUpdateTitle'),
-              message: t('standalone.releaseUpdateNameMessage'),
-              defaultValue: `${installation.name} (Release Update)`,
-              confirmLabel: t('standalone.releaseUpdateConfirm'),
-              required: true,
-              field: 'name',
-            } },
-          { id: 'migrate-from', label: t('migrate.migrateFrom'), style: 'default', enabled: installed,
-            showProgress: true, progressTitle: t('migrate.migrating'), cancellable: true,
-            select: {
-              title: t('migrate.selectSource'),
-              message: t('migrate.selectSourceMessage'),
-              emptyMessage: t('migrate.noInstallations'),
-              source: 'installations',
-              field: 'sourceInstallationId',
-              excludeSelf: true,
-              filters: { status: 'installed', sourceCategory: 'local' },
-            },
-            confirm: {
-              title: t('migrate.confirmTitle'),
-              message: t('migrate.confirmMessage'),
-              confirmLabel: t('migrate.migrateConfirm'),
-              options: [
-                { id: 'customNodes', label: t('migrate.optCustomNodes'), checked: true },
-                { id: 'workflows', label: t('migrate.optWorkflows'), checked: false },
-                { id: 'userSettings', label: t('migrate.optUserSettings'), checked: false },
-                { id: 'models', label: t('migrate.optModels'), checked: false },
-                { id: 'input', label: t('migrate.optInput'), checked: false },
-                { id: 'output', label: t('migrate.optOutput'), checked: false },
-              ],
-            } },
-        ],
-      },
     )
 
     return sections
