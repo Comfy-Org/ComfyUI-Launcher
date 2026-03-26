@@ -5,7 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
-describe('findLockingProcesses', () => {
+describe('findLockingProcesses', { timeout: 15_000 }, () => {
   it('returns an empty array for a file not locked by any process', async () => {
     const tmpFile = path.join(os.tmpdir(), `file-lock-test-${Date.now()}.txt`)
     fs.writeFileSync(tmpFile, 'test')

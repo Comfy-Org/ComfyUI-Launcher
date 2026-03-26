@@ -5,7 +5,7 @@ export interface LockingProcess {
   name: string
 }
 
-const TIMEOUT_MS = 2000
+const TIMEOUT_MS = 5000
 
 /**
  * Best-effort attempt to identify which processes hold a lock on `filePath`.

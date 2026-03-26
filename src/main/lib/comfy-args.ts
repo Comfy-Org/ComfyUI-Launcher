@@ -163,8 +163,8 @@ function getCategory(flagName: string): string {
  */
 function parseExclusiveGroups(usageLine: string): Map<string, string> {
   const flagToGroup = new Map<string, string>()
-  // Match bracketed groups with pipes: [--a | --b | --c ...]
-  const groupRegex = /\[([^\]]*\|[^\]]*)\]/g
+  // Match bracketed or parenthesized groups with pipes: [--a | --b] or (--a | --b)
+  const groupRegex = /[[(]([^\])]*\|[^\])]*)[)\]]/g
   let match: RegExpExecArray | null
   let groupId = 0
   while ((match = groupRegex.exec(usageLine)) !== null) {
@@ -411,20 +411,16 @@ export function filterUnsupportedArgs(userArgs: string[], schema: ComfyArgsSchem
     const arg = userArgs[i]!
     if (arg.startsWith('--')) {
       const name = arg.slice(2).replace(/=.*$/, '')
+      const hasInlineValue = arg.includes('=')
+      const hasTrailingValue = !hasInlineValue && i + 1 < userArgs.length && !userArgs[i + 1]!.startsWith('--')
       if (schema.knownFlags.has(name)) {
         result.push(arg)
-        // If next token is a value (not a flag), include it
-        if (i + 1 < userArgs.length && !userArgs[i + 1]!.startsWith('--')) {
-          result.push(userArgs[i + 1]!)
-          i += 2
-          continue
-        }
-      } else {
-        // Skip unsupported flag and its value if present
-        if (i + 1 < userArgs.length && !userArgs[i + 1]!.startsWith('--')) {
-          i += 2
-          continue
-        }
+        if (hasTrailingValue) result.push(userArgs[i + 1]!)
+      }
+      // Advance past trailing value if present (whether known or skipped)
+      if (hasTrailingValue) {
+        i += 2
+        continue
       }
     } else {
       result.push(arg)

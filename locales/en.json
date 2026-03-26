@@ -688,7 +688,9 @@
     "instanceRunningTitle": "Instance Already Running",
     "instanceRunningMessage": "\"{name}\" is currently running. Running multiple local installs simultaneously may use significant system resources.",
     "instanceRunningProceed": "Launch Alongside",
-    "instanceRunningReplace": "Close Running & Launch"
+    "instanceRunningReplace": "Close Running & Launch",
+    "modelFolderRelaunchTitle": "Restarting ComfyUI",
+    "modelFolderRelaunchDesc": "New model folders were detected from custom nodes. Restarting so ComfyUI can use them right away."
   },
 
   "errors": {

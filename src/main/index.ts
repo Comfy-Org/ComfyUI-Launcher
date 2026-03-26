@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard, screen } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard, screen, net, nativeTheme } from 'electron' // nativeTheme used by _detectComfyTheme
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'child_process'
@@ -23,6 +23,8 @@ import {
 } from './lib/comfyDownloadManager'
 import { getModelDownloadContentScript } from './lib/comfyContentScript'
 import { shouldOpenInPopup } from './lib/allowedPopups'
+import { showModelFolderRelaunchPage } from './lib/relaunchPage'
+import { COMFY_BG, SPLASH_DARK, SPLASH_LIGHT, type SplashTheme } from './lib/theme'
 
 todesktop.init({ autoUpdater: false })
 
@@ -387,26 +389,144 @@ function onComfyExited({ installationId }: { installationId?: string } = {}): vo
   }
 }
 
+interface RelaunchState {
+  /** The real ComfyUI URL before we replaced it with the splash page. */
+  originalUrl: string
+  /** Detected splash theme for seamless background-color transition. */
+  theme: SplashTheme
+  /** will-navigate blocker attached to the comfy window. */
+  navBlocker: (e: Electron.Event) => void
+  /** Monotonically-increasing token — stale onComfyRestarted calls abort when this changes. */
+  token: number
+}
+
+/** Consolidated relaunch state per installation. */
+const relaunchStates = new Map<string, RelaunchState>()
+/** Cancel functions for pending did-fail-load retry timers per installation. */
+const comfyFailRetryTimerCancels = new Map<string, () => void>()
+/** Counter for generating unique relaunch tokens. */
+let relaunchTokenCounter = 0
+
+/**
+ * Detect the ComfyUI frontend's current theme from a running comfy window.
+ * Uses the same approach as comfyContentScript.ts readTheme():
+ * checks for .dark-theme class on body, then parses --fg-color luminance
+ * (dark foreground = light theme, light foreground = dark theme).
+ * Falls back to the OS dark/light preference via nativeTheme.
+ *
+ * Currently unused — the frontend's own loading screen is always dark,
+ * so we hardcode SPLASH_DARK. Enable this when the frontend loader
+ * respects light mode to avoid a jarring theme mismatch.
+ */
+async function _detectComfyTheme(win: BrowserWindow): Promise<SplashTheme> {
+  try {
+    const isDark = await win.webContents.executeJavaScript(
+      `(function(){` +
+        `if(document.body.classList.contains('dark-theme'))return true;` +
+        `var fg=getComputedStyle(document.documentElement).getPropertyValue('--fg-color').trim();` +
+        `if(!fg)return true;` +
+        `var d=document.createElement('div');d.style.color=fg;` +
+        `document.body.appendChild(d);` +
+        `var c=getComputedStyle(d).color;` +
+        `document.body.removeChild(d);` +
+        `var m=c.match(/` + '\\d+' + `/g);` +
+        `if(!m||m.length<3)return true;` +
+        `var lum=(+m[0]*299+ +m[1]*587+ +m[2]*114)/1000;` +
+        `return lum>=140;` +
+      `})()`,
+    )
+    return isDark ? SPLASH_DARK : SPLASH_LIGHT
+  } catch {
+    return nativeTheme.shouldUseDarkColors ? SPLASH_DARK : SPLASH_LIGHT
+  }
+}
+// Suppress unused warning — kept for future use
+void _detectComfyTheme
+
+async function onModelFolderRelaunch({ installationId }: { installationId: string }): Promise<void> {
+  const win = comfyWindows.get(installationId)
+  if (!win || win.isDestroyed()) return
+
+  // If a relaunch is already in progress, clean up the previous state first
+  // so the stale onComfyRestarted call will abort (token mismatch).
+  const prev = relaunchStates.get(installationId)
+  if (prev) win.webContents.off('will-navigate', prev.navBlocker)
+
+  // Capture the real ComfyUI URL — but only if we're not already on the splash page.
+  const currentUrl = win.webContents.getURL()
+  const originalUrl = prev ? prev.originalUrl : currentUrl
+
+  // Cancel any pending did-fail-load retry so it doesn't navigate away from the splash
+  const cancelRetry = comfyFailRetryTimerCancels.get(installationId)
+  if (cancelRetry) cancelRetry()
+
+  // Block navigations on the comfy window until onComfyRestarted loads the real URL.
+  const blockNav = (e: Electron.Event): void => { e.preventDefault() }
+  win.webContents.on('will-navigate', blockNav)
+
+  // Always use dark splash — the frontend's own loading screen is always dark,
+  // so a light splash would cause a jarring dark flash when ComfyUI loads.
+  const theme: SplashTheme = SPLASH_DARK
+  const token = ++relaunchTokenCounter
+
+  relaunchStates.set(installationId, { originalUrl, theme, navBlocker: blockNav, token })
+  await showModelFolderRelaunchPage(win, theme)
+}
+
 function onComfyRestarted({ installationId, process: _proc }: { installationId?: string; process?: ChildProcess } = {}): void {
   if (!installationId) return
   const win = comfyWindows.get(installationId)
   if (!win || win.isDestroyed()) return
 
-  const currentUrl = win.webContents.getURL()
+  const state = relaunchStates.get(installationId)
+  const myToken = state?.token
+
+  const currentUrl = state?.originalUrl || win.webContents.getURL()
   if (!currentUrl) return
 
   const url = new URL(currentUrl)
   const port = parseInt(url.port, 10)
   if (!port) return
 
+  const cleanupRelaunchState = (): void => {
+    // Only clean up if this is still the active relaunch (token matches)
+    const current = relaunchStates.get(installationId)
+    if (current && current.token === myToken) {
+      if (!win.isDestroyed()) win.webContents.off('will-navigate', current.navBlocker)
+      relaunchStates.delete(installationId)
+    }
+  }
+
+  /** Returns true if a newer relaunch has superseded this one. */
+  const isStale = (): boolean => {
+    const current = relaunchStates.get(installationId)
+    return !!current && current.token !== myToken
+  }
+
   waitForPort(port, '127.0.0.1', { timeoutMs: COMFY_BOOT_TIMEOUT_MS })
-    .then(() => {
-      if (!win.isDestroyed()) {
-        win.webContents.stop()
-        win.loadURL(currentUrl)
+    .then(async () => {
+      // The TCP port may be open before the HTTP server is ready.
+      // Probe with HTTP HEAD requests so the splash page stays visible
+      // until the server actually responds.
+      for (let attempt = 0; attempt < 10; attempt++) {
+        if (win.isDestroyed() || isStale()) { cleanupRelaunchState(); return }
+        try {
+          const resp = await net.fetch(currentUrl, { method: 'HEAD' })
+          resp.body?.cancel()
+          break
+        } catch {
+          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)))
+        }
       }
+      if (win.isDestroyed() || isStale()) { cleanupRelaunchState(); return }
+      // Non-relaunch restart while a relaunch is active — defer to the relaunch.
+      if (relaunchStates.has(installationId) && !state) return
+      cleanupRelaunchState()
+      win.setBackgroundColor(state?.theme.bg ?? COMFY_BG)
+      await win.loadURL(currentUrl)
     })
     .catch((err) => {
+      cleanupRelaunchState()
       console.error(`ComfyUI restart failed for ${installationId}:`, err)
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('comfy-output', {
@@ -452,7 +572,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
     minHeight: 600,
     icon: APP_ICON,
     title: `${installation.name} — Desktop 2.0 v${APP_VERSION}`,
-    backgroundColor: '#171717',
+    backgroundColor: COMFY_BG,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -499,6 +619,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
 
   const reloadComfy = (): void => {
     if (comfyWindow.isDestroyed()) return
+    if (relaunchStates.has(installationId)) return
     comfyWindow.webContents.stop()
     comfyWindow.loadURL(comfyUrl)
   }
@@ -516,10 +637,17 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   })
 
   let failRetryTimer: ReturnType<typeof setTimeout> | null = null
+  const cancelFailRetry = (): void => {
+    if (failRetryTimer) { clearTimeout(failRetryTimer); failRetryTimer = null }
+  }
+  comfyFailRetryTimerCancels.set(installationId, cancelFailRetry)
   comfyWindow.webContents.on('did-fail-load', (_e, code, _desc, _failUrl, isMainFrame) => {
     if (!isMainFrame || code === -3 || failRetryTimer) return
+    // During a model-folder relaunch, onComfyRestarted handles retry logic.
+    if (relaunchStates.has(installationId)) return
     failRetryTimer = setTimeout(() => {
       failRetryTimer = null
+      if (relaunchStates.has(installationId)) return
       if (!comfyWindow.isDestroyed()) {
         comfyWindow.loadURL(comfyUrl)
       }
@@ -550,6 +678,8 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
 
   comfyWindow.on('closed', () => {
     comfyWindows.delete(installationId)
+    comfyFailRetryTimerCancels.delete(installationId)
+    relaunchStates.delete(installationId)
   })
 
   comfyWindows.set(installationId, comfyWindow)
@@ -609,7 +739,7 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
     i18n.init(locale)
     registerDownloadIpc()
     cleanupTempDownloads()
-    ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
+    ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onModelFolderRelaunch, onLocaleChanged: updateTrayMenu })
     updater.register()
     createMainWindow()
   })

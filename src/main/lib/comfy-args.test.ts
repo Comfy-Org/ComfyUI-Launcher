@@ -154,4 +154,37 @@ describe('filterUnsupportedArgs', () => {
     )
     expect(filtered).toEqual(['--port', '8188', '--listen', '--enable-manager'])
   })
+
+  it('does not consume next token when skipping --unknown=value', () => {
+    const schema = parseHelpOutput(SAMPLE_HELP)
+    const filtered = filterUnsupportedArgs(
+      ['--unknown=foo', 'positional', '--enable-manager'],
+      schema
+    )
+    expect(filtered).toEqual(['positional', '--enable-manager'])
+  })
+
+  it('does not double-consume value after --known=value', () => {
+    const schema = parseHelpOutput(SAMPLE_HELP)
+    const filtered = filterUnsupportedArgs(
+      ['--port=8188', '--enable-manager'],
+      schema
+    )
+    expect(filtered).toEqual(['--port=8188', '--enable-manager'])
+  })
+})
+
+describe('parseExclusiveGroups via parseHelpOutput', () => {
+  it('detects required exclusive groups with parentheses', () => {
+    const help = `usage: main.py (--aaa | --bbb)
+
+options:
+  --aaa                 Option A.
+  --bbb                 Option B.
+`
+    const schema = parseHelpOutput(help)
+    const byName = new Map(schema.args.map((a) => [a.name, a]))
+    expect(byName.get('aaa')?.exclusiveGroup).toBeDefined()
+    expect(byName.get('aaa')?.exclusiveGroup).toBe(byName.get('bbb')?.exclusiveGroup)
+  })
 })

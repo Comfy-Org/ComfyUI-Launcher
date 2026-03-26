@@ -455,7 +455,9 @@
     "instanceRunningTitle": "实例正在运行",
     "instanceRunningMessage": "\"{name}\" 正在运行。同时运行多个本地安装可能会消耗大量系统资源。",
     "instanceRunningProceed": "同时启动",
-    "instanceRunningReplace": "关闭运行中的实例并启动"
+    "instanceRunningReplace": "关闭运行中的实例并启动",
+    "modelFolderRelaunchTitle": "正在重启 ComfyUI",
+    "modelFolderRelaunchDesc": "检测到自定义节点创建了新的模型文件夹。正在重启以便 ComfyUI 立即使用这些文件夹。"
   },
 
   "errors": {

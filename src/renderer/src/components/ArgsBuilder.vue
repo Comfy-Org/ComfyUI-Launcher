@@ -28,13 +28,17 @@ const fetched = ref(false)
 
 // --- Fetch schema eagerly (autocomplete + validation work without opening panel) ---
 
+let fetchGeneration = 0
+
 async function fetchSchema(): Promise<void> {
   if (fetched.value) return
   fetched.value = true
   loading.value = true
   loadError.value = null
+  const gen = ++fetchGeneration
   try {
     const result = await window.api.getComfyArgs(props.installationId)
+    if (gen !== fetchGeneration) return
     if (result?.args?.length) {
       schema.value = result.args.map((a) => ({
         ...a,
@@ -47,13 +51,20 @@ async function fetchSchema(): Promise<void> {
       loadError.value = result.error || '[debug] Result had empty args and no error field'
     }
   } catch (err) {
+    if (gen !== fetchGeneration) return
     loadError.value = (err as Error).message || 'Failed to fetch argument definitions'
   } finally {
-    loading.value = false
+    if (gen === fetchGeneration) loading.value = false
   }
 }
 
 onMounted(fetchSchema)
+
+watch(() => props.installationId, () => {
+  fetched.value = false
+  schema.value = []
+  fetchSchema()
+})
 
 function togglePanel(): void {
   expanded.value = !expanded.value
@@ -89,7 +100,7 @@ function tokenize(raw: string): string[] {
 
 function parseArgs(raw: string): ParsedArgs {
   const tokens = tokenize(raw)
-  const schemaNames = new Set(schema.value.map((a) => a.name))
+  const schemaMap = new Map(schema.value.map((a) => [a.name, a]))
   const known = new Map<string, string>()
   const extra: string[] = []
 
@@ -102,26 +113,17 @@ function parseArgs(raw: string): ParsedArgs {
       const eqIdx = raw.indexOf('=')
       const name = eqIdx >= 0 ? raw.slice(0, eqIdx) : raw
       const eqValue = eqIdx >= 0 ? raw.slice(eqIdx + 1) : undefined
-      if (schemaNames.has(name)) {
-        const def = schema.value.find((a) => a.name === name)
+      const def = schemaMap.get(name)
+      if (def) {
         if (def?.type === 'boolean') {
           known.set(name, eqValue ?? '')
           i++
-        } else if (eqValue) {
-          // --flag=value syntax: value is inline (non-empty)
+        } else if (eqValue !== undefined) {
+          // --flag=value or --flag= (inline value, possibly empty)
           known.set(name, eqValue)
           i++
-        } else if (def?.type === 'optional-value') {
-          const next = tokens[i + 1]
-          if (next !== undefined && !next.startsWith('--')) {
-            known.set(name, next)
-            i += 2
-          } else {
-            known.set(name, '')
-            i++
-          }
         } else {
-          // value type
+          // value or optional-value type
           const next = tokens[i + 1]
           if (next !== undefined && !next.startsWith('--')) {
             known.set(name, next)
@@ -132,18 +134,12 @@ function parseArgs(raw: string): ParsedArgs {
           }
         }
       } else {
-        // Unknown flag — keep in extra
-        if (eqValue !== undefined) {
-          extra.push(`--${name}`)
-          extra.push(eqValue)
+        // Unknown flag — keep in extra, preserving original format
+        extra.push(token)
+        i++
+        if (eqValue === undefined && i < tokens.length && !tokens[i]!.startsWith('--')) {
+          extra.push(tokens[i]!)
           i++
-        } else {
-          extra.push(token)
-          i++
-          if (i < tokens.length && !tokens[i]!.startsWith('--')) {
-            extra.push(tokens[i]!)
-            i++
-          }
         }
       }
     } else {
@@ -198,25 +194,35 @@ const unsupportedFlags = computed(() => {
 
 // --- Search / filter ---
 
-/** Extract the partial flag being typed (last token if it starts with --) */
+/** Extract the partial being typed (last token — with or without leading dashes) */
 const searchQuery = computed(() => {
   if (!inputFocused.value) return ''
   const val = localValue.value
   if (!val) return ''
   // Find the last token: split on whitespace, take last
-  const lastToken = val.trimEnd() === val
-    ? val.split(/\s+/).pop() || ''
-    : '' // trailing space means no partial token
-  if (lastToken === '--') return '--' // bare -- triggers full list
-  if (lastToken.startsWith('--')) {
-    const raw = lastToken.slice(2)
-    const eqIdx = raw.indexOf('=')
-    const name = eqIdx >= 0 ? raw.slice(0, eqIdx) : raw
-    if (!schema.value.some((a) => a.name === name)) {
-      return name.toLowerCase()
+  const allTokens = val.trimEnd() === val ? val.split(/\s+/) : []
+  const lastToken = allTokens.pop() || ''
+  if (!lastToken) return ''
+  // If previous token is a flag that expects a value, the user is filling
+  // in that value — suppress autocomplete so it doesn't interfere.
+  if (!lastToken.startsWith('-') && allTokens.length > 0) {
+    const prev = allTokens[allTokens.length - 1]!
+    if (prev.startsWith('--') && !prev.includes('=')) {
+      const prevName = prev.slice(2)
+      const prevDef = schema.value.find((a) => a.name === prevName)
+      if (prevDef && prevDef.type === 'value') return ''
     }
   }
-  return ''
+  if (lastToken === '-' || lastToken === '--') return '--' // bare - or -- triggers full list
+  // Strip leading dashes to get the name portion
+  const stripped = lastToken.replace(/^-{1,2}/, '')
+  const eqIdx = stripped.indexOf('=')
+  const name = eqIdx >= 0 ? stripped.slice(0, eqIdx) : stripped
+  if (!name) return ''
+  // Only suppress for exact matches that already have the -- prefix;
+  // bare words like 'port' should still trigger autocomplete to add the dashes.
+  if (lastToken.startsWith('-') && schema.value.some((a) => a.name === name)) return ''
+  return name.toLowerCase()
 })
 
 const autocompleteMatches = computed(() => {
@@ -276,8 +282,8 @@ function onTextInput(value: string): void {
 
 function completeArg(name: string): void {
   const val = localValue.value
-  // Replace the partial --xxx at the end with the full flag + trailing space
-  const replaced = val.replace(/--[\w_-]*$/, `--${name} `)
+  // Replace the partial token at the end (with or without dashes) with the full flag
+  const replaced = val.replace(/-{0,2}[\w_-]*$/, `--${name} `)
   localValue.value = replaced
   emit('update:modelValue', replaced)
 }
@@ -409,9 +415,13 @@ const textTokens = computed<TextToken[]>(() => {
           result.push({ text: tokens[i]!, status: 'unsupported' })
           i++
         }
-      } else if (eqValue) {
-        // --flag=value with non-empty value — ok
-        result.push({ text: token, status: 'ok' })
+      } else if (eqValue !== undefined) {
+        // --flag=value or --flag= (inline value)
+        if (eqValue === '' && def.type === 'value') {
+          result.push({ text: token, status: 'missing-value', tooltip: `Requires a value: ${def.metavar || 'VALUE'}` })
+        } else {
+          result.push({ text: token, status: 'ok' })
+        }
         i++
       } else if (def.type === 'value') {
         // Required value — check if next token is present and not a flag
@@ -437,8 +447,12 @@ const textTokens = computed<TextToken[]>(() => {
           i++
         }
       }
+    } else if (partial && i === tokens.length - 1 && token.toLowerCase() === partial) {
+      // Bare partial being typed that matches autocomplete search
+      result.push({ text: token, status: 'partial' })
+      i++
     } else {
-      result.push({ text: token, status: 'ok' })
+      result.push({ text: token, status: 'unsupported', tooltip: 'Unexpected positional argument — use --flag syntax' })
       i++
     }
   }
@@ -452,13 +466,20 @@ const missingValueFlags = computed(() => {
     .map((t) => t.text)
 })
 
+/** Bare positional tokens not consumed by any flag */
+const orphanedTokens = computed(() => {
+  return textTokens.value
+    .filter((t) => t.status === 'unsupported' && !t.text.startsWith('--'))
+    .map((t) => t.text)
+})
+
 /** Arg awaiting a value (user is still in position to type it) */
 const awaitingValue = computed(() => {
   const t = textTokens.value.find((t) => t.status === 'awaiting-value')
   return t ? t : null
 })
 
-const hasValidationIssues = computed(() => unsupportedFlags.value.length > 0 || missingValueFlags.value.length > 0)
+const hasValidationIssues = computed(() => unsupportedFlags.value.length > 0 || missingValueFlags.value.length > 0 || orphanedTokens.value.length > 0)
 const hasAnyIndicators = computed(() => hasValidationIssues.value || awaitingValue.value !== null)
 
 // --- Collapsed groups ---
@@ -534,6 +555,11 @@ function toggleGroup(group: string): void {
       <span class="args-warning-icon">⚠</span>
       Missing value for:
       <span v-for="flag in missingValueFlags" :key="flag" class="args-bad-flag args-missing-flag">{{ flag }}</span>
+    </div>
+    <div v-if="orphanedTokens.length" class="args-validation-warning">
+      <span class="args-warning-icon">⚠</span>
+      Unexpected:
+      <span v-for="tok in orphanedTokens" :key="tok" class="args-bad-flag">{{ tok }}</span>
     </div>
 
     <!-- Token display with highlights -->
