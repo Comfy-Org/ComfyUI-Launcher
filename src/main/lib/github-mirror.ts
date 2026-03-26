@@ -1,4 +1,6 @@
-import { execFile } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import { resolveGitDir } from './git'
 
 export const GITCODE_COMFY_ORG_BASE = 'https://gitcode.com/gh_mirrors/co'
 
@@ -20,22 +22,24 @@ export function getComfyUIRemoteUrl(enabled: boolean): string {
 
 /**
  * Ensure the git remote "origin" uses the correct URL based on the mirror
- * setting. Reads the current remote URL and updates it only if it needs to
- * change (github.com ↔ gitcode.com for Comfy-Org repos).
+ * setting. Reads and updates `.git/config` directly so it works even when
+ * system git is unavailable (pygit2-only environments).
  */
 export function ensureRemoteUrl(repoPath: string, enabled: boolean): Promise<void> {
-  return new Promise((resolve) => {
-    execFile('git', ['remote', 'get-url', 'origin'], { cwd: repoPath, windowsHide: true, timeout: 5000 }, (err, stdout) => {
-      if (err) { resolve(); return }
-      const currentUrl = stdout.trim()
-      const desired = rewriteCloneUrl(currentUrl, enabled)
-      // If mirror is off, rewrite won't change github.com URLs, but we
-      // need to restore them if they were previously rewritten to gitcode.
-      const restored = enabled ? desired : restoreGitHubUrl(currentUrl)
-      if (restored === currentUrl) { resolve(); return }
-      execFile('git', ['remote', 'set-url', 'origin', restored], { cwd: repoPath, windowsHide: true, timeout: 5000 }, () => resolve())
-    })
-  })
+  try {
+    const gitDir = resolveGitDir(repoPath)
+    if (!gitDir) return Promise.resolve()
+    const configPath = path.join(gitDir, 'config')
+    const content = fs.readFileSync(configPath, 'utf-8')
+    const match = content.match(/(\[remote "origin"\][^[]*?url\s*=\s*)(.+)/m)
+    if (!match) return Promise.resolve()
+    const currentUrl = match[2]!.trim()
+    const desired = enabled ? rewriteCloneUrl(currentUrl, true) : restoreGitHubUrl(currentUrl)
+    if (desired === currentUrl) return Promise.resolve()
+    const updated = content.replace(match[0]!, match[1]! + desired)
+    fs.writeFileSync(configPath, updated, 'utf-8')
+  } catch {}
+  return Promise.resolve()
 }
 
 const GITCODE_COMFY_RE = /^https?:\/\/gitcode\.com\/gh_mirrors\/co\/([^/]+?)(?:\.git)?\/?$/
