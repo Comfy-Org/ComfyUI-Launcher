@@ -60,6 +60,19 @@ const isCloud = computed(() => props.installation?.sourceCategory === 'cloud')
 const isPrimary = computed(() => props.installation ? prefs.isPrimary(props.installation.id) : false)
 const isPinned = computed(() => props.installation ? prefs.isPinned(props.installation.id) : false)
 
+async function confirmSetPrimary(): Promise<void> {
+  if (!props.installation) return
+  const confirmed = await modal.confirm({
+    title: t('dashboard.setPrimary'),
+    message: t('dashboard.setPrimaryConfirm', { name: props.installation.name }),
+    confirmLabel: t('dashboard.setPrimary'),
+    confirmStyle: 'primary',
+  })
+  if (confirmed) {
+    await prefs.setPrimary(props.installation.id)
+  }
+}
+
 const contentRef = ref<HTMLDivElement | null>(null)
 const scrollRef = ref<HTMLDivElement | null>(null)
 const mouseDownOnOverlay = ref(false)
@@ -560,7 +573,7 @@ onUnmounted(() => {
             :class="{ active: isPrimary }"
             :disabled="isPrimary"
             :title="$t('dashboard.setPrimary')"
-            @click="prefs.setPrimary(installation!.id)"
+            @click="confirmSetPrimary"
           >
             <Star :size="16" />
           </button>
