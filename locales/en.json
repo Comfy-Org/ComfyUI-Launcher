@@ -12,7 +12,10 @@
     "launchedAgo": "Launched {time}",
     "neverLaunched": "Not launched yet",
     "changePrimary": "Change",
+    "changePrimaryTitle": "Change Primary",
     "setPrimary": "Set as Primary",
+    "setPrimaryMessage": "The primary installation is shown at the top of the dashboard for quick access.",
+    "setPrimaryConfirm": "Set \"{name}\" as your primary installation? It will be shown at the top of the dashboard.",
     "cloudSection": "ComfyUI Cloud",
     "pinned": "Pinned",
     "noPinned": "No pinned installations. Right-click an install to pin it to the dashboard.",
@@ -744,7 +747,9 @@
     "inputDir": "Shared folder for input files (images, masks, etc.) accessible to all installations.",
     "outputDir": "Shared folder where ComfyUI saves generated outputs, accessible to all installations.",
     "customNodes": "Third-party extensions that add new node types and functionality to ComfyUI.",
-    "pipPackages": "Python packages installed in the environment. Custom nodes often install their own pip dependencies."
+    "pipPackages": "Python packages installed in the environment. Custom nodes often install their own pip dependencies.",
+    "updateNow": "Update this installation in-place.",
+    "copyAndUpdate": "Create a copy of this installation and update the copy. The original will not be modified."
   },
 
   "contextMenu": {

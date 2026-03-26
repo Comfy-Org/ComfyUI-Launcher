@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLauncherPrefs } from './useLauncherPrefs'
+import { useModal } from './useModal'
 import { useSessionStore } from '../stores/sessionStore'
 import type { ContextMenuItem } from '../types/context-menu'
 import type { Installation } from '../types/ipc'
@@ -8,6 +9,7 @@ import type { Installation } from '../types/ipc'
 export function useInstallContextMenu(onShowDetail: (inst: Installation) => void) {
   const { t } = useI18n()
   const prefs = useLauncherPrefs()
+  const modal = useModal()
   const sessionStore = useSessionStore()
 
   const ctxMenu = ref({ open: false, x: 0, y: 0, inst: null as Installation | null })
@@ -64,6 +66,13 @@ export function useInstallContextMenu(onShowDetail: (inst: Installation) => void
     const inst = ctxMenu.value.inst
     if (!inst) return
     if (id === 'set-primary') {
+      const confirmed = await modal.confirm({
+        title: t('dashboard.setPrimary'),
+        message: t('dashboard.setPrimaryConfirm', { name: inst.name }),
+        confirmLabel: t('dashboard.setPrimary'),
+        confirmStyle: 'primary',
+      })
+      if (!confirmed) return
       await prefs.setPrimary(inst.id)
     } else if (id === 'pin') {
       await prefs.pinInstall(inst.id)

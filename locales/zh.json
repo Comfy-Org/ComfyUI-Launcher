@@ -13,7 +13,10 @@
     "launchedAgo": "已启动 {time}",
     "neverLaunched": "尚未启动",
     "changePrimary": "更改",
+    "changePrimaryTitle": "更改主要安装",
     "setPrimary": "设为主要",
+    "setPrimaryMessage": "主要安装会显示在仪表盘顶部，方便快速访问。",
+    "setPrimaryConfirm": "将「{name}」设为主要安装？它将显示在仪表盘顶部。",
     "cloudSection": "ComfyUI 云",
     "pinned": "已固定",
     "noPinned": "没有固定的安装。右键单击安装以将其固定到仪表盘。",
@@ -483,5 +486,10 @@
     "portConflictKilling": "正在停止…",
     "portConflictKillFailed": "无法释放端口 {port}。该进程可能需要手动终止。",
     "duplicateName": "名为 \"{name}\" 的安装已存在。请选择其他名称。"
+  },
+
+  "tooltips": {
+    "updateNow": "就地更新此安装。",
+    "copyAndUpdate": "创建此安装的副本并更新副本。原始安装不会被修改。"
   }
 }
