@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard, screen, net, nativeTheme } from 'electron' // nativeTheme used by _detectComfyTheme
+import { app, BrowserWindow, Tray, Menu, ipcMain, shell, clipboard, screen, net } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'child_process'
@@ -24,7 +24,7 @@ import {
 import { getModelDownloadContentScript } from './lib/comfyContentScript'
 import { shouldOpenInPopup } from './lib/allowedPopups'
 import { showModelFolderRelaunchPage } from './lib/relaunchPage'
-import { COMFY_BG, SPLASH_DARK, SPLASH_LIGHT, type SplashTheme } from './lib/theme'
+import { COMFY_BG, SPLASH_DARK, type SplashTheme } from './lib/theme'
 
 todesktop.init({ autoUpdater: false })
 
@@ -406,42 +406,6 @@ const relaunchStates = new Map<string, RelaunchState>()
 const comfyFailRetryTimerCancels = new Map<string, () => void>()
 /** Counter for generating unique relaunch tokens. */
 let relaunchTokenCounter = 0
-
-/**
- * Detect the ComfyUI frontend's current theme from a running comfy window.
- * Uses the same approach as comfyContentScript.ts readTheme():
- * checks for .dark-theme class on body, then parses --fg-color luminance
- * (dark foreground = light theme, light foreground = dark theme).
- * Falls back to the OS dark/light preference via nativeTheme.
- *
- * Currently unused — the frontend's own loading screen is always dark,
- * so we hardcode SPLASH_DARK. Enable this when the frontend loader
- * respects light mode to avoid a jarring theme mismatch.
- */
-async function _detectComfyTheme(win: BrowserWindow): Promise<SplashTheme> {
-  try {
-    const isDark = await win.webContents.executeJavaScript(
-      `(function(){` +
-        `if(document.body.classList.contains('dark-theme'))return true;` +
-        `var fg=getComputedStyle(document.documentElement).getPropertyValue('--fg-color').trim();` +
-        `if(!fg)return true;` +
-        `var d=document.createElement('div');d.style.color=fg;` +
-        `document.body.appendChild(d);` +
-        `var c=getComputedStyle(d).color;` +
-        `document.body.removeChild(d);` +
-        `var m=c.match(/` + '\\d+' + `/g);` +
-        `if(!m||m.length<3)return true;` +
-        `var lum=(+m[0]*299+ +m[1]*587+ +m[2]*114)/1000;` +
-        `return lum>=140;` +
-      `})()`,
-    )
-    return isDark ? SPLASH_DARK : SPLASH_LIGHT
-  } catch {
-    return nativeTheme.shouldUseDarkColors ? SPLASH_DARK : SPLASH_LIGHT
-  }
-}
-// Suppress unused warning — kept for future use
-void _detectComfyTheme
 
 async function onModelFolderRelaunch({ installationId }: { installationId: string }): Promise<void> {
   const win = comfyWindows.get(installationId)

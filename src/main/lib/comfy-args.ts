@@ -405,6 +405,7 @@ export function validateArgs(userArgs: string[], schema: ComfyArgsSchema): strin
  * Returns only args that are known to ComfyUI.
  */
 export function filterUnsupportedArgs(userArgs: string[], schema: ComfyArgsSchema): string[] {
+  const argTypes = new Map(schema.args.map((a) => [a.name, a.type]))
   const result: string[] = []
   let i = 0
   while (i < userArgs.length) {
@@ -412,7 +413,8 @@ export function filterUnsupportedArgs(userArgs: string[], schema: ComfyArgsSchem
     if (arg.startsWith('--')) {
       const name = arg.slice(2).replace(/=.*$/, '')
       const hasInlineValue = arg.includes('=')
-      const hasTrailingValue = !hasInlineValue && i + 1 < userArgs.length && !userArgs[i + 1]!.startsWith('--')
+      const isBoolean = argTypes.get(name) === 'boolean'
+      const hasTrailingValue = !hasInlineValue && !isBoolean && i + 1 < userArgs.length && !userArgs[i + 1]!.startsWith('--')
       if (schema.knownFlags.has(name)) {
         result.push(arg)
         if (hasTrailingValue) result.push(userArgs[i + 1]!)

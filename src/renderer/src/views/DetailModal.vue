@@ -10,7 +10,7 @@ import { useInstallationStore } from '../stores/installationStore'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import { useMigrateAction } from '../composables/useMigrateAction'
 import { REQUIRES_STOPPED } from '../types/ipc'
-import { Star, Pin } from 'lucide-vue-next'
+import { Star, Pin, Pencil } from 'lucide-vue-next'
 import type {
   Installation,
   ActionDef,
@@ -166,14 +166,41 @@ watch(
   { immediate: true }
 )
 
+function getTitleTextNode(el: HTMLElement): Text {
+  for (const node of el.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) return node as Text
+  }
+  const text = document.createTextNode('')
+  el.prepend(text)
+  return text
+}
+
+function handleTitleSelectAll(event: KeyboardEvent): void {
+  event.preventDefault()
+  const el = event.currentTarget as HTMLElement
+  const textNode = getTitleTextNode(el)
+  const range = document.createRange()
+  range.selectNodeContents(textNode)
+  const sel = window.getSelection()
+  sel?.removeAllRanges()
+  sel?.addRange(range)
+}
+
+function handleTitlePaste(event: ClipboardEvent): void {
+  event.preventDefault()
+  const text = event.clipboardData?.getData('text/plain') ?? ''
+  document.execCommand('insertText', false, text)
+}
+
 async function handleTitleBlur(event: FocusEvent): Promise<void> {
   if (!props.installation) return
   const el = event.target as HTMLElement
-  const newName = el.textContent?.trim() ?? ''
+  const textNode = getTitleTextNode(el)
+  const newName = textNode.textContent?.trim() ?? ''
   if (newName && newName !== props.installation.name) {
     const result = await window.api.updateInstallation(props.installation.id, { name: newName })
     if (result && !(result as ActionResult).ok && (result as ActionResult).ok !== undefined) {
-      el.textContent = props.installation.name
+      textNode.textContent = ` ${props.installation.name}`
       await modal.alert({
         title: props.installation.name,
         message: (result as ActionResult).message || ''
@@ -182,7 +209,7 @@ async function handleTitleBlur(event: FocusEvent): Promise<void> {
       emit('update:installation', { ...props.installation, name: newName })
     }
   } else {
-    el.textContent = props.installation.name
+    textNode.textContent = ` ${props.installation.name}`
   }
 }
 
@@ -507,12 +534,16 @@ onUnmounted(() => {
       <div class="view-modal-header">
         <div
           class="view-modal-title"
+          role="textbox"
+          :aria-label="$t('detail.editName', 'Edit installation name')"
           contenteditable
           spellcheck="false"
           @blur="handleTitleBlur"
           @keydown.enter.prevent="($event.target as HTMLElement).blur()"
+          @keydown.ctrl.a.prevent="handleTitleSelectAll"
+          @paste="handleTitlePaste"
         >
-          {{ installation.name }}
+          {{ installation.name }}<Pencil :size="14" class="edit-name-hint" contenteditable="false" />
         </div>
         <div class="detail-header-actions">
           <button
