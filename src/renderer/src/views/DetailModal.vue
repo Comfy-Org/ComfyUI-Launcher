@@ -10,7 +10,7 @@ import { useInstallationStore } from '../stores/installationStore'
 import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import { useMigrateAction } from '../composables/useMigrateAction'
 import { REQUIRES_STOPPED } from '../types/ipc'
-import { Star, Pin } from 'lucide-vue-next'
+import { Star, Pin, Pencil } from 'lucide-vue-next'
 import type {
   Installation,
   ActionDef,
@@ -505,14 +505,16 @@ onUnmounted(() => {
   >
     <div ref="contentRef" class="view-modal-content">
       <div class="view-modal-header">
-        <div
-          class="view-modal-title"
-          contenteditable
-          spellcheck="false"
-          @blur="handleTitleBlur"
-          @keydown.enter.prevent="($event.target as HTMLElement).blur()"
-        >
-          {{ installation.name }}
+        <div class="view-modal-title" @click="($event.currentTarget as HTMLElement).querySelector('span')?.focus()">
+          <span
+            role="textbox"
+            :aria-label="$t('detail.editName', 'Edit installation name')"
+            contenteditable
+            spellcheck="false"
+            @blur="handleTitleBlur"
+            @keydown.enter.prevent="($event.target as HTMLElement).blur()"
+          >{{ installation.name }}</span>
+          <Pencil :size="14" class="edit-name-hint" />
         </div>
         <div class="detail-header-actions">
           <button

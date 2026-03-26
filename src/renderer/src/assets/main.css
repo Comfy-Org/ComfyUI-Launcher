@@ -591,8 +591,18 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .view-modal-title {
   font-size: 18px; font-weight: 600; color: var(--text);
   flex: 1; min-width: 0; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
+  display: flex; align-items: center; gap: 6px;
+  cursor: text;
 }
+.view-modal-title > [contenteditable] {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; outline: none;
+}
+.edit-name-hint {
+  flex-shrink: 0; opacity: 0.25; transition: opacity 0.15s;
+}
+.view-modal-title:hover .edit-name-hint { opacity: 0.6; }
+.view-modal-title:focus-within .edit-name-hint { opacity: 0; pointer-events: none; }
 .view-modal-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .view-modal-close {
   background: none; border: none; font-size: 18px;
