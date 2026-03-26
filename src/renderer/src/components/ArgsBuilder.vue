@@ -200,6 +200,7 @@ const unsupportedFlags = computed(() => {
 
 /** Extract the partial flag being typed (last token if it starts with --) */
 const searchQuery = computed(() => {
+  if (!inputFocused.value) return ''
   const val = localValue.value
   if (!val) return ''
   // Find the last token: split on whitespace, take last
@@ -207,8 +208,13 @@ const searchQuery = computed(() => {
     ? val.split(/\s+/).pop() || ''
     : '' // trailing space means no partial token
   if (lastToken === '--') return '--' // bare -- triggers full list
-  if (lastToken.startsWith('--') && !schema.value.some((a) => a.name === lastToken.slice(2))) {
-    return lastToken.slice(2).toLowerCase()
+  if (lastToken.startsWith('--')) {
+    const raw = lastToken.slice(2)
+    const eqIdx = raw.indexOf('=')
+    const name = eqIdx >= 0 ? raw.slice(0, eqIdx) : raw
+    if (!schema.value.some((a) => a.name === name)) {
+      return name.toLowerCase()
+    }
   }
   return ''
 })
@@ -240,11 +246,8 @@ const activeArgs = computed(() => {
 const groupedArgs = computed(() => {
   const raw = searchQuery.value
   const q = raw === '--' ? '' : raw // bare -- doesn't filter the panel
-  const activeNames = new Set(parsed.value.known.keys())
   const groups = new Map<string, ComfyArgDef[]>()
   for (const arg of schema.value) {
-    // Skip active args (they're shown in the pinned section)
-    if (activeNames.has(arg.name)) continue
     if (q && !arg.name.includes(q) && !arg._searchFlag.includes(q) && !arg._searchHelp.includes(q)) {
       continue
     }
@@ -552,12 +555,12 @@ function toggleGroup(group: string): void {
       <template v-else>
         <!-- Active args pinned to top -->
         <div v-if="activeArgs.length" class="args-group args-group-active">
-          <div class="args-group-header args-active-header">
-            <span class="args-group-chevron">▸</span>
+          <div class="args-group-header args-active-header" @click="toggleGroup('__active__')">
+            <span class="args-group-chevron" :class="{ collapsed: collapsedGroups.has('__active__') }">▸</span>
             Active
             <span class="args-active-count">{{ activeArgs.length }}</span>
           </div>
-          <div class="args-group-body">
+          <div v-show="!collapsedGroups.has('__active__')" class="args-group-body">
             <ArgRow
               v-for="a in activeArgs" :key="'active-' + a.name"
               :arg="a"
@@ -781,69 +784,6 @@ function toggleGroup(group: string): void {
 
 .args-group-body {
   padding: 0 12px 6px;
-}
-
-.args-row {
-  padding: 3px 0;
-}
-.args-row + .args-row {
-  border-top: 1px solid var(--border);
-}
-
-.args-inline-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.args-check-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.args-check-row input[type="checkbox"] {
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.args-name {
-  font-size: 12px;
-  color: var(--text);
-  white-space: nowrap;
-  font-family: monospace;
-}
-
-.args-inline-input {
-  flex: 1;
-  min-width: 0;
-  max-width: 200px;
-}
-.args-inline-input[type="number"] {
-  -moz-appearance: textfield;
-}
-.args-inline-input[type="number"]::-webkit-inner-spin-button,
-.args-inline-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.args-value-tag {
-  font-size: 10px;
-  font-family: monospace;
-  padding: 1px 4px;
-  border-radius: 3px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.args-value-tag.required {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-}
-.args-value-tag.optional {
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
 }
 
 .args-autocomplete {
