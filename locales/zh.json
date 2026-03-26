@@ -483,5 +483,10 @@
     "portConflictKilling": "正在停止…",
     "portConflictKillFailed": "无法释放端口 {port}。该进程可能需要手动终止。",
     "duplicateName": "名为 \"{name}\" 的安装已存在。请选择其他名称。"
+  },
+
+  "tooltips": {
+    "updateNow": "就地更新此安装。",
+    "copyAndUpdate": "创建此安装的副本并更新副本。原始安装不会被修改。"
   }
 }
