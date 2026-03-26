@@ -11,6 +11,7 @@ import { emitTelemetryAction, toErrorBucket } from '../lib/telemetry'
 import { useMigrateAction } from '../composables/useMigrateAction'
 import { REQUIRES_STOPPED } from '../types/ipc'
 import { Star, Pin, Pencil } from 'lucide-vue-next'
+import TooltipWrap from '../components/TooltipWrap.vue'
 import type {
   Installation,
   ActionDef,
@@ -642,18 +643,22 @@ onUnmounted(() => {
         <!-- Bottom pinned actions -->
         <div v-if="bottomSection" id="detail-bottom-actions">
           <div class="detail-actions">
-            <button
+            <TooltipWrap
               v-for="a in bottomSection.actions"
               :key="a.id"
-              :class="[
-                a.style,
-                { 'looks-disabled': a.enabled === false && a.disabledMessage }
-              ]"
-              :disabled="a.enabled === false && !a.disabledMessage"
-              @click="handleActionClick(a, $event)"
+              :text="a.tooltip"
             >
-              {{ a.label }}
-            </button>
+              <button
+                :class="[
+                  a.style,
+                  { 'looks-disabled': a.enabled === false && a.disabledMessage }
+                ]"
+                :disabled="a.enabled === false && !a.disabledMessage"
+                @click="handleActionClick(a, $event)"
+              >
+                {{ a.label }}
+              </button>
+            </TooltipWrap>
           </div>
         </div>
       </div>

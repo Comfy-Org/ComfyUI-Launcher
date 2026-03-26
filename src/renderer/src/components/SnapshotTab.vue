@@ -450,14 +450,14 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
               <!-- Restore button (not on current) -->
               <button
                 v-if="item.snapshotIndex > 0"
-                class="timeline-restore-btn"
+                class="timeline-action-btn timeline-restore-btn"
                 @click.stop="handleRestore(item.snapshot.filename)"
               >
                 {{ t('snapshots.restore') }}
               </button>
               <!-- Export button -->
               <button
-                class="timeline-export-btn"
+                class="timeline-action-btn timeline-export-btn"
                 @click.stop="handleExport(item.snapshot.filename)"
               >
                 {{ t('snapshots.exportSnapshot') }}
@@ -465,7 +465,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
               <!-- Delete button (manual snapshots only) -->
               <button
                 v-if="item.snapshot.trigger === 'manual'"
-                class="timeline-delete-btn"
+                class="timeline-action-btn timeline-delete-btn"
                 @click.stop="handleDelete(item.snapshot.filename)"
               >✕</button>
               <ChevronDown :size="14" class="timeline-expand-icon" :class="{ expanded: selectedFilename === item.snapshot.filename }" />
@@ -872,7 +872,7 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   gap: 8px;
 }
 
-.timeline-restore-btn {
+.timeline-action-btn {
   padding: 3px 10px;
   font-size: 11px;
   border-radius: 4px;
@@ -884,31 +884,12 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
   transition: all 0.15s;
   flex-shrink: 0;
 }
-.timeline-card:hover .timeline-restore-btn,
-.timeline-restore-btn:focus-visible {
+.timeline-card:hover .timeline-action-btn,
+.timeline-entry.selected .timeline-action-btn,
+.timeline-action-btn:focus-visible {
   opacity: 1;
 }
-.timeline-restore-btn:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-
-.timeline-export-btn {
-  padding: 3px 10px;
-  font-size: 11px;
-  border-radius: 4px;
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: all 0.15s;
-  flex-shrink: 0;
-}
-.timeline-card:hover .timeline-export-btn,
-.timeline-export-btn:focus-visible {
-  opacity: 1;
-}
+.timeline-restore-btn:hover,
 .timeline-export-btn:hover {
   color: var(--text);
   border-color: var(--accent);
@@ -916,20 +897,8 @@ function diffHasChanges(diff: SnapshotDiffResult): boolean {
 
 .timeline-delete-btn {
   padding: 3px 6px;
-  font-size: 11px;
-  border-radius: 4px;
-  background: none;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: all 0.15s;
-  flex-shrink: 0;
+  border-color: transparent;
   line-height: 1;
-}
-.timeline-card:hover .timeline-delete-btn,
-.timeline-delete-btn:focus-visible {
-  opacity: 1;
 }
 .timeline-delete-btn:hover {
   color: var(--danger);

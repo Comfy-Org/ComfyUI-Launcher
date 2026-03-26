@@ -121,6 +121,7 @@ export interface ActionDef {
   style?: 'primary' | 'danger'
   enabled?: boolean
   disabledMessage?: string
+  tooltip?: string
   confirm?: ConfirmDef
   showProgress?: boolean
   progressTitle?: string

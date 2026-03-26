@@ -168,6 +168,7 @@ export const portable: SourcePlugin = {
         })
         actions.push({
           id: 'update-comfyui', label: t('portable.updateNow'), style: 'primary', enabled: installed,
+          tooltip: t('tooltips.updateNow'),
           showProgress: true, progressTitle: t('portable.updatingTitle', { version: channelInfo.latestTag || '' }),
           data: isSwitching ? { channel: card.value } : undefined,
           confirm: {

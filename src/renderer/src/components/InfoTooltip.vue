@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { CircleHelp } from 'lucide-vue-next'
+import { useTooltip } from '../composables/useTooltip'
 
 const props = withDefaults(
   defineProps<{
@@ -11,30 +12,7 @@ const props = withDefaults(
 )
 
 const iconRef = ref<HTMLElement | null>(null)
-const bubbleStyle = ref<Record<string, string>>({})
-const visible = ref(false)
-
-function show(): void {
-  if (!iconRef.value) return
-  const rect = iconRef.value.getBoundingClientRect()
-  const x = rect.left + rect.width / 2
-  if (props.side === 'bottom') {
-    bubbleStyle.value = {
-      top: `${rect.bottom + 6}px`,
-      left: `${x}px`,
-    }
-  } else {
-    bubbleStyle.value = {
-      bottom: `${window.innerHeight - rect.top + 6}px`,
-      left: `${x}px`,
-    }
-  }
-  visible.value = true
-}
-
-function hide(): void {
-  visible.value = false
-}
+const { bubbleStyle, visible, show, hide } = useTooltip(iconRef, () => props.side)
 </script>
 
 <template>

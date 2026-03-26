@@ -505,6 +505,7 @@ export const standalone: SourcePlugin = {
         })
         actions.push({
           id: 'update-comfyui', label: t('standalone.updateNow'), style: 'primary', enabled: installed,
+          tooltip: t('tooltips.updateNow'),
           showProgress: true, progressTitle: t('standalone.updatingTitle', { version: latestDisplay }),
           data: isSwitching ? { channel: card.value } : undefined,
           confirm: {
@@ -514,6 +515,7 @@ export const standalone: SourcePlugin = {
         })
         actions.push({
           id: 'copy-update', label: t('standalone.copyAndUpdate'), style: 'default', enabled: installed,
+          tooltip: t('tooltips.copyAndUpdate'),
           showProgress: true, progressTitle: t('standalone.copyUpdatingTitle', { version: latestDisplay }),
           cancellable: true,
           data: isSwitching ? { channel: card.value } : undefined,
