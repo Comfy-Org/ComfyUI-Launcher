@@ -694,11 +694,19 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   })
   ipcMain.handle('get-disk-space', (_event, targetPath: string) => getDiskSpace(targetPath))
   ipcMain.handle('validate-install-path', (_event, targetPath: string) => validateInstallPath(targetPath))
+  let activeSizeAc: AbortController | null = null
   ipcMain.handle('get-installation-size', async (_event, installationId: string) => {
+    activeSizeAc?.abort()
+    const ac = new AbortController()
+    activeSizeAc = ac
     const inst = await installations.get(installationId)
     if (!inst?.installPath) return { sizeBytes: 0 }
-    const sizeBytes = await getDirectorySize(inst.installPath)
-    return { sizeBytes }
+    try {
+      const sizeBytes = await getDirectorySize(inst.installPath, ac.signal)
+      return { sizeBytes }
+    } finally {
+      if (activeSizeAc === ac) activeSizeAc = null
+    }
   })
 
   // Installations

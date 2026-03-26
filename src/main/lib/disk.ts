@@ -32,7 +32,7 @@ export async function getDiskSpace(targetPath: string): Promise<DiskSpaceInfo> {
  * Returns 0 if the directory doesn't exist.
  * Limits concurrency to avoid EMFILE errors on large directory trees.
  */
-export async function getDirectorySize(dirPath: string): Promise<number> {
+export async function getDirectorySize(dirPath: string, signal?: AbortSignal): Promise<number> {
   const MAX_CONCURRENT = 64
   let active = 0
   let total = 0
@@ -72,6 +72,7 @@ export async function getDirectorySize(dirPath: string): Promise<number> {
   }
 
   while (queue.length > 0) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const dir = queue.shift()!
     let entries: fs.Dirent[]
     try {
@@ -81,6 +82,7 @@ export async function getDirectorySize(dirPath: string): Promise<number> {
     }
     const pending: Promise<void>[] = []
     for (const entry of entries) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
       await acquire()
       pending.push(processEntry(path.join(dir, entry.name), entry))
     }

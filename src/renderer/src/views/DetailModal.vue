@@ -146,7 +146,13 @@ watch(
       activeTab.value = tabExists ? props.initialTab : 'status'
       await nextTick()
       if (scrollRef.value) scrollRef.value.scrollTop = 0
-      if (inst.installPath) fetchInstallationSize(inst.id)
+      if (inst.installPath) {
+        fetchInstallationSize(inst.id)
+      } else {
+        sizeGeneration++
+        installationSize.value = null
+        installationSizeLoading.value = false
+      }
 
       // Auto-trigger an action if requested (e.g. from migrate pill click)
       if (props.autoAction && !autoActionRun.value) {
