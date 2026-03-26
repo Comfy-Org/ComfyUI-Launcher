@@ -2343,7 +2343,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         const { newFolders } = syncCustomModelFolders(inst.installPath, sharedModelsDirs, preLaunchExtras)
         if (newFolders.length > 0) {
           sendOutput(`\n--- Restarting: new model folders detected (${newFolders.join(', ')}) ---\n\n`)
-          if (_onModelFolderRelaunch) await _onModelFolderRelaunch({ installationId })
+          if (_onModelFolderRelaunch) {
+            await Promise.resolve(_onModelFolderRelaunch({ installationId })).catch(() => {})
+          }
           await killProcessTree(proc)
           const respawned = spawnComfy()
           proc = respawned.proc
@@ -2431,7 +2433,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
                     for (const f of newFolders) knownExtras.add(f)
                     sendOutput(`\n--- Restarting: new model folders detected (${newFolders.join(', ')}) ---\n\n`)
                     pendingModelFolderRelaunch = true
-                    if (_onModelFolderRelaunch) await _onModelFolderRelaunch({ installationId })
+                    if (_onModelFolderRelaunch) {
+                      await Promise.resolve(_onModelFolderRelaunch({ installationId })).catch(() => {})
+                    }
                     killProcessTree(proc)
                   }
                 })
