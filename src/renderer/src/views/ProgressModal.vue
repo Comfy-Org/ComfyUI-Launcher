@@ -31,6 +31,7 @@ const currentId = ref<string | null>(null)
 const terminalRef = ref<HTMLDivElement | null>(null)
 const isTerminalAtBottom = ref(true)
 const resolvingConflict = ref(false)
+const terminalExpanded = ref(true)
 
 const currentOp = computed(() => {
   const id = currentId.value ?? props.installationId
@@ -63,10 +64,19 @@ watch(
     if (id) {
       currentId.value = id
       isTerminalAtBottom.value = true
+      terminalExpanded.value = true
     }
   },
   { immediate: true }
 )
+
+watch(terminalExpanded, async (expanded) => {
+  if (!expanded) return
+  await nextTick()
+  if (isTerminalAtBottom.value && terminalRef.value) {
+    terminalRef.value.scrollTop = terminalRef.value.scrollHeight
+  }
+})
 
 function showOperation(installationId: string): void {
   const op = progressStore.operations.get(installationId)
@@ -378,13 +388,19 @@ defineExpose({ startOperation, showOperation })
         </template>
 
         <!-- Terminal output -->
-        <div
-          v-if="currentOp.terminalOutput"
-          id="progress-terminal"
-          ref="terminalRef"
-          class="terminal-output"
-          @scroll="handleTerminalScroll"
-        >{{ currentOp.terminalOutput }}</div>
+        <template v-if="currentOp.terminalOutput">
+          <button type="button" class="terminal-toggle" :aria-expanded="terminalExpanded" @click="terminalExpanded = !terminalExpanded">
+            <span class="terminal-toggle-icon">{{ terminalExpanded ? '▾' : '▸' }}</span>
+            <span>{{ $t('list.console') }}</span>
+          </button>
+          <div
+            v-show="terminalExpanded"
+            id="progress-terminal"
+            ref="terminalRef"
+            class="terminal-output"
+            @scroll="handleTerminalScroll"
+          >{{ currentOp.terminalOutput }}</div>
+        </template>
       </div>
 
       <!-- Bottom bar (pinned outside scrollable body) -->

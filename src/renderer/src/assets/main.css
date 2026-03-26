@@ -536,7 +536,7 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .progress-step.active .progress-step-label { color: var(--text); }
 .progress-step.done .progress-step-label { color: var(--text-muted); }
 .progress-step-detail { margin-left: 32px; margin-top: 6px; }
-.progress-step-status { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; user-select: text; }
+.progress-step-status { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; user-select: text; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; }
 .progress-step.error { opacity: 1; background: var(--surface); }
 .progress-step.error .progress-step-indicator { border-color: var(--danger); background: var(--danger); color: var(--bg); }
 .progress-step.error .progress-step-label { color: var(--text); }
@@ -565,8 +565,17 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   white-space: pre-wrap; word-break: break-all;
   overflow-y: auto; max-height: 300px; user-select: text;
 }
-#console-terminal { max-height: none; flex: 1; min-height: 0; }
-.console-error-message { color: var(--danger); font-size: 14px; padding: 10px 12px; white-space: pre-wrap; user-select: text; }
+#console-terminal, #progress-terminal { max-height: none; flex: 1; min-height: 0; }
+.console-error-message { color: var(--danger); font-size: 14px; padding: 10px 12px; white-space: pre-wrap; user-select: text; max-height: 50%; overflow-y: auto; flex-shrink: 0; }
+.progress-status.progress-error-message { max-height: 50%; overflow-y: auto; flex-shrink: 0; white-space: pre-wrap; }
+.terminal-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-muted); cursor: pointer;
+  padding: 6px 0; user-select: none; flex-shrink: 0;
+  background: none; border: none;
+}
+.terminal-toggle:hover { color: var(--text); }
+.terminal-toggle-icon { font-size: 11px; }
 
 /* View modals */
 .view-modal {

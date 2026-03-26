@@ -20,6 +20,7 @@ const api = window.api
 const terminalRef = ref<HTMLDivElement | null>(null)
 const isAtBottom = ref(true)
 const mouseDownOnOverlay = ref(false)
+const terminalExpanded = ref(true)
 
 const session = computed(() => {
   if (!props.installationId) return undefined
@@ -85,12 +86,21 @@ watch(
   () => props.installationId,
   async () => {
     isAtBottom.value = true
+    terminalExpanded.value = true
     await nextTick()
     if (terminalRef.value) {
       terminalRef.value.scrollTop = terminalRef.value.scrollHeight
     }
   }
 )
+
+watch(terminalExpanded, async (expanded) => {
+  if (!expanded) return
+  await nextTick()
+  if (isAtBottom.value && terminalRef.value) {
+    terminalRef.value.scrollTop = terminalRef.value.scrollHeight
+  }
+})
 
 function handleEscapeKey(event: KeyboardEvent): void {
   if (event.key === 'Escape' && props.installationId) {
@@ -132,14 +142,21 @@ function handleOverlayClick(event: MouseEvent): void {
       </div>
       <div class="view-modal-body">
         <div v-if="errorInfo?.message" class="console-error-message">{{ errorInfo.message }}</div>
+        <button type="button" class="terminal-toggle" :aria-expanded="terminalExpanded" @click="terminalExpanded = !terminalExpanded">
+          <span class="terminal-toggle-icon">{{ terminalExpanded ? '▾' : '▸' }}</span>
+          <span>{{ $t('list.console') }}</span>
+        </button>
         <div
+          v-show="terminalExpanded"
           id="console-terminal"
           ref="terminalRef"
           class="terminal-output"
           @scroll="handleTerminalScroll"
         >{{ terminalOutput }}</div>
+      </div>
 
-        <!-- Bottom actions -->
+      <!-- Bottom bar (pinned outside scrollable body) -->
+      <div class="view-modal-footer">
         <div class="view-bottom">
           <button
             v-if="showWindowBtn"
