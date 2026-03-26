@@ -172,6 +172,7 @@ type LaunchCallback = (info: LaunchCallbackInfo) => void
 type StopCallback = (info: StopCallbackInfo) => void
 type ExitCallback = (info: ExitCallbackInfo) => void
 type RestartCallback = (info: RestartCallbackInfo) => void
+type ModelFolderRelaunchCallback = (info: { installationId: string }) => void | Promise<void>
 type LocaleCallback = () => void
 
 interface RegisterCallbacks {
@@ -179,6 +180,7 @@ interface RegisterCallbacks {
   onStop?: StopCallback
   onComfyExited?: ExitCallback
   onComfyRestarted?: RestartCallback
+  onModelFolderRelaunch?: ModelFolderRelaunchCallback
   onLocaleChanged?: LocaleCallback
 }
 
@@ -283,6 +285,7 @@ let _onLaunch: LaunchCallback | null = null
 let _onStop: StopCallback | null = null
 let _onComfyExited: ExitCallback | null = null
 let _onComfyRestarted: RestartCallback | null = null
+let _onModelFolderRelaunch: ModelFolderRelaunchCallback | null = null
 let _onLocaleChanged: LocaleCallback | null = null
 let _gpuPromise: Promise<GpuInfo | null> | null = null
 
@@ -496,6 +499,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
   _onStop = callbacks.onStop ?? null
   _onComfyExited = callbacks.onComfyExited ?? null
   _onComfyRestarted = callbacks.onComfyRestarted ?? null
+  _onModelFolderRelaunch = callbacks.onModelFolderRelaunch ?? null
   _onLocaleChanged = callbacks.onLocaleChanged ?? null
 
   installations.seedDefaults([
@@ -2339,6 +2343,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         const { newFolders } = syncCustomModelFolders(inst.installPath, sharedModelsDirs, preLaunchExtras)
         if (newFolders.length > 0) {
           sendOutput(`\n--- Restarting: new model folders detected (${newFolders.join(', ')}) ---\n\n`)
+          if (_onModelFolderRelaunch) await _onModelFolderRelaunch({ installationId })
           await killProcessTree(proc)
           const respawned = spawnComfy()
           proc = respawned.proc
@@ -2399,7 +2404,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
               rebootModelCheckAbort = new AbortController()
               const checkSignal = rebootModelCheckAbort.signal
               waitForPort(launchCmd.port!, '127.0.0.1', { timeoutMs: COMFY_BOOT_TIMEOUT_MS, signal: checkSignal })
-                .then(() => {
+                .then(async () => {
                   if (checkSignal.aborted) return
                   // Verify the session still belongs to this process
                   const currentSession = _runningSessions.get(installationId)
@@ -2414,6 +2419,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
                     for (const f of newFolders) knownExtras.add(f)
                     sendOutput(`\n--- Restarting: new model folders detected (${newFolders.join(', ')}) ---\n\n`)
                     pendingModelFolderRelaunch = true
+                    if (_onModelFolderRelaunch) await _onModelFolderRelaunch({ installationId })
                     killProcessTree(proc)
                   }
                 })

@@ -23,6 +23,7 @@ import {
 } from './lib/comfyDownloadManager'
 import { getModelDownloadContentScript } from './lib/comfyContentScript'
 import { shouldOpenInPopup } from './lib/allowedPopups'
+import { showModelFolderRelaunchPage } from './lib/relaunchPage'
 
 todesktop.init({ autoUpdater: false })
 
@@ -387,6 +388,12 @@ function onComfyExited({ installationId }: { installationId?: string } = {}): vo
   }
 }
 
+async function onModelFolderRelaunch({ installationId }: { installationId: string }): Promise<void> {
+  const win = comfyWindows.get(installationId)
+  if (!win || win.isDestroyed()) return
+  await showModelFolderRelaunchPage(win)
+}
+
 function onComfyRestarted({ installationId, process: _proc }: { installationId?: string; process?: ChildProcess } = {}): void {
   if (!installationId) return
   const win = comfyWindows.get(installationId)
@@ -609,7 +616,7 @@ if (app.isPackaged && !app.requestSingleInstanceLock()) {
     i18n.init(locale)
     registerDownloadIpc()
     cleanupTempDownloads()
-    ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onLocaleChanged: updateTrayMenu })
+    ipc.register({ onLaunch, onStop, onComfyExited, onComfyRestarted, onModelFolderRelaunch, onLocaleChanged: updateTrayMenu })
     updater.register()
     createMainWindow()
   })
