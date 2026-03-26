@@ -118,8 +118,8 @@ function parseArgs(raw: string): ParsedArgs {
         if (def?.type === 'boolean') {
           known.set(name, eqValue ?? '')
           i++
-        } else if (eqValue) {
-          // --flag=value syntax: value is inline (non-empty)
+        } else if (eqValue !== undefined) {
+          // --flag=value or --flag= (inline value, possibly empty)
           known.set(name, eqValue)
           i++
         } else {
@@ -405,9 +405,13 @@ const textTokens = computed<TextToken[]>(() => {
           result.push({ text: tokens[i]!, status: 'unsupported' })
           i++
         }
-      } else if (eqValue) {
-        // --flag=value with non-empty value — ok
-        result.push({ text: token, status: 'ok' })
+      } else if (eqValue !== undefined) {
+        // --flag=value or --flag= (inline value)
+        if (eqValue === '' && def.type === 'value') {
+          result.push({ text: token, status: 'missing-value', tooltip: `Requires a value: ${def.metavar || 'VALUE'}` })
+        } else {
+          result.push({ text: token, status: 'ok' })
+        }
         i++
       } else if (def.type === 'value') {
         // Required value — check if next token is present and not a flag
@@ -434,7 +438,7 @@ const textTokens = computed<TextToken[]>(() => {
         }
       }
     } else {
-      result.push({ text: token, status: 'ok' })
+      result.push({ text: token, status: 'unsupported', tooltip: 'Unexpected positional argument — use --flag syntax' })
       i++
     }
   }
@@ -448,13 +452,20 @@ const missingValueFlags = computed(() => {
     .map((t) => t.text)
 })
 
+/** Bare positional tokens not consumed by any flag */
+const orphanedTokens = computed(() => {
+  return textTokens.value
+    .filter((t) => t.status === 'unsupported' && !t.text.startsWith('--'))
+    .map((t) => t.text)
+})
+
 /** Arg awaiting a value (user is still in position to type it) */
 const awaitingValue = computed(() => {
   const t = textTokens.value.find((t) => t.status === 'awaiting-value')
   return t ? t : null
 })
 
-const hasValidationIssues = computed(() => unsupportedFlags.value.length > 0 || missingValueFlags.value.length > 0)
+const hasValidationIssues = computed(() => unsupportedFlags.value.length > 0 || missingValueFlags.value.length > 0 || orphanedTokens.value.length > 0)
 const hasAnyIndicators = computed(() => hasValidationIssues.value || awaitingValue.value !== null)
 
 // --- Collapsed groups ---
@@ -530,6 +541,11 @@ function toggleGroup(group: string): void {
       <span class="args-warning-icon">⚠</span>
       Missing value for:
       <span v-for="flag in missingValueFlags" :key="flag" class="args-bad-flag args-missing-flag">{{ flag }}</span>
+    </div>
+    <div v-if="orphanedTokens.length" class="args-validation-warning">
+      <span class="args-warning-icon">⚠</span>
+      Unexpected:
+      <span v-for="tok in orphanedTokens" :key="tok" class="args-bad-flag">{{ tok }}</span>
     </div>
 
     <!-- Token display with highlights -->
