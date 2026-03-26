@@ -48,6 +48,8 @@ import { REQUIRES_STOPPED } from '../../types/ipc'
 import type { Theme, ResolvedTheme, QuitActiveItem } from '../../types/ipc'
 import { findLockingProcesses } from './file-lock-info'
 import type { LaunchCmd } from './process'
+import { getComfyArgsSchema, filterUnsupportedArgs } from './comfy-args'
+import type { ComfyArgDef } from './comfy-args'
 
 const MARKER_FILE = '.comfyui-desktop-2'
 const COMFYUI_REPO = 'Comfy-Org/ComfyUI'
@@ -1037,6 +1039,32 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     return source.getDetailSections(inst)
   })
 
+  ipcMain.handle('get-comfy-args', async (_event, installationId: string): Promise<{ args: ComfyArgDef[]; error?: string } | null> => {
+    const inst = await installations.get(installationId)
+    if (!inst) return { args: [], error: 'Installation not found' }
+    const source = sourceMap[inst.sourceId]
+    if (!source) return { args: [], error: `Unknown source: ${inst.sourceId}` }
+    const launchCmd = source.getLaunchCommand(inst)
+    if (!launchCmd?.cmd || !launchCmd.args || !launchCmd.cwd) {
+      return { args: [], error: `No launch command available (source: ${inst.sourceId})` }
+    }
+    // Extract main.py path from args (after -s flag)
+    const sIdx = launchCmd.args.indexOf('-s')
+    if (sIdx === -1 || sIdx + 1 >= launchCmd.args.length) {
+      return { args: [], error: `No -s flag in launch args: [${launchCmd.args.join(', ')}]` }
+    }
+    const mainPyRel = launchCmd.args[sIdx + 1]!
+    const mainPyAbs = path.resolve(launchCmd.cwd, mainPyRel)
+    try {
+      const schema = await getComfyArgsSchema(launchCmd.cmd, mainPyAbs, launchCmd.cwd, installationId, inst.version as string | undefined)
+      return { args: schema.args }
+    } catch (err) {
+      const msg = (err as Error).message ?? String(err)
+      console.warn('[get-comfy-args] Failed to get schema:', msg)
+      return { args: [], error: msg }
+    }
+  })
+
   // Snapshots
   ipcMain.handle('get-snapshots', async (_event, installationId: string) => {
     const inst = await installations.get(installationId)
@@ -2015,6 +2043,26 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         return { ok: false, message: i18n.t('errors.noEnvFound') }
       }
       const launchCmd = launchCmdRaw
+
+      // Filter out unsupported args (best-effort: only if schema is cached or can be fetched)
+      if (launchCmd.cmd && launchCmd.args && launchCmd.cwd) {
+        const sIdx = launchCmd.args.indexOf('-s')
+        if (sIdx !== -1 && sIdx + 1 < launchCmd.args.length) {
+          const mainPyRel = launchCmd.args[sIdx + 1]!
+          const mainPyAbs = path.resolve(launchCmd.cwd, mainPyRel)
+          try {
+            const schema = await getComfyArgsSchema(launchCmd.cmd, mainPyAbs, launchCmd.cwd, installationId, inst.version as string | undefined)
+            // Only filter args after the -s main.py prefix
+            const prefixArgs = launchCmd.args.slice(0, sIdx + 2)
+            const userArgs = launchCmd.args.slice(sIdx + 2)
+            const filtered = filterUnsupportedArgs(userArgs, schema)
+            launchCmd.args = [...prefixArgs, ...filtered]
+          } catch {
+            // Schema not available — pass args as-is
+          }
+        }
+      }
+
       // Inject shared paths if this installation uses them
       const useSharedPaths = !launchCmd.skipSharedPaths && (inst.useSharedPaths as boolean | undefined) !== false && !!launchCmd.args
       let preLaunchExtras: string[] = []

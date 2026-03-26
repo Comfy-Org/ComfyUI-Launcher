@@ -185,7 +185,7 @@ export const gitSource: SourcePlugin = {
         title: t('common.launchSettings'),
         fields: [
           { id: 'venvPath', label: t('git.venv'), value: venvPath || '', editable: true, editType: 'path' },
-          { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true, tooltip: t('tooltips.startupArgs') },
+          { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true, editType: 'args-builder', tooltip: t('tooltips.startupArgs') },
           { id: 'launchMode', label: t('common.launchMode'), value: (installation.launchMode as string | undefined) || DEFAULT_GIT_SETTINGS.launchMode, editable: true,
             editType: 'select', options: [
               { value: 'window', label: t('common.launchModeWindow') },

@@ -204,7 +204,7 @@ export const portable: SourcePlugin = {
         title: t('common.launchSettings'),
         fields: [
           { id: 'useSharedPaths', label: t('common.useSharedPaths'), value: (installation.useSharedPaths as boolean | undefined) !== false, editable: true, editType: 'boolean', tooltip: t('tooltips.useSharedPaths') },
-          { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true, tooltip: t('tooltips.startupArgs') },
+          { id: 'launchArgs', label: t('common.startupArgs'), value: (installation.launchArgs as string | undefined) ?? DEFAULT_LAUNCH_ARGS, editable: true, editType: 'args-builder', tooltip: t('tooltips.startupArgs') },
           { id: 'launchMode', label: t('common.launchMode'), value: (installation.launchMode as string | undefined) || 'window', editable: true,
             editType: 'select', options: [
               { value: 'window', label: t('common.launchModeWindow') },

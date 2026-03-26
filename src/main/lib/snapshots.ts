@@ -1499,6 +1499,7 @@ export interface SnapshotDiffSummary {
   pipsRemoved: number
   pipsChanged: number
   comfyuiChanged: boolean
+  updateChannelChanged: boolean
 }
 
 export interface SnapshotSummary {
@@ -1547,6 +1548,7 @@ function summarizeDiff(diff: SnapshotDiff): SnapshotDiffSummary {
     pipsRemoved: diff.pipsRemoved.length,
     pipsChanged: diff.pipsChanged.length,
     comfyuiChanged: diff.comfyuiChanged,
+    updateChannelChanged: diff.updateChannelChanged,
   }
 }
 
@@ -1574,7 +1576,7 @@ export async function getSnapshotListData(installPath: string): Promise<{ snapsh
       const diff = diffSnapshots(prev, s)
       const ds = summarizeDiff(diff)
       // Only include if there are actual changes
-      if (ds.comfyuiChanged || ds.nodesAdded || ds.nodesRemoved || ds.nodesChanged ||
+      if (ds.comfyuiChanged || ds.updateChannelChanged || ds.nodesAdded || ds.nodesRemoved || ds.nodesChanged ||
           ds.pipsAdded || ds.pipsRemoved || ds.pipsChanged) {
         summary.diffVsPrevious = ds
       }

@@ -53,6 +53,8 @@ const api: ElectronApi = {
     ipcRenderer.invoke('get-list-actions', installationId),
   getDetailSections: (installationId) =>
     ipcRenderer.invoke('get-detail-sections', installationId),
+  getComfyArgs: (installationId) =>
+    ipcRenderer.invoke('get-comfy-args', installationId),
   runAction: (installationId, actionId, actionData?) =>
     ipcRenderer.invoke('run-action', installationId, actionId, actionData),
 

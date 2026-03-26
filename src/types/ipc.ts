@@ -92,12 +92,23 @@ export interface DetailFieldOption {
   data?: Record<string, unknown>
 }
 
+export interface ComfyArgDef {
+  name: string
+  flag: string
+  help: string
+  type: 'boolean' | 'value' | 'optional-value'
+  metavar?: string
+  choices?: string[]
+  exclusiveGroup?: string
+  category: string
+}
+
 export interface DetailField {
   id: string
   label: string
   value: string | boolean | number | null
   editable?: boolean
-  editType?: 'select' | 'boolean' | 'text' | 'path' | 'channel-cards'
+  editType?: 'select' | 'boolean' | 'text' | 'path' | 'channel-cards' | 'args-builder'
   options?: DetailFieldOption[]
   refreshSection?: boolean
   onChangeAction?: string
@@ -378,6 +389,7 @@ export interface SnapshotDiffSummary {
   pipsRemoved: number
   pipsChanged: number
   comfyuiChanged: boolean
+  updateChannelChanged: boolean
 }
 
 export interface SnapshotSummary {
@@ -529,6 +541,7 @@ export interface ElectronApi {
   // Actions
   getListActions(installationId: string): Promise<ListAction[]>
   getDetailSections(installationId: string): Promise<DetailSection[]>
+  getComfyArgs(installationId: string): Promise<{ args: ComfyArgDef[]; error?: string } | null>
   runAction(
     installationId: string,
     actionId: string,

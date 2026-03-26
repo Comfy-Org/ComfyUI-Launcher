@@ -149,6 +149,7 @@ function changeSummary(s: SnapshotSummary): string[] {
   const parts: string[] = []
   const d = s.diffVsPrevious
   if (d.comfyuiChanged) parts.push(t('snapshots.comfyuiUpdated'))
+  if (d.updateChannelChanged) parts.push(t('snapshots.channelChanged'))
   const nodeChanges = d.nodesAdded + d.nodesRemoved + d.nodesChanged
   if (nodeChanges > 0) {
     const nodeParts: string[] = []

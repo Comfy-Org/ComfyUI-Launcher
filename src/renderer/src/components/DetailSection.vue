@@ -2,6 +2,7 @@
 import { ref, reactive, watch, nextTick } from 'vue'
 import type { DetailItem, DetailField, DetailFieldOption, ActionDef } from '../types/ipc'
 import InfoTooltip from './InfoTooltip.vue'
+import ArgsBuilder from './ArgsBuilder.vue'
 
 interface Props {
   title?: string
@@ -183,6 +184,15 @@ v-for="a in item.actions" :key="a.id"
                 {{ a.label }}
               </button>
             </div>
+          </template>
+          <!-- Args builder -->
+          <template v-else-if="f.editable && f.editType === 'args-builder'">
+            <div class="detail-field-label">{{ f.label }}<InfoTooltip v-if="f.tooltip" :text="f.tooltip" /></div>
+            <ArgsBuilder
+              :model-value="String(f.value ?? '')"
+              :installation-id="installationId"
+              @update:model-value="handleFieldChange(f, $event)"
+            />
           </template>
           <template v-else>
             <div class="detail-field-label">{{ f.label }}<InfoTooltip v-if="f.tooltip" :text="f.tooltip" /></div>
