@@ -274,6 +274,34 @@ function createSessionPath(): string {
   return path.join(os.tmpdir(), `comfyui-desktop-2-${Date.now()}`)
 }
 
+/** Env var names reserved by the launcher — user envVars must not override these. */
+const RESERVED_ENV_VARS = new Set(['PYTHONIOENCODING', '__COMFY_CLI_SESSION__', 'CM_USE_PYGIT2'])
+
+/** Sanitize user-supplied envVars: enforce string values and strip reserved names. */
+function sanitizeEnvVars(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const result: Record<string, string> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const key = String(k).trim()
+    if (!key || typeof v !== 'string') continue
+    if (RESERVED_ENV_VARS.has(key.toUpperCase())) continue
+    result[key] = v
+  }
+  return result
+}
+
+/** Build the process environment for launching ComfyUI. */
+function buildLaunchEnv(inst: InstallationRecord, sessionPath?: string): Record<string, string | undefined> {
+  const userEnvVars = sanitizeEnvVars(inst.envVars)
+  return {
+    ...process.env,
+    ...userEnvVars,
+    PYTHONIOENCODING: 'utf-8',
+    ...(sessionPath ? { __COMFY_CLI_SESSION__: sessionPath } : {}),
+    ...(inst.sourceId === 'standalone' ? { CM_USE_PYGIT2: '1' } : {}),
+  }
+}
+
 function checkRebootMarker(sessionPath: string): boolean {
   const marker = sessionPath + '.reboot'
   if (fs.existsSync(marker)) {
@@ -1025,7 +1053,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
     }
     const filtered: Record<string, unknown> = {}
     for (const key of Object.keys(data)) {
-      if (allowedIds.has(key)) filtered[key] = data[key]
+      if (allowedIds.has(key)) {
+        filtered[key] = key === 'envVars' ? sanitizeEnvVars(data[key]) : data[key]
+      }
     }
     if (filtered.name && filtered.name !== inst.name) {
       const all = await installations.list()
@@ -2158,13 +2188,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
         const sendOutput = (text: string): void => {
           if (!sender.isDestroyed()) sender.send('comfy-output', { installationId, text })
         }
-        const userEnvVars = (inst.envVars as Record<string, string> | undefined) ?? {}
-        const launchEnv: Record<string, string | undefined> = {
-          ...process.env,
-          ...userEnvVars,
-          PYTHONIOENCODING: 'utf-8',
-          ...(inst.sourceId === 'standalone' ? { CM_USE_PYGIT2: '1' } : {}),
-        }
+        const launchEnv = buildLaunchEnv(inst)
         const proc = spawnProcess(launchCmd.cmd!, launchCmd.args!, launchCmd.cwd!, launchEnv, { showWindow: launchCmd.showWindow })
         let stderrBuf = ''
         proc.stdout?.on('data', (chunk: Buffer) => sendOutput(chunk.toString('utf-8')))
@@ -2278,14 +2302,7 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       _broadcastToRenderer('instance-launching', { installationId, installationName: inst.name })
 
       const sessionPath = createSessionPath()
-      const userEnvVars = (inst.envVars as Record<string, string> | undefined) ?? {}
-      const launchEnv: Record<string, string | undefined> = {
-        ...process.env,
-        ...userEnvVars,
-        PYTHONIOENCODING: 'utf-8',
-        __COMFY_CLI_SESSION__: sessionPath,
-        ...(inst.sourceId === 'standalone' ? { CM_USE_PYGIT2: '1' } : {}),
-      }
+      const launchEnv = buildLaunchEnv(inst, sessionPath)
       const sendOutput = (text: string): void => {
         if (!sender.isDestroyed()) {
           sender.send('comfy-output', { installationId, text })
