@@ -706,6 +706,9 @@ export function register(callbacks: RegisterCallbacks = {}): void {
       if (!inst?.installPath) return { sizeBytes: 0 }
       const sizeBytes = await getDirectorySize(inst.installPath, ac.signal)
       return { sizeBytes }
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return { sizeBytes: 0 }
+      throw err
     } finally {
       if (activeSizeAc === ac) {
         activeSizeAc = null
