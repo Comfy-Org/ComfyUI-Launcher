@@ -218,10 +218,11 @@ const searchQuery = computed(() => {
   const stripped = lastToken.replace(/^-{1,2}/, '')
   const eqIdx = stripped.indexOf('=')
   const name = eqIdx >= 0 ? stripped.slice(0, eqIdx) : stripped
-  if (name && !schema.value.some((a) => a.name === name)) {
-    return name.toLowerCase()
-  }
-  return ''
+  if (!name) return ''
+  // Only suppress for exact matches that already have the -- prefix;
+  // bare words like 'port' should still trigger autocomplete to add the dashes.
+  if (lastToken.startsWith('-') && schema.value.some((a) => a.name === name)) return ''
+  return name.toLowerCase()
 })
 
 const autocompleteMatches = computed(() => {

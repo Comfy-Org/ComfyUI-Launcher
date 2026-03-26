@@ -102,15 +102,25 @@ describe('ArgsBuilder', () => {
 
   // --- Autocomplete: bare word matching ---
 
-  it('shows autocomplete for bare partial word matching a flag name', async () => {
+  it('shows autocomplete for bare word matching a flag name exactly', async () => {
     const wrapper = await ready('')
     const input = wrapper.find('input')
     await input.trigger('focus')
-    await input.setValue('por')
+    await input.setValue('port')
     await flushPromises()
     expect(wrapper.find('.args-autocomplete').exists()).toBe(true)
     const items = wrapper.findAll('.args-autocomplete-flag')
     expect(items.some((el) => el.text() === '--port')).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('does not show autocomplete for --port (already has dashes and is complete)', async () => {
+    const wrapper = await ready('')
+    const input = wrapper.find('input')
+    await input.trigger('focus')
+    await input.setValue('--port')
+    await flushPromises()
+    expect(wrapper.find('.args-autocomplete').exists()).toBe(false)
     wrapper.unmount()
   })
 
