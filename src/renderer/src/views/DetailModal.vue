@@ -152,6 +152,7 @@ watch(
         sizeGeneration++
         installationSize.value = null
         installationSizeLoading.value = false
+        window.api.cancelInstallationSize()
       }
 
       // Auto-trigger an action if requested (e.g. from migrate pill click)

@@ -21,6 +21,7 @@ const api: ElectronApi = {
   getDiskSpace: (targetPath) => ipcRenderer.invoke('get-disk-space', targetPath),
   validateInstallPath: (targetPath) => ipcRenderer.invoke('validate-install-path', targetPath),
   getInstallationSize: (installationId) => ipcRenderer.invoke('get-installation-size', installationId),
+  cancelInstallationSize: () => ipcRenderer.invoke('cancel-installation-size'),
 
   // Locale
   getLocaleMessages: () => ipcRenderer.invoke('get-locale-messages'),

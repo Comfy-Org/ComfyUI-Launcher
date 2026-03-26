@@ -513,6 +513,7 @@ export interface ElectronApi {
   getDiskSpace(targetPath: string): Promise<DiskSpaceInfo>
   validateInstallPath(targetPath: string): Promise<PathIssue[]>
   getInstallationSize(installationId: string): Promise<{ sizeBytes: number }>
+  cancelInstallationSize(): Promise<void>
 
   // Locale
   getLocaleMessages(): Promise<Record<string, unknown>>
