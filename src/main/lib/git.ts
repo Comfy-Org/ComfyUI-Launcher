@@ -480,6 +480,28 @@ export function fetchTags(repoPath: string): Promise<boolean> {
   })
 }
 
+/**
+ * Fetch a single commit SHA into the local repo so it's available for rev-list.
+ * Needed when the local repo (e.g. a Stable install on a tag) doesn't have the
+ * remote HEAD commit that the "latest" channel points at.
+ */
+export function fetchCommitSha(repoPath: string, sha: string): Promise<boolean> {
+  if (isPygit2Configured()) {
+    return runPygit2(['fetch-commit', repoPath, sha], 15000).then(({ exitCode }) => {
+      return exitCode === 0
+    })
+  }
+  return new Promise((resolve) => {
+    execFile('git', ['fetch', 'origin', sha], {
+      cwd: repoPath,
+      windowsHide: true,
+      timeout: 15000,
+    }, (error) => {
+      resolve(!error)
+    })
+  })
+}
+
 /** Check whether a path has a .git directory or file (worktree/submodule). */
 export function hasGitDir(nodePath: string): boolean {
   return resolveGitDir(nodePath) !== null

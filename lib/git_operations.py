@@ -16,6 +16,7 @@ Subcommands:
   merge-base         <repo_path> <ref1> <ref2>
   is-ancestor        <repo_path> <ancestor> <descendant>
   fetch-tags         <repo_path>
+  fetch-commit       <repo_path> <sha>
   clone              <url> <dest>
   checkout           <repo_path> <commit>
   fetch-and-checkout <repo_path> <commit>
@@ -338,6 +339,34 @@ def cmd_fetch_tags(repo_path):
         sys.exit(1)
 
 
+def cmd_fetch_commit(repo_path, sha):
+    """Fetch a single commit SHA from origin so it is available locally.
+
+    Needed when the local repo (e.g. a Stable install on a tag) doesn't have
+    the remote HEAD commit that the 'latest' channel points at.
+    Exit 0 on success, 1 on failure.
+    """
+    repo = open_repo(repo_path)
+    origin = get_origin(repo)
+
+    # Try unshallow fetch first so the full history is available
+    try:
+        origin.fetch(depth=0)
+        print("Fetched commit %s (unshallowed)." % sha, file=sys.stderr)
+        return
+    except Exception:
+        pass
+
+    # Fall back to regular fetch
+    try:
+        origin.fetch()
+        print("Fetched commit %s." % sha, file=sys.stderr)
+        return
+    except Exception as e:
+        print("Error: failed to fetch commit %s: %s" % (sha, e), file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_clone(url, dest):
     """Clone a repository. Print progress to stderr."""
     print("Cloning %s into %s..." % (url, dest), file=sys.stderr)
@@ -527,6 +556,7 @@ Subcommands:
   merge-base         <repo_path> <ref1> <ref2>
   is-ancestor        <repo_path> <ancestor> <descendant>
   fetch-tags         <repo_path>
+  fetch-commit       <repo_path> <sha>
   clone              <url> <dest>
   checkout           <repo_path> <commit>
   fetch-and-checkout <repo_path> <commit>
@@ -593,6 +623,12 @@ if __name__ == "__main__":
                 print("Usage: git_operations.py fetch-tags <repo_path>", file=sys.stderr)
                 sys.exit(1)
             cmd_fetch_tags(sys.argv[2])
+
+        elif subcmd == "fetch-commit":
+            if len(sys.argv) < 4:
+                print("Usage: git_operations.py fetch-commit <repo_path> <sha>", file=sys.stderr)
+                sys.exit(1)
+            cmd_fetch_commit(sys.argv[2], sys.argv[3])
 
         elif subcmd == "clone":
             if len(sys.argv) < 4:
