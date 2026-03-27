@@ -494,14 +494,15 @@ export const standalone: SourcePlugin = {
           : card.value === 'latest' ? 'standalone.updateConfirmMessageLatest'
           : 'standalone.updateConfirmMessage'
         const notes = truncateNotes(channelInfo.releaseNotes || '', 2000)
+        const notesDetails = notes ? [{ label: t('standalone.releaseNotesLabel'), items: [notes] }] : undefined
         const switchPrefix = isSwitching
-          ? t('channelCards.switchChannelPrefix', { from: getChannelLabel(channel), to: card.label })
+          ? t('channelCards.switchChannelPrefix', { from: `**${getChannelLabel(channel)}**`, to: `**${card.label}**` })
           : ''
+        const boldInstalled = `**${installedDisplay}**`
+        const boldLatest = `**${latestDisplay}**`
         const confirmMessage = t(msgKey, {
-          installed: installedDisplay,
-          latest: latestDisplay,
-          commit: notes || '',
-          notes: notes || '(none)',
+          installed: boldInstalled,
+          latest: boldLatest,
         })
         actions.push({
           id: 'update-comfyui', label: t('standalone.updateNow'), style: 'primary', enabled: installed,
@@ -511,6 +512,7 @@ export const standalone: SourcePlugin = {
           confirm: {
             title: t('standalone.updateConfirmTitle'),
             message: switchPrefix + confirmMessage,
+            messageDetails: notesDetails,
           },
         })
         actions.push({
@@ -521,11 +523,13 @@ export const standalone: SourcePlugin = {
           data: isSwitching ? { channel: card.value } : undefined,
           prompt: {
             title: t('standalone.copyAndUpdateTitle'),
-            message: (isSwitching ? switchPrefix : '') + t('standalone.copyAndUpdateMessage', { installed: installedDisplay, latest: latestDisplay }),
+            message: (isSwitching ? switchPrefix : '') + t('standalone.copyAndUpdateMessage', { installed: boldInstalled, latest: boldLatest }),
+            placeholder: t('standalone.copyAndUpdatePlaceholder'),
             defaultValue: `${installation.name} (${latestDisplay})`,
             confirmLabel: t('standalone.copyAndUpdateConfirm'),
             required: true,
             field: 'name',
+            messageDetails: notesDetails,
           },
         })
       } else if (card.value !== channel && hasGit) {

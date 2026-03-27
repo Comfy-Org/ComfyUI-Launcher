@@ -210,6 +210,7 @@ export async function checkForUpdate(
   if (!entry) {
     return { ok: false, message: 'Could not fetch releases from GitHub.' }
   }
+
   const existing = (installation.updateInfoByChannel as Record<string, Record<string, unknown>>) || {}
   const prevChannelInfo = existing[channel]
   const cv = installation.comfyVersion as ComfyVersion | undefined

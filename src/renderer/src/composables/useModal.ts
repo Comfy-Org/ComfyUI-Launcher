@@ -1,6 +1,6 @@
 import { reactive, readonly } from 'vue'
 import { i18n } from '../main'
-import type { SnapshotDetailData, FieldOption } from '../types/ipc'
+import type { SnapshotDetailData, FieldOption, ModalDetailGroup } from '../types/ipc'
 
 export type ModalType = 'alert' | 'confirm' | 'confirmWithOptions' | 'prompt' | 'select'
 
@@ -16,10 +16,7 @@ export interface ModalOption {
   checked?: boolean
 }
 
-export interface ModalDetailGroup {
-  label: string
-  items: string[]
-}
+export type { ModalDetailGroup }
 
 export interface ModalCheckbox {
   id: string
@@ -143,7 +140,7 @@ export function useModal() {
       state.loading = opts.loading ?? false
       state.title = opts.title
       state.message = opts.message
-      state.messageDetails = opts.messageDetails ?? []
+      state.messageDetails = (opts.messageDetails ?? []).map((g) => ({ ...g, items: [...g.items] }))
       state.snapshotPreview = opts.snapshotPreview ?? null
       state.checkboxes = (opts.checkboxes ?? []).map((c) => ({ ...c }))
       state.confirmLabel = opts.confirmLabel ?? i18n.global.t('modal.confirm')
@@ -165,7 +162,7 @@ export function useModal() {
     if (!state.visible || state.type !== 'confirm') return
     if (opts.loading !== undefined) state.loading = opts.loading
     if (opts.message !== undefined) state.message = opts.message
-    if (opts.messageDetails !== undefined) state.messageDetails = opts.messageDetails
+    if (opts.messageDetails !== undefined) state.messageDetails = opts.messageDetails.map((g) => ({ ...g, items: [...g.items] }))
     if (opts.snapshotPreview !== undefined) state.snapshotPreview = opts.snapshotPreview
     if (opts.variantCards !== undefined) state.variantCards = opts.variantCards
     if (opts.selectedVariant !== undefined) state.selectedVariant = opts.selectedVariant
@@ -200,6 +197,7 @@ export function useModal() {
     defaultValue?: string
     confirmLabel?: string
     required?: boolean | string
+    messageDetails?: ModalDetailGroup[]
   }): Promise<string | null> {
     return new Promise((resolve) => {
       reset()
@@ -211,6 +209,7 @@ export function useModal() {
       state.defaultValue = opts.defaultValue ?? ''
       state.confirmLabel = opts.confirmLabel ?? 'OK'
       state.required = opts.required ?? false
+      state.messageDetails = (opts.messageDetails ?? []).map((g) => ({ ...g, items: [...g.items] }))
       state.resolve = resolve as (value: unknown) => void
     })
   }

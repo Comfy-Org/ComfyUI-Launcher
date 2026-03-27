@@ -17,6 +17,7 @@ export type {
   FieldSelectDef,
   SelectDef,
   PromptDef,
+  ModalDetailGroup,
   ListAction,
   ActionResult,
   PortConflictInfo,
