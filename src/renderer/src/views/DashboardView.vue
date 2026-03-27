@@ -267,6 +267,7 @@ async function handleLaunch(inst: Installation, actions: ListAction[]): Promise<
     }
   }
 
+  sessionStore.clearErrorInstance(inst.id)
   emitTelemetryAction('launcher.action.invoked', { action_id: action.id, ...telemetryContext })
   if (action.showProgress) {
     emit('show-progress', {

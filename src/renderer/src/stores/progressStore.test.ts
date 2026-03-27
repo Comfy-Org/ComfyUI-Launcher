@@ -132,6 +132,22 @@ describe('useProgressStore', () => {
   })
 
   describe('startOperation', () => {
+    it('clears a pre-existing error instance for the same installation', () => {
+      sessionStore.startSession('inst-1')
+      sessionStore.errorInstances.set('inst-1', {
+        installationName: 'Test',
+        message: 'previous failure',
+      })
+
+      store.startOperation({
+        installationId: 'inst-1',
+        title: 'Delete',
+        apiCall: () => new Promise<ActionResult>(() => {}),
+      })
+
+      expect(sessionStore.errorInstances.has('inst-1')).toBe(false)
+    })
+
     it('creates an operation and sets up session', () => {
       const apiCall = () => new Promise<ActionResult>(() => {})
       store.startOperation({
