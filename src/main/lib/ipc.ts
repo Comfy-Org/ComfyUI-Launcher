@@ -552,7 +552,8 @@ async function _enrichLatestCommitsAhead(): Promise<void> {
     await fetchTags(comfyuiDir)
     const ahead = await countCommitsAhead(comfyuiDir, entry.baseTag, entry.commitSha)
     if (ahead !== undefined) {
-      releaseCache.set(COMFYUI_REPO, 'latest', { ...entry, commitsAhead: ahead })
+      const releaseName = formatComfyVersion({ commit: entry.commitSha!, baseTag: entry.baseTag, commitsAhead: ahead }, 'short')
+      releaseCache.set(COMFYUI_REPO, 'latest', { ...entry, commitsAhead: ahead, releaseName })
       return
     }
   }
