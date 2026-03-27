@@ -109,14 +109,23 @@ export function download(
 
     let aborted = false
     let settled = false
+    let fileStream: fs.WriteStream | null = null
     const safeResolve = (v: string): void => { if (!settled) { settled = true; resolve(v) } }
     const safeReject = (e: Error): void => { if (!settled) { settled = true; reject(e) } }
+
+    const rejectCancelled = (): void => {
+      const err = new Error('Download cancelled')
+      if (fileStream) {
+        fileStream.close(() => safeReject(err))
+      } else {
+        safeReject(err)
+      }
+    }
 
     const onAbort = (): void => {
       aborted = true
       request.abort()
-      // Keep files + meta on abort so we can resume later
-      safeReject(new Error('Download cancelled'))
+      rejectCancelled()
     }
     if (signal) signal.addEventListener('abort', onAbort, { once: true })
 
@@ -183,7 +192,7 @@ export function download(
       let receivedBytes = baseBytes
       const startTime = Date.now()
 
-      const fileStream = fs.createWriteStream(destPath, isResumed ? { flags: 'a' } : undefined)
+      fileStream = fs.createWriteStream(destPath, isResumed ? { flags: 'a' } : undefined)
       fileStream.on('error', (err: Error) => {
         cleanup()
         try { fs.unlinkSync(destPath) } catch {}
@@ -193,7 +202,7 @@ export function download(
 
       response.on('data', (chunk: Buffer) => {
         receivedBytes += chunk.length
-        fileStream.write(chunk)
+        fileStream!.write(chunk)
         if (onProgress) {
           const elapsedSecs = (Date.now() - startTime) / 1000
           const newBytes = receivedBytes - baseBytes
@@ -218,13 +227,11 @@ export function download(
       response.on('end', () => {
         cleanup()
         if (aborted) {
-          fileStream.close()
-          // Keep files + meta for resume
-          safeReject(new Error('Download cancelled'))
+          // onAbort already closed the stream and rejected
           return
         }
-        fileStream.end()
-        fileStream.on('close', () => {
+        fileStream!.end()
+        fileStream!.on('close', () => {
           // Validate file size if we know the expected size
           if (effectiveSize > 0) {
             try {
@@ -255,22 +262,14 @@ export function download(
 
       response.on('error', (err: Error) => {
         cleanup()
-        fileStream.close()
-        // Keep files + meta on network error for resume
-        if (aborted) {
-          safeReject(new Error('Download cancelled'))
-          return
-        }
-        safeReject(err)
+        if (aborted) return // onAbort already handled it
+        fileStream!.close(() => safeReject(err))
       })
     })
 
     request.on('error', (err: Error) => {
       cleanup()
-      if (aborted) {
-        safeReject(new Error('Download cancelled'))
-        return
-      }
+      if (aborted) return // onAbort already handled it
       safeReject(err)
     })
     request.end()

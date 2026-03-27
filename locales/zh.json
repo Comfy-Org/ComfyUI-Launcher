@@ -447,6 +447,7 @@
   "installer": {
     "cachedDownload": "使用已缓存的下载",
     "startingDownload": "正在开始下载…",
+    "waitingForDownload": "正在等待另一个安装完成下载…",
     "downloading": "正在下载… {progress}",
     "extracting": "正在解压… {progress}"
   },

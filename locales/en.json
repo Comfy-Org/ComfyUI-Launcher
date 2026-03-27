@@ -683,6 +683,7 @@
   "installer": {
     "cachedDownload": "Using cached download",
     "startingDownload": "Starting download…",
+    "waitingForDownload": "Waiting for another installation to finish downloading…",
     "downloading": "Downloading… {progress}",
     "extracting": "Extracting… {progress}"
   },
