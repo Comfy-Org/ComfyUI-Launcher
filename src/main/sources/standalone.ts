@@ -494,14 +494,15 @@ export const standalone: SourcePlugin = {
           : card.value === 'latest' ? 'standalone.updateConfirmMessageLatest'
           : 'standalone.updateConfirmMessage'
         const notes = truncateNotes(channelInfo.releaseNotes || '', 2000)
+        const notesDetails = notes ? [{ label: t('standalone.releaseNotesLabel'), items: [notes] }] : undefined
         const switchPrefix = isSwitching
-          ? t('channelCards.switchChannelPrefix', { from: getChannelLabel(channel), to: card.label })
+          ? t('channelCards.switchChannelPrefix', { from: `**${getChannelLabel(channel)}**`, to: `**${card.label}**` })
           : ''
+        const boldInstalled = `**${installedDisplay}**`
+        const boldLatest = `**${latestDisplay}**`
         const confirmMessage = t(msgKey, {
-          installed: installedDisplay,
-          latest: latestDisplay,
-          commit: notes || '',
-          notes: notes || '(none)',
+          installed: boldInstalled,
+          latest: boldLatest,
         })
         actions.push({
           id: 'update-comfyui', label: t('standalone.updateNow'), style: 'primary', enabled: installed,
@@ -511,6 +512,7 @@ export const standalone: SourcePlugin = {
           confirm: {
             title: t('standalone.updateConfirmTitle'),
             message: switchPrefix + confirmMessage,
+            messageDetails: notesDetails,
           },
         })
         actions.push({
@@ -521,11 +523,13 @@ export const standalone: SourcePlugin = {
           data: isSwitching ? { channel: card.value } : undefined,
           prompt: {
             title: t('standalone.copyAndUpdateTitle'),
-            message: (isSwitching ? switchPrefix : '') + t('standalone.copyAndUpdateMessage', { installed: installedDisplay, latest: latestDisplay }),
+            message: (isSwitching ? switchPrefix : '') + t('standalone.copyAndUpdateMessage', { installed: boldInstalled, latest: boldLatest }),
+            placeholder: t('standalone.copyAndUpdatePlaceholder'),
             defaultValue: `${installation.name} (${latestDisplay})`,
             confirmLabel: t('standalone.copyAndUpdateConfirm'),
             required: true,
             field: 'name',
+            messageDetails: notesDetails,
           },
         })
       } else if (card.value !== channel && hasGit) {
@@ -944,7 +948,9 @@ export const standalone: SourcePlugin = {
           }, true)
         )
       )
-      return releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
+      const result = await releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
+      await releaseCache.enrichCommitsAhead(COMFYUI_REPO, path.join(installation.installPath, 'ComfyUI'))
+      return result
     }
 
     if (actionId === 'update-comfyui') {
@@ -1170,20 +1176,15 @@ export const standalone: SourcePlugin = {
       // subsequent resolveLocalVersion calls see the new tags.
       clearVersionCache()
 
-      // Build structured comfyVersion from raw data.
-      // For stable updates, CHECKED_OUT_TAG is the most reliable baseTag source
-      // (comes directly from the git checkout). The cache may lack baseTag if
-      // the release was fetched before the structured-version fields were added.
+      // Resolve comfyVersion from the local git state.  resolveLocalVersion
+      // computes commitsAhead locally (via git rev-list) which works even
+      // when the release cache lacks it (e.g. the latest channel uses
+      // ls-remote which cannot compute commitsAhead).
       const checkedOutTag = markers.CHECKED_OUT_TAG || undefined
-      const comfyVersion: ComfyVersion | undefined = fullPostHead
-        ? {
-          commit: fullPostHead,
-          baseTag: (cachedRelease.baseTag as string | undefined) ?? checkedOutTag,
-          commitsAhead: checkedOutTag
-            ? (cachedRelease.commitsAhead as number | undefined) ?? 0
-            : (cachedRelease.commitsAhead as number | undefined),
-        }
-        : undefined
+      let comfyVersion: ComfyVersion | undefined
+      if (fullPostHead) {
+        comfyVersion = await resolveLocalVersion(comfyuiDir, fullPostHead, checkedOutTag)
+      }
       const installedTag = comfyVersion
         ? formatComfyVersion(comfyVersion, 'short')
         : (markers.CHECKED_OUT_TAG || cachedRelease.latestTag || 'unknown')

@@ -599,6 +599,7 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
   comfyWindow.on('move', () => saveWindowBounds(installationId, comfyWindow))
   comfyWindow.webContents.on('did-create-window', (childWindow) => {
     childWindow.setIcon(APP_ICON)
+    if (process.platform !== 'darwin') childWindow.removeMenu()
     injectMacPasskeyWarning(childWindow)
   })
   comfyWindow.webContents.on('page-title-updated', (e, title) => {

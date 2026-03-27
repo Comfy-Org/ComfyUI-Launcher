@@ -44,15 +44,19 @@ function escapeHtml(text: string): string {
   return div.innerHTML
 }
 
-const URL_RE = /https?:\/\/[^\s<>"']+/g
+function linkify(text: string): string {
+  if (!text) return ''
+  const parts = text.split(/(https?:\/\/[^\s<>"']+)/g)
+  return parts.map((part, i) => {
+    const escaped = escapeHtml(part)
+    if (i % 2 === 1) {
+      return `<a href="#" class="modal-link" data-url="${escaped}">${escaped}</a>`
+    }
+    return escaped
+  }).join('').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+}
 
-const linkifiedMessage = computed(() => {
-  if (!state.message) return ''
-  const escaped = escapeHtml(state.message)
-  return escaped.replace(URL_RE, (url) => {
-    return `<a href="#" class="modal-link" data-url="${escapeHtml(url)}">${escapeHtml(url)}</a>`
-  })
-})
+const linkifiedMessage = computed(() => linkify(state.message))
 
 function handleMessageClick(event: MouseEvent): void {
   const target = event.target as HTMLElement
@@ -189,7 +193,7 @@ onUnmounted(() => {
         <div class="modal-title">{{ state.title }}</div>
         <div class="modal-body">
           <div
-            class="modal-message"
+            class="modal-prompt-card"
             @click="handleMessageClick"
             v-html="linkifiedMessage"
           ></div>
@@ -298,9 +302,9 @@ onUnmounted(() => {
           <div v-if="state.messageDetails.length" class="modal-details">
             <div v-for="(group, gi) in state.messageDetails" :key="gi" class="modal-detail-group">
               <span class="modal-detail-label">{{ group.label }}</span>
-              <ul class="modal-detail-list">
-                <li v-for="(item, ii) in group.items" :key="ii">{{ item }}</li>
-              </ul>
+              <div class="modal-detail-recessed" @click="handleMessageClick">
+                <div v-for="(item, ii) in group.items" :key="ii" class="modal-detail-item" v-html="linkify(item)"></div>
+              </div>
             </div>
           </div>
           <div v-if="state.checkboxes.length" class="modal-options">
@@ -341,20 +345,31 @@ onUnmounted(() => {
       </div>
 
       <!-- Prompt -->
-      <div v-else-if="state.type === 'prompt'" class="modal-box">
+      <div v-else-if="state.type === 'prompt'" class="modal-box" :class="{ 'modal-box-wide': state.messageDetails.length > 0 }">
         <div class="modal-title">{{ state.title }}</div>
-        <div class="modal-message">{{ state.message }}</div>
-        <div class="modal-input-wrap">
-          <input
-            ref="inputRef"
-            v-model="inputValue"
-            type="text"
-            class="modal-input"
-            :placeholder="state.placeholder"
-            @keydown.enter="submitPrompt"
-          />
+        <div class="modal-body">
+          <div class="modal-prompt-card" v-html="linkify(state.message)"></div>
+          <div v-if="state.messageDetails.length" class="modal-details">
+            <div v-for="(group, gi) in state.messageDetails" :key="gi" class="modal-detail-group">
+              <span class="modal-detail-label">{{ group.label }}</span>
+              <div class="modal-detail-recessed" @click="handleMessageClick">
+                <div v-for="(item, ii) in group.items" :key="ii" class="modal-detail-item" v-html="linkify(item)"></div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-input-wrap">
+            <label class="modal-input-label">{{ $t('common.name') }}</label>
+            <input
+              ref="inputRef"
+              v-model="inputValue"
+              type="text"
+              class="modal-input"
+              :placeholder="state.placeholder"
+              @keydown.enter="submitPrompt"
+            />
+          </div>
+          <div v-if="error" class="modal-error">{{ error }}</div>
         </div>
-        <div v-if="error" class="modal-error">{{ error }}</div>
         <div class="modal-actions">
           <button @click="close(null)">{{ $t('common.cancel') }}</button>
           <button class="primary" @click="submitPrompt">{{ state.confirmLabel }}</button>

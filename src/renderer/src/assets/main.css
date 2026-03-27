@@ -647,15 +647,15 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
   max-height: 50vh; overflow-y: auto;
 }
 .modal-message a { color: var(--accent); text-decoration: underline; cursor: pointer; }
-.modal-body { max-height: 50vh; overflow-y: auto; margin-bottom: 20px; }
-.modal-body .modal-message { max-height: none; overflow-y: visible; margin-bottom: 8px; }
+.modal-body { max-height: 50vh; overflow-y: auto; margin-bottom: 0; }
 .modal-box-wide { max-width: 720px; width: 720px; }
 .modal-box-wide .modal-body { max-height: 70vh; }
 .modal-details { margin-bottom: 0; margin-top: 12px; }
 .modal-detail-group { margin-bottom: 6px; }
-.modal-detail-label { font-weight: 600; color: var(--text); font-size: 13px; text-transform: uppercase; }
-.modal-detail-list { margin: 4px 0 0; padding-left: 20px; list-style: disc; }
-.modal-detail-list li { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+.modal-detail-label { font-weight: 600; color: var(--text); font-size: 13px; text-transform: uppercase; margin-bottom: 6px; display: block; }
+.modal-detail-recessed { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; max-height: 200px; overflow-y: auto; }
+.modal-detail-item { font-size: 14px; color: var(--text-muted); line-height: 1.6; white-space: pre-line; }
+.modal-detail-item a, .modal-detail-item .modal-link { color: var(--accent); text-decoration: underline; cursor: pointer; }
 
 /* Snapshot preview in confirm dialog */
 .sp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 10px; }
@@ -678,8 +678,16 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .sp-pip-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; user-select: text; }
 .sp-pip-version { color: var(--text-muted); font-family: monospace; margin-left: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%; user-select: text; }
 
-.modal-input-wrap { margin-bottom: 4px; }
-.modal-error { font-size: 13px; color: var(--danger); min-height: 12px; margin-bottom: 4px; }
+.modal-prompt-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 14px; margin: 0 0 12px;
+  font-size: 14px; color: var(--text-muted); line-height: 1.6; white-space: pre-line;
+}
+.modal-prompt-card strong { color: var(--text); font-weight: 600; }
+.modal-body > .modal-prompt-card:first-child { margin-top: 0; }
+.modal-input-label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.modal-input-wrap { margin-bottom: 12px; }
+.modal-error { font-size: 13px; color: var(--danger); min-height: 12px; margin-bottom: 0; }
 .modal-input { width: 100%; padding: 6px 8px; font-size: 14px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; margin: 0 -24px; padding-left: 24px; padding-right: 24px; border-top: 1px solid var(--border); }
 

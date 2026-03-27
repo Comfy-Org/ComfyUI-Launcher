@@ -157,14 +157,15 @@ export const portable: SourcePlugin = {
         const isSwitching = card.value !== channel
         const msgKey = card.value === 'latest' ? 'portable.updateConfirmMessageLatest' : 'portable.updateConfirmMessage'
         const notes = truncateNotes(channelInfo.releaseNotes || '', 2000)
+        const notesDetails = notes ? [{ label: t('portable.releaseNotesLabel'), items: [notes] }] : undefined
         const switchPrefix = isSwitching
-          ? t('channelCards.switchChannelPrefix', { from: channelLabelMap[channel] || channel, to: card.label })
+          ? t('channelCards.switchChannelPrefix', { from: `**${channelLabelMap[channel] || channel}**`, to: `**${card.label}**` })
           : ''
+        const boldInstalled = `**${channelInfo.installedTag || (installation.releaseTag as string | undefined) || ''}**`
+        const boldLatest = `**${channelInfo.latestTag || ''}**`
         const confirmMessage = t(msgKey, {
-          installed: channelInfo.installedTag || (installation.releaseTag as string | undefined) || '',
-          latest: channelInfo.latestTag || '',
-          commit: notes || '',
-          notes: notes || '(none)',
+          installed: boldInstalled,
+          latest: boldLatest,
         })
         actions.push({
           id: 'update-comfyui', label: t('portable.updateNow'), style: 'primary', enabled: installed,
@@ -174,6 +175,7 @@ export const portable: SourcePlugin = {
           confirm: {
             title: t('portable.updateConfirmTitle'),
             message: switchPrefix + confirmMessage,
+            messageDetails: notesDetails,
           },
         })
       } else if (card.value !== channel) {
@@ -296,7 +298,10 @@ export const portable: SourcePlugin = {
           }, true)
         )
       )
-      return releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
+      const result = await releaseCache.checkForUpdate(COMFYUI_REPO, channel, installation, update)
+      const root = findPortableRoot(installation.installPath)
+      if (root) await releaseCache.enrichCommitsAhead(COMFYUI_REPO, path.join(root, 'ComfyUI'))
+      return result
     }
 
     if (actionId === 'update-comfyui') {

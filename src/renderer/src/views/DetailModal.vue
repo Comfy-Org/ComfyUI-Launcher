@@ -361,7 +361,8 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
       placeholder: mutableAction.prompt.placeholder,
       defaultValue: mutableAction.prompt.defaultValue,
       confirmLabel: mutableAction.prompt.confirmLabel || mutableAction.label,
-      required: mutableAction.prompt.required
+      required: mutableAction.prompt.required,
+      messageDetails: mutableAction.prompt.messageDetails,
     })
     if (!value) return
     mutableAction = {
@@ -400,6 +401,7 @@ async function runAction(action: ActionDef, btn: HTMLButtonElement | null): Prom
       const confirmed = await modal.confirm({
         title: mutableAction.confirm.title || 'Confirm',
         message: mutableAction.confirm.message || 'Are you sure?',
+        messageDetails: mutableAction.confirm.messageDetails,
         confirmLabel: mutableAction.label,
         confirmStyle: mutableAction.style || 'danger'
       })
