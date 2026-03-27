@@ -552,8 +552,12 @@ async function _enrichLatestCommitsAhead(): Promise<void> {
     await fetchTags(comfyuiDir)
     const ahead = await countCommitsAhead(comfyuiDir, entry.baseTag, entry.commitSha)
     if (ahead !== undefined) {
-      const releaseName = formatComfyVersion({ commit: entry.commitSha!, baseTag: entry.baseTag, commitsAhead: ahead }, 'short')
-      releaseCache.set(COMFYUI_REPO, 'latest', { ...entry, commitsAhead: ahead, releaseName })
+      // Re-read the cache entry to avoid overwriting a newer entry that
+      // may have been written while we were awaiting fetchTags/countCommitsAhead.
+      const current = releaseCache.get(COMFYUI_REPO, 'latest')
+      if (!current || current.commitSha !== entry.commitSha) return
+      const releaseName = formatComfyVersion({ commit: current.commitSha!, baseTag: current.baseTag, commitsAhead: ahead }, 'short')
+      releaseCache.set(COMFYUI_REPO, 'latest', { ...current, commitsAhead: ahead, releaseName })
       return
     }
   }
@@ -963,13 +967,13 @@ export function register(callbacks: RegisterCallbacks = {}): void {
             const comfyResult = await restoreComfyUIVersion(freshInst.installPath, targetSnapshot, sendOutput)
 
             sendOutput('\n── Restore Nodes ──\n')
-            await restoreCustomNodes(freshInst.installPath, freshInst, targetSnapshot, sendProgress, sendOutput, abort.signal, { pypiMirror: settings.get('pypiMirror'), useChineseMirrors: settings.get('useChineseMirrors') === true })
+            await restoreCustomNodes(freshInst.installPath, freshInst, targetSnapshot, sendProgress, sendOutput, abort.signal, settings.getMirrorConfig())
 
             if (!abort.signal.aborted && !targetSnapshot.skipPipSync) {
               sendOutput('\n── Restore Packages ──\n')
               await restorePipPackages(freshInst.installPath, freshInst, targetSnapshot,
                 (phase, data) => sendProgress(phase === 'restore' ? 'restore-pip' : phase, data),
-                sendOutput, abort.signal, { pypiMirror: settings.get('pypiMirror'), useChineseMirrors: settings.get('useChineseMirrors') === true })
+                sendOutput, abort.signal, settings.getMirrorConfig())
             }
 
             // Restore update channel and version/lastRollback state so the

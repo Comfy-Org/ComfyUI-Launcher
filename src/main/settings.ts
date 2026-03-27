@@ -264,3 +264,8 @@ export function set<K extends string>(
 export function getAll(): Settings {
   return load()
 }
+
+/** Build a PipMirrorConfig from current settings. */
+export function getMirrorConfig(): { pypiMirror?: string; useChineseMirrors?: boolean } {
+  return { pypiMirror: get('pypiMirror'), useChineseMirrors: get('useChineseMirrors') === true }
+}

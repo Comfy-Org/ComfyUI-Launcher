@@ -27,7 +27,7 @@ const GITCODE_COMFY_RE = /^https?:\/\/gitcode\.com\/gh_mirrors\/co\/([^/]+?)(?:\
 function restoreGitHubUrl(url: string): string {
   const match = url.match(GITCODE_COMFY_RE)
   if (!match) return url
-  return `https://github.com/Comfy-Org/${match[1]}`
+  return `https://github.com/Comfy-Org/${match[1]}.git`
 }
 
 /**

@@ -753,7 +753,7 @@ export const standalone: SourcePlugin = {
       sendOutput('\n── Restore Nodes ──\n')
       const nodeResult = await snapshots.restoreCustomNodes(
         installation.installPath, installation, targetSnapshot, sendProgress, sendOutput, signal,
-        { pypiMirror: settings.get('pypiMirror'), useChineseMirrors: settings.get('useChineseMirrors') === true }
+        settings.getMirrorConfig()
       )
 
       if (signal?.aborted) return { ok: false, message: 'Cancelled' }
@@ -763,7 +763,7 @@ export const standalone: SourcePlugin = {
       const pipResult = await snapshots.restorePipPackages(
         installation.installPath, installation, targetSnapshot,
         (phase, data) => sendProgress(phase === 'restore' ? 'restore-pip' : phase, data),
-        sendOutput, signal, { pypiMirror: settings.get('pypiMirror'), useChineseMirrors: settings.get('useChineseMirrors') === true }
+        sendOutput, signal, settings.getMirrorConfig()
       )
 
       // Build combined summary
@@ -1156,7 +1156,7 @@ export const standalone: SourcePlugin = {
         if (fs.existsSync(uvPath) && activeEnvPython) {
           sendProgress('deps', { percent: -1, status: t('standalone.updateDepsInstalling') })
           sendOutput('\nInstalling manager requirements…\n')
-          const mgrResult = await installFilteredRequirements(mgrReqPath, uvPath, activeEnvPython, installPath, '.manager-reqs-filtered.txt', sendOutput, signal, { pypiMirror: settings.get('pypiMirror'), useChineseMirrors: settings.get('useChineseMirrors') === true })
+          const mgrResult = await installFilteredRequirements(mgrReqPath, uvPath, activeEnvPython, installPath, '.manager-reqs-filtered.txt', sendOutput, signal, settings.getMirrorConfig())
           if (mgrResult !== 0) {
             sendOutput(`\nWarning: manager requirements install exited with code ${mgrResult}\n`)
           }
@@ -1454,7 +1454,7 @@ export const standalone: SourcePlugin = {
 
           if (fs.existsSync(uvPath) && activePython) {
             sendOutput('\nInstalling manager requirements…\n')
-            const procResult = await installFilteredRequirements(mgrReqPath, uvPath, activePython, installation.installPath, '.migrate-mgr-reqs.txt', sendOutput, undefined, { pypiMirror: settings.get('pypiMirror'), useChineseMirrors: settings.get('useChineseMirrors') === true })
+            const procResult = await installFilteredRequirements(mgrReqPath, uvPath, activePython, installation.installPath, '.migrate-mgr-reqs.txt', sendOutput, undefined, settings.getMirrorConfig())
             if (procResult !== 0) {
               sendOutput(`\n⚠ manager requirements install exited with code ${procResult}\n`)
             }
