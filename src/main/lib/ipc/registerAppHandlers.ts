@@ -204,12 +204,16 @@ export function registerAppHandlers(): void {
         pipsRemoved: diff.pipsRemoved,
         pipsChanged: diff.pipsChanged,
         comfyuiChanged: diff.comfyuiChanged,
+        updateChannelChanged: diff.updateChannelChanged,
       }
       if (diff.comfyui) {
         entry.comfyui = {
           from: { ref: diff.comfyui.from.ref, commit: diff.comfyui.from.commit },
           to: { ref: diff.comfyui.to.ref, commit: diff.comfyui.to.commit },
         }
+      }
+      if (diff.updateChannel) {
+        entry.updateChannel = diff.updateChannel
       }
       const entrySize = JSON.stringify(entry).length + 1
       if (runningSize + entrySize > MAX_CONTEXT_BYTES) break

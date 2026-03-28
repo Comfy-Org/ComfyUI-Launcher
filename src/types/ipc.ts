@@ -406,6 +406,8 @@ export interface SnapshotDiffEntry {
     from: { ref: string; commit: string | null }
     to: { ref: string; commit: string | null }
   }
+  updateChannelChanged: boolean
+  updateChannel?: { from: string; to: string }
 }
 
 export interface InstallationDdContext {
