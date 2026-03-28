@@ -149,7 +149,10 @@ export function registerInstallationHandlers(): void {
       fs.mkdirSync(inst.installPath, { recursive: true })
       fs.writeFileSync(path.join(inst.installPath, MARKER_FILE), installationId)
       if (source.installSteps) {
-        const steps = [...source.installSteps]
+        let steps = [...source.installSteps]
+        if (!inst.autoUpdate) {
+          steps = steps.filter((s) => s.phase !== 'update')
+        }
         if (inst.pendingSnapshotRestore) {
           steps.push(
             { phase: 'restore-nodes', label: i18n.t('standalone.snapshotRestoreNodesPhase') },
