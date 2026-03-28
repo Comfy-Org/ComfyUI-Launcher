@@ -41,7 +41,7 @@ import { syncCustomModelFolders, discoverExtraModelFolders } from '../models'
 import { copyDirWithProgress } from '../copy'
 import { fetchJSON } from '../fetch'
 import { fetchLatestRelease } from '../comfyui-releases'
-import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot, restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState, formatSnapshotVersion } from '../snapshots'
+import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, diffSnapshots, buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot, restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState, formatSnapshotVersion } from '../snapshots'
 import type { SnapshotExportEnvelope } from '../snapshots'
 import { getVariantLabel } from '../../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../../types/sources'
@@ -73,7 +73,7 @@ export {
   syncCustomModelFolders, discoverExtraModelFolders,
   copyDirWithProgress, fetchJSON, fetchLatestRelease,
   captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData,
-  getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots,
+  getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, diffSnapshots,
   buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot,
   restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState, formatSnapshotVersion,
   getVariantLabel, REQUIRES_STOPPED, findLockingProcesses,
@@ -392,9 +392,9 @@ export function _broadcastToRenderer(channel: string, data: unknown): void {
   })
 }
 
-export function _addSession(installationId: string, { proc, port, url, mode, installationName }: Omit<SessionInfo, 'startedAt'>): void {
+export function _addSession(installationId: string, { proc, port, url, mode, installationName }: Omit<SessionInfo, 'startedAt'>, bootTimeMs?: number): void {
   _runningSessions.set(installationId, { proc, port, url, mode, installationName, startedAt: Date.now() })
-  _broadcastToRenderer('instance-started', { installationId, port, url, mode, installationName })
+  _broadcastToRenderer('instance-started', { installationId, port, url, mode, installationName, bootTimeMs })
   installations.update(installationId, { lastLaunchedAt: Date.now() })
     .then(() => _broadcastToRenderer('installations-changed', {}))
     .catch((err) => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RumErrorEvent } from '@datadog/browser-rum'
-import { normalizeDatadogBundlePaths, normalizeRumErrorEvent } from './datadogPathNormalization'
+import { normalizeDatadogBundlePaths, normalizeRumErrorEvent, scrubPII } from './datadogPathNormalization'
 
 describe('normalizeDatadogBundlePaths', () => {
   it('rewrites renderer file URLs to the synthetic Datadog bundle prefix', () => {
@@ -23,6 +23,41 @@ describe('normalizeDatadogBundlePaths', () => {
     const url = 'https://example.com/app.js'
 
     expect(normalizeDatadogBundlePaths(url)).toBe(url)
+  })
+})
+
+describe('scrubPII', () => {
+  it('redacts Windows user paths', () => {
+    expect(scrubPII('C:\\Users\\JohnDoe\\AppData\\Local\\foo')).toBe(
+      'C:\\Users\\[REDACTED]\\AppData\\Local\\foo',
+    )
+  })
+
+  it('redacts macOS user paths', () => {
+    expect(scrubPII('/Users/alice/Library/foo')).toBe('/Users/[REDACTED]/Library/foo')
+  })
+
+  it('redacts Linux user paths', () => {
+    expect(scrubPII('/home/bob/.config/foo')).toBe('/home/[REDACTED]/.config/foo')
+  })
+
+  it('leaves non-user paths unchanged', () => {
+    expect(scrubPII('D:\\Program Files\\foo')).toBe('D:\\Program Files\\foo')
+  })
+
+  it('handles multiple occurrences in one string', () => {
+    const input = '/Users/alice/foo and /home/bob/bar'
+    expect(scrubPII(input)).toBe('/Users/[REDACTED]/foo and /home/[REDACTED]/bar')
+  })
+
+  it('handles forward slashes in Windows-style paths', () => {
+    expect(scrubPII('C:/Users/JohnDoe/foo')).toBe('C:/Users/[REDACTED]/foo')
+  })
+
+  it('handles usernames with spaces', () => {
+    expect(scrubPII('C:\\Users\\John Doe\\AppData\\Local\\foo')).toBe(
+      'C:\\Users\\[REDACTED]\\AppData\\Local\\foo',
+    )
   })
 })
 

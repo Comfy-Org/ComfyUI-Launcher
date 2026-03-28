@@ -7,6 +7,7 @@ type GpuId = 'nvidia' | 'amd' | 'intel' | 'mps'
 export interface GpuInfo {
   id: GpuId
   label: string
+  model: string | null
 }
 
 const GPU_LABELS: Record<GpuId, string> = {
@@ -52,7 +53,7 @@ async function detectGPU(): Promise<GpuInfo | null> {
     id = await detectLinuxGPU()
   }
   if (!id) return null
-  return { id, label: GPU_LABELS[id] }
+  return { id, label: GPU_LABELS[id], model: null }
 }
 
 async function detectWindowsGPU(): Promise<GpuId | null> {

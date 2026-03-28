@@ -22,12 +22,34 @@ export function normalizeDatadogBundlePaths(value: string | undefined): string |
   return normalized
 }
 
+const PII_PATH_PATTERNS = [
+  /([A-Za-z]:[\\/]Users[\\/])[^\\/]+?(?=[\\/]|$)/g,
+  /(\/Users\/)[^\\/]+?(?=\/|$)/g,
+  /(\/home\/)[^\\/]+?(?=\/|$)/g,
+]
+
+export function scrubPII(value: string): string {
+  let scrubbed = value
+  for (const pattern of PII_PATH_PATTERNS) {
+    scrubbed = scrubbed.replace(pattern, (_match, prefix: string) => `${prefix}[REDACTED]`)
+  }
+  return scrubbed
+}
+
 export function normalizeRumErrorEvent(event: RumErrorEvent): void {
+  event.error.message = scrubPII(event.error.message)
   event.error.stack = normalizeDatadogBundlePaths(event.error.stack)
+  if (event.error.stack) {
+    event.error.stack = scrubPII(event.error.stack)
+  }
   for (const cause of event.error.causes || []) {
     cause.stack = normalizeDatadogBundlePaths(cause.stack)
+    if (cause.stack) {
+      cause.stack = scrubPII(cause.stack)
+    }
   }
   if (event.error.resource?.url) {
     event.error.resource.url = normalizeDatadogBundlePaths(event.error.resource.url) || event.error.resource.url
+    event.error.resource.url = scrubPII(event.error.resource.url)
   }
 }

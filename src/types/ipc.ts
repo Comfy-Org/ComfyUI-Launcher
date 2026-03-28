@@ -313,6 +313,7 @@ export interface ComfyExitedData {
 export interface GPUInfo {
   id?: string
   label: string
+  model?: string | null
 }
 
 export interface HardwareValidation {
@@ -371,6 +372,91 @@ export interface ModelDownloadProgress {
 export interface TrackResult {
   ok: boolean
   message?: string
+}
+
+export interface SystemInfo {
+  gpu_vendor: string | null
+  gpu_label: string | null
+  gpu_model: string | null
+  nvidia_driver_version: string | null
+  nvidia_driver_supported: boolean | null
+  platform: string
+  arch: string
+  os_version: string
+  electron_version: string
+  chrome_version: string
+  total_memory_gb: number
+  cpu_model: string
+  cpu_cores: number
+  app_version: string
+  auto_update: boolean
+  locale: string
+  installation_count: number
+  installations: Array<{
+    source_id: string
+    variant: string
+    update_channel: string
+    status: string
+  }>
+}
+
+export interface SnapshotDiffEntry {
+  createdAt: string
+  trigger: string
+  label: string | null
+  nodesAdded: Array<{ id: string; type: string; dirName: string; enabled: boolean; version?: string; commit?: string }>
+  nodesRemoved: Array<{ id: string; type: string; dirName: string; enabled: boolean; version?: string; commit?: string }>
+  nodesChanged: Array<{
+    id: string
+    from: { version?: string; commit?: string; enabled: boolean }
+    to: { version?: string; commit?: string; enabled: boolean }
+  }>
+  pipsAdded: Array<{ name: string; version: string }>
+  pipsRemoved: Array<{ name: string; version: string }>
+  pipsChanged: Array<{ name: string; from: string; to: string }>
+  comfyuiChanged: boolean
+  comfyui?: {
+    from: { ref: string; commit: string | null }
+    to: { ref: string; commit: string | null }
+  }
+  updateChannelChanged: boolean
+  updateChannel?: { from: string; to: string }
+}
+
+export interface InstallationDdContext {
+  installation_id: string
+  variant: string
+  source_id: string
+  update_channel: string
+  comfyui_version: string
+  copied_from?: string
+  copy_reason?: string
+  snapshot_count: number
+  disk_free_gb: number | null
+  disk_total_gb: number | null
+  latest_snapshot: {
+    createdAt: string
+    trigger: string
+    label: string | null
+    comfyui: {
+      ref: string
+      commit: string | null
+      releaseTag: string
+      variant: string
+    }
+    customNodes: Array<{
+      id: string
+      type: string
+      dirName: string
+      enabled: boolean
+      version?: string
+      commit?: string
+    }>
+    pipPackages: Record<string, string>
+    pythonVersion?: string
+    updateChannel?: string
+  } | null
+  snapshot_diffs: SnapshotDiffEntry[]
 }
 
 export interface DatadogForwardedError {
@@ -587,6 +673,9 @@ export interface ElectronApi {
   getAppVersion(): Promise<string>
   quitApp(): Promise<void>
   resetZoom(): Promise<void>
+  getSystemInfo(): Promise<SystemInfo>
+  getInstallationDdContext(installationId: string): Promise<InstallationDdContext | null>
+  getDeviceId(): Promise<string>
 
   // Updates
   checkForUpdate(): Promise<{ available: boolean; version?: string; error?: string }>

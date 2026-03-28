@@ -136,6 +136,12 @@ async function initializeDatadog(): Promise<void> {
       is_packaged: !import.meta.env.DEV,
       telemetry_effective_enabled: telemetryEnabled !== false,
     })
+    window.api.getDeviceId().then((id) => {
+      try { datadogRum.setUser({ id }) } catch {}
+    }).catch(() => {})
+    window.api.getSystemInfo().then((info) => {
+      trackTelemetryAction('launcher.session.system_info', info as unknown as Record<string, string | number | boolean | null | undefined>)
+    }).catch(() => {})
   } catch {}
 }
 
@@ -205,6 +211,31 @@ window.api.onDatadogError((data) => {
       ...(data.context || {}),
     },
   })
+})
+
+window.api.onComfyExited((data) => {
+  if (!isDatadogInitialized) return
+  trackTelemetryAction('launcher.comfyui.exited', {
+    installation_id: data.installationId,
+    crashed: data.crashed ?? false,
+    exit_code: data.exitCode ?? null,
+  })
+})
+
+window.api.onInstanceStarted((data) => {
+  if (!isDatadogInitialized) return
+  const bootTimeMs = (data as unknown as Record<string, unknown>).bootTimeMs as number | undefined
+  window.api.getInstallationDdContext(data.installationId).then((ctx) => {
+    if (!ctx) return
+    const { snapshot_diffs, ...metadata } = ctx
+    trackTelemetryAction('launcher.session.installation_started', {
+      ...(metadata as unknown as Record<string, string | number | boolean | null | undefined>),
+      boot_time_ms: bootTimeMs ?? null,
+    })
+    if (snapshot_diffs.length > 0) {
+      try { datadogRum.addAction('launcher.session.snapshot_history', { installation_id: ctx.installation_id, snapshot_diffs }) } catch {}
+    }
+  }).catch(() => {})
 })
 
 const i18n = createI18n({

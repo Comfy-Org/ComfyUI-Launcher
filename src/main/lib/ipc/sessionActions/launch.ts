@@ -45,6 +45,7 @@ export async function handleLaunch({ event, installationId, inst: instArg, actio
     }
   }
 
+  const launchStartedAt = Date.now()
   const launchCmdRaw = source.getLaunchCommand(inst)
   if (!launchCmdRaw) {
     return { ok: false, message: i18n.t('errors.noEnvFound') }
@@ -116,7 +117,7 @@ export async function handleLaunch({ event, installationId, inst: instArg, actio
 
     _operationAborts.delete(installationId)
     const mode = (inst.launchMode as string | undefined) || 'window'
-    _addSession(installationId, { proc: null, port: launchCmd.port!, url: launchCmd.url, mode, installationName: inst.name })
+    _addSession(installationId, { proc: null, port: launchCmd.port!, url: launchCmd.url, mode, installationName: inst.name }, Date.now() - launchStartedAt)
     if (_onLaunch) {
       _onLaunch({ port: launchCmd.port!, url: launchCmd.url, process: null, installation: inst, mode })
     }
@@ -146,7 +147,7 @@ export async function handleLaunch({ event, installationId, inst: instArg, actio
 
     _operationAborts.delete(installationId)
     const mode = (inst.launchMode as string | undefined) || 'window'
-    _addSession(installationId, { proc, port: 0, mode, installationName: inst.name })
+    _addSession(installationId, { proc, port: 0, mode, installationName: inst.name }, Date.now() - launchStartedAt)
 
     proc.on('exit', (code) => {
       const crashed = _runningSessions.has(installationId) && code !== 0
@@ -349,7 +350,7 @@ export async function handleLaunch({ event, installationId, inst: instArg, actio
   _pendingPorts.delete(launchCmd.port!)
   _operationAborts.delete(installationId)
   const mode = (inst.launchMode as string | undefined) || 'window'
-  _addSession(installationId, { proc, port: launchCmd.port!, mode, installationName: inst.name })
+  _addSession(installationId, { proc, port: launchCmd.port!, mode, installationName: inst.name }, Date.now() - launchStartedAt)
   writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
 
   // Capture snapshot in background after successful launch

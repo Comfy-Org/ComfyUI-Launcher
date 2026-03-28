@@ -174,10 +174,29 @@ function serializeUnknownError(error: unknown): { message: string; stack?: strin
   }
 }
 
+const PII_PATH_PATTERNS = [
+  /([A-Za-z]:[\\/]Users[\\/])[^\\/]+?(?=[\\/]|$)/g,
+  /(\/Users\/)[^\\/]+?(?=\/|$)/g,
+  /(\/home\/)[^\\/]+?(?=\/|$)/g,
+]
+
+function scrubPII(value: string): string {
+  let scrubbed = value
+  for (const pattern of PII_PATH_PATTERNS) {
+    scrubbed = scrubbed.replace(pattern, (_match, prefix: string) => `${prefix}[REDACTED]`)
+  }
+  return scrubbed
+}
+
 function forwardDatadogError(payload: DatadogForwardedError): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
   try {
-    mainWindow.webContents.send('dd-error', payload)
+    const scrubbed: DatadogForwardedError = {
+      ...payload,
+      message: scrubPII(payload.message),
+      stack: payload.stack ? scrubPII(payload.stack) : undefined,
+    }
+    mainWindow.webContents.send('dd-error', scrubbed)
   } catch {}
 }
 
