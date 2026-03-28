@@ -2,14 +2,13 @@ import {
   path, fs, os, ipcMain, dialog, BrowserWindow,
   installations, i18n,
   sourceMap,
-  formatComfyVersion, resolveLocalVersion,
   findLatestVersionTag, revParseRef, hasGitDir,
   defaultInstallDir,
   detectGPU, detectDesktopInstall, stageDesktopSnapshot, stageLocalSnapshot,
   getSnapshotCount, getSnapshotListData, getSnapshotDetailData,
   getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots,
   buildExportEnvelope, validateExportEnvelope, importSnapshots,
-  formatSnapshotVersion, getVariantLabel,
+  resolveSnapshotVersion, getVariantLabel,
   findDuplicatePath, uniqueName, ensureDefaultPrimary,
 } from './shared'
 import type {
@@ -34,16 +33,10 @@ async function _findReferenceRepo(): Promise<{ comfyuiDir: string; override?: La
 
 async function buildSnapshotPreview(filePath: string, envelope: SnapshotExportEnvelope): Promise<Record<string, unknown>> {
   const ref = await _findReferenceRepo()
+  const resolveOpts = ref ? { comfyuiDir: ref.comfyuiDir, latestTagOverride: ref.override } : undefined
 
-  const resolveVersion = async (comfyui: { ref: string; commit: string | null; baseTag?: string; commitsAhead?: number }, style: 'short' | 'detail'): Promise<string> => {
-    if (!comfyui.commit || !ref) return formatSnapshotVersion(comfyui, style)
-    try {
-      const cv = await resolveLocalVersion(ref.comfyuiDir, comfyui.commit, undefined, ref.override)
-      return formatComfyVersion(cv, style)
-    } catch {
-      return formatSnapshotVersion(comfyui, style)
-    }
-  }
+  const resolveVersion = (comfyui: { ref: string; commit: string | null; baseTag?: string; commitsAhead?: number }, style: 'short' | 'detail'): Promise<string> =>
+    resolveSnapshotVersion('', comfyui, style, resolveOpts)
 
   const newest = envelope.snapshots[0]!
   const resolvedVersions = await Promise.all(

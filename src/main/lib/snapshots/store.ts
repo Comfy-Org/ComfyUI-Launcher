@@ -90,14 +90,18 @@ export async function captureState(installPath: string, installation: Installati
   }
 
   const cv = installation.comfyVersion as ComfyVersion | undefined
+  // Only carry forward stored version metadata when the commit matches.
+  // If the user made external changes (manual git pull, etc.), the stored
+  // baseTag/commitsAhead are stale and should not be baked into the snapshot.
+  const commitMatches = cv?.commit === commit
   return {
     comfyui: {
       ref: manifest.comfyui_ref,
       commit,
       releaseTag: manifest.version,
       variant: manifest.id,
-      baseTag: cv?.baseTag,
-      commitsAhead: cv?.commitsAhead,
+      baseTag: commitMatches ? cv?.baseTag : undefined,
+      commitsAhead: commitMatches ? cv?.commitsAhead : undefined,
     },
     customNodes,
     pipPackages,

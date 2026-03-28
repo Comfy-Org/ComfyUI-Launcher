@@ -590,7 +590,8 @@ export interface ElectronApi {
   getFieldOptions(
     sourceId: string,
     fieldId: string,
-    selections: Record<string, FieldOption>
+    selections: Record<string, FieldOption>,
+    context?: Record<string, unknown>
   ): Promise<FieldOption[]>
   buildInstallation(
     sourceId: string,

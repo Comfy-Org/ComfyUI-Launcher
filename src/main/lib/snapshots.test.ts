@@ -17,7 +17,7 @@ vi.mock('./pip', async (importOriginal) => {
   }
 })
 
-import { buildExportEnvelope, validateExportEnvelope, importSnapshots, diffSnapshots, listSnapshots, restoreComfyUIVersion, buildPostRestoreState, restorePipPackages } from './snapshots'
+import { buildExportEnvelope, validateExportEnvelope, importSnapshots, diffSnapshots, listSnapshots, restoreComfyUIVersion, buildPostRestoreState, restorePipPackages, formatSnapshotVersion } from './snapshots'
 import type { Snapshot, SnapshotEntry, SnapshotExportEnvelope } from './snapshots'
 import type { ScannedNode } from './nodes'
 import type { InstallationRecord } from '../installations'
@@ -743,5 +743,32 @@ describe('restorePipPackages', () => {
     expect(uninstallCall).toBeDefined()
     expect(uninstallCall).toContain('new-pkg-a')
     expect(uninstallCall).toContain('new-pkg-b')
+  })
+})
+
+// --- formatSnapshotVersion ---
+
+describe('formatSnapshotVersion', () => {
+  it('uses stored baseTag and commitsAhead when present', () => {
+    const comfyui = { ref: 'v0.17.1', commit: '0904cc3fe5a551e3716851f12a568e481badd301', baseTag: 'v0.17.2', commitsAhead: 12 }
+    expect(formatSnapshotVersion(comfyui, 'short')).toBe('v0.17.2+12')
+    expect(formatSnapshotVersion(comfyui, 'detail')).toBe('v0.17.2 + 12 commits (0904cc3)')
+  })
+
+  it('uses stored baseTag when commitsAhead is 0 (exact tag match)', () => {
+    const comfyui = { ref: 'v0.18.3', commit: 'deadbeef12345678', baseTag: 'v0.18.3', commitsAhead: 0 }
+    expect(formatSnapshotVersion(comfyui, 'short')).toBe('v0.18.3')
+    expect(formatSnapshotVersion(comfyui, 'detail')).toBe('v0.18.3')
+  })
+
+  it('falls back to ref when no commit is present', () => {
+    const comfyui = { ref: 'v0.17.1', commit: null }
+    expect(formatSnapshotVersion(comfyui, 'short')).toBe('v0.17.1')
+    expect(formatSnapshotVersion(comfyui, 'detail')).toBe('v0.17.1')
+  })
+
+  it('returns short SHA when commit exists but no baseTag', () => {
+    const comfyui = { ref: 'v0.17.1', commit: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2' }
+    expect(formatSnapshotVersion(comfyui, 'short')).toBe('a1b2c3d')
   })
 })

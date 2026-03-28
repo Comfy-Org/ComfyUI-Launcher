@@ -5,8 +5,8 @@ import type { ElectronApi, ResolvedTheme } from '../types/ipc'
 const api: ElectronApi = {
   // Sources / New Install
   getSources: () => ipcRenderer.invoke('get-sources'),
-  getFieldOptions: (sourceId, fieldId, selections) =>
-    ipcRenderer.invoke('get-field-options', sourceId, fieldId, selections),
+  getFieldOptions: (sourceId, fieldId, selections, context) =>
+    ipcRenderer.invoke('get-field-options', sourceId, fieldId, selections, context),
   buildInstallation: (sourceId, selections) =>
     ipcRenderer.invoke('build-installation', sourceId, selections),
   getDefaultInstallDir: () => ipcRenderer.invoke('get-default-install-dir'),

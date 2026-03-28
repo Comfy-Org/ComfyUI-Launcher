@@ -512,6 +512,8 @@
     "setupEnv": "Set up environment",
     "cleanupEnv": "Clean up environment",
     "cleanupEnvStatus": "Removing redundant packages from template environment…",
+    "updateToStable": "Update to latest stable",
+    "latestVersion": "Latest Stable",
     "repairBinaries": "Repair macOS Binaries",
     "repairBinariesTitle": "Repairing macOS Binaries",
     "updates": "Updates",

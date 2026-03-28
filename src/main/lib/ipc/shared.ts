@@ -9,9 +9,9 @@ import * as installations from '../../installations'
 import type { InstallationRecord } from '../../installations'
 import { formatComfyVersion } from '../version'
 import type { ComfyVersion } from '../version'
-import { resolveLocalVersion, clearVersionCache } from '../version-resolve'
+import { resolveInstalledVersion, clearVersionCache } from '../version-resolve'
 import type { LatestTagOverride } from '../version-resolve'
-import { readGitRemoteUrl, fetchTags, findLatestVersionTag, revParseRef, hasGitDir, isGitAvailable, tryConfigurePygit2Fallback } from '../git'
+import { readGitHead, readGitRemoteUrl, fetchTags, findLatestVersionTag, revParseRef, hasGitDir, isGitAvailable, tryConfigurePygit2Fallback } from '../git'
 import { ensureRemoteUrl } from '../github-mirror'
 import * as settings from '../../settings'
 import { defaultInstallDir } from '../paths'
@@ -41,7 +41,7 @@ import { syncCustomModelFolders, discoverExtraModelFolders } from '../models'
 import { copyDirWithProgress } from '../copy'
 import { fetchJSON } from '../fetch'
 import { fetchLatestRelease } from '../comfyui-releases'
-import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, diffSnapshots, buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot, restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState, formatSnapshotVersion } from '../snapshots'
+import { captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData, getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, diffSnapshots, buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot, restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState, formatSnapshotVersion, resolveSnapshotVersion } from '../snapshots'
 import type { SnapshotExportEnvelope } from '../snapshots'
 import { getVariantLabel } from '../../sources/standalone'
 import type { FieldOption, SourcePlugin } from '../../types/sources'
@@ -57,7 +57,7 @@ export {
   path, fs, os, app, ipcMain, dialog, shell, BrowserWindow, nativeTheme,
   execFile, spawn, execFileSync,
   sources, installations, settings, releaseCache, i18n,
-  formatComfyVersion, resolveLocalVersion, clearVersionCache,
+  formatComfyVersion, resolveInstalledVersion, clearVersionCache,
   readGitRemoteUrl, fetchTags, findLatestVersionTag, revParseRef, hasGitDir, isGitAvailable, tryConfigurePygit2Fallback,
   ensureRemoteUrl,
   defaultInstallDir, download, createCache, extract, deleteDir, deleteAction, untrackAction,
@@ -75,7 +75,7 @@ export {
   captureSnapshotIfChanged, getSnapshotCount, getSnapshotListData, getSnapshotDetailData,
   getSnapshotDiffVsPrevious, diffAgainstCurrent, loadSnapshot, listSnapshots, diffSnapshots,
   buildExportEnvelope, validateExportEnvelope, importSnapshots, saveSnapshot,
-  restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState, formatSnapshotVersion,
+  restoreCustomNodes, restorePipPackages, restoreComfyUIVersion, buildPostRestoreState, formatSnapshotVersion, resolveSnapshotVersion,
   getVariantLabel, REQUIRES_STOPPED, findLockingProcesses,
   getComfyArgsSchema, filterUnsupportedArgs,
 }
@@ -469,7 +469,11 @@ export async function _resolveAndBroadcastVersions(list: InstallationRecord[]): 
     const origin = readGitRemoteUrl(comfyuiDir)
     const override = origin ? tagOverrides.get(origin) : undefined
     try {
-      const resolved = await resolveLocalVersion(comfyuiDir, cv.commit, undefined, override)
+      // Read actual HEAD — it may differ from cv.commit if the user
+      // made external changes (manual git pull, checkout, etc.).
+      const actualHead = readGitHead(comfyuiDir) || cv.commit
+
+      const resolved = await resolveInstalledVersion(comfyuiDir, actualHead, cv, undefined, override)
       const resolvedStr = formatComfyVersion(resolved, 'short')
       const storedStr = formatComfyVersion(cv, 'short')
       const versionChanged = resolvedStr !== storedStr

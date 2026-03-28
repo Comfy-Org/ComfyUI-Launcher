@@ -239,7 +239,7 @@ async function open(): Promise<void> {
     })
 
     // Load releases and auto-select latest
-    const releases = await window.api.getFieldOptions('standalone', 'release', {})
+    const releases = await window.api.getFieldOptions('standalone', 'release', {}, { includeLatestStable: true })
     if (releases.length === 0) {
       errorMessage.value = t('newInstall.noOptions')
       loading.value = false

@@ -5,7 +5,7 @@ import { fetchLatestRelease } from '../../lib/comfyui-releases'
 import * as releaseCache from '../../lib/release-cache'
 import { formatComfyVersion } from '../../lib/version'
 import type { ComfyVersion } from '../../lib/version'
-import { resolveLocalVersion, clearVersionCache } from '../../lib/version-resolve'
+import { resolveInstalledVersion, clearVersionCache } from '../../lib/version-resolve'
 import { readGitHead } from '../../lib/git'
 import { PYTORCH_RE, installFilteredRequirements, getPipIndexArgs } from '../../lib/pip'
 import { copyDirWithProgress } from '../../lib/copy'
@@ -123,23 +123,23 @@ export async function handleAction(
 
     // Restore update channel and version/lastRollback state so the
     // release cache sees accurate state for the restored channel.
-    // Recompute comfyVersion from git state so that old snapshots captured
-    // before the baseTag fix don't propagate stale version metadata.
     const comfyuiDir = path.join(installation.installPath, 'ComfyUI')
     const restoredHead = comfyResult.commit || readGitHead(comfyuiDir)
-    let freshComfyVersion: ComfyVersion | undefined
-    if (!comfyResult.error && restoredHead) {
-      freshComfyVersion = await resolveLocalVersion(comfyuiDir, restoredHead)
-    }
     const restoreState = snapshots.buildPostRestoreState(
       targetSnapshot, comfyResult,
       installation.updateInfoByChannel as Record<string, Record<string, unknown>> | undefined,
       installation.comfyVersion as ComfyVersion | undefined
     )
-    // Override the snapshot-based comfyVersion with the freshly resolved one
-    if (freshComfyVersion) {
-      restoreState.comfyVersion = freshComfyVersion
-      const tag = formatComfyVersion(freshComfyVersion, 'short')
+    // Reconcile comfyVersion through the single write-gate.
+    // resolveInstalledVersion keeps stored baseTag metadata when the commit
+    // matches, and re-resolves from git only for old snapshots that lack it.
+    if (!comfyResult.error && restoredHead) {
+      const snapshotCv: ComfyVersion | undefined = targetSnapshot.comfyui.commit
+        ? { commit: targetSnapshot.comfyui.commit, baseTag: targetSnapshot.comfyui.baseTag, commitsAhead: targetSnapshot.comfyui.commitsAhead }
+        : undefined
+      const resolved = await resolveInstalledVersion(comfyuiDir, restoredHead, snapshotCv)
+      restoreState.comfyVersion = resolved
+      const tag = formatComfyVersion(resolved, 'short')
       const channelInfo = restoreState.updateInfoByChannel as Record<string, Record<string, unknown>>
       const ch = targetSnapshot.updateChannel || 'stable'
       channelInfo[ch] = { ...channelInfo[ch], installedTag: tag }
@@ -503,7 +503,7 @@ async function handleUpdateComfyUI(
   const checkedOutTag = markers.CHECKED_OUT_TAG || undefined
   let comfyVersion: ComfyVersion | undefined
   if (fullPostHead) {
-    comfyVersion = await resolveLocalVersion(comfyuiDir, fullPostHead, checkedOutTag)
+    comfyVersion = await resolveInstalledVersion(comfyuiDir, fullPostHead, installation.comfyVersion as ComfyVersion | undefined, checkedOutTag)
   }
   const installedTag = comfyVersion
     ? formatComfyVersion(comfyVersion, 'short')

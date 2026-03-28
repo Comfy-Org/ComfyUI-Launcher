@@ -13,7 +13,7 @@ export type {
 } from './types'
 
 // Diff
-export { formatSnapshotVersion, diffSnapshots, diffAgainstCurrent } from './diff'
+export { formatSnapshotVersion, resolveSnapshotVersion, diffSnapshots, diffAgainstCurrent } from './diff'
 
 // Store
 export {

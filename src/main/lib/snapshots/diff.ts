@@ -1,7 +1,9 @@
 import path from 'path'
 import { hasGitDir } from '../git'
-import { resolveLocalVersion } from '../version-resolve'
+import { resolveInstalledVersion } from '../version-resolve'
+import type { LatestTagOverride } from '../version-resolve'
 import { formatComfyVersion } from '../version'
+import type { ComfyVersion } from '../version'
 import { nodeKey } from '../nodes'
 import { captureState } from './store'
 import type { Snapshot, SnapshotDiff, SnapshotDiffSummary } from './types'
@@ -31,17 +33,23 @@ export async function resolveSnapshotVersion(
   installPath: string,
   comfyui: VersionResolvable,
   style: 'short' | 'detail',
+  options?: { comfyuiDir?: string; latestTagOverride?: LatestTagOverride },
 ): Promise<string> {
   if (!comfyui.commit) return comfyui.ref
-  const comfyuiDir = path.join(installPath, 'ComfyUI')
-  if (!hasGitDir(comfyuiDir)) {
-    return formatSnapshotVersion(comfyui, style)
+  const snapshotCv: ComfyVersion = {
+    commit: comfyui.commit,
+    baseTag: comfyui.baseTag,
+    commitsAhead: comfyui.commitsAhead,
+  }
+  const comfyuiDir = options?.comfyuiDir ?? (installPath ? path.join(installPath, 'ComfyUI') : '')
+  if (!comfyuiDir || !hasGitDir(comfyuiDir)) {
+    return formatComfyVersion(snapshotCv, style)
   }
   try {
-    const cv = await resolveLocalVersion(comfyuiDir, comfyui.commit)
-    return formatComfyVersion(cv, style)
+    const resolved = await resolveInstalledVersion(comfyuiDir, comfyui.commit, snapshotCv, undefined, options?.latestTagOverride)
+    return formatComfyVersion(resolved, style)
   } catch {
-    return formatSnapshotVersion(comfyui, style)
+    return formatComfyVersion(snapshotCv, style)
   }
 }
 

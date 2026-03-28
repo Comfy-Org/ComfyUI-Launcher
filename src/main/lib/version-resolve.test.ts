@@ -11,7 +11,7 @@ vi.mock('./git', () => ({
 }))
 
 import { findNearestTag, findLatestVersionTag, countCommitsAhead, countUniqueCommits, isAncestorOf, findMergeBase } from './git'
-import { resolveLocalVersion, clearVersionCache } from './version-resolve'
+import { resolveLocalVersion, clearVersionCache, resolveInstalledVersion } from './version-resolve'
 
 const mockedFindNearestTag = vi.mocked(findNearestTag)
 const mockedFindLatestVersionTag = vi.mocked(findLatestVersionTag)
@@ -353,6 +353,60 @@ describe('resolveLocalVersion', () => {
         sha: 'sha-of-v0.17.1',
       })
       expect(result).toEqual({ commit: 'abc1234', baseTag: 'v0.16.4', commitsAhead: 38 })
+    })
+  })
+
+  describe('resolveInstalledVersion', () => {
+    it('returns stored version when commit matches and baseTag exists', async () => {
+      const stored = { commit: 'abc1234', baseTag: 'v0.17.2', commitsAhead: 12 }
+      const result = await resolveInstalledVersion('/repo', 'abc1234', stored)
+      expect(result).toBe(stored)
+      expect(mockedFindNearestTag).not.toHaveBeenCalled()
+    })
+
+    it('re-resolves when stored version has no baseTag', async () => {
+      mockedFindNearestTag.mockResolvedValue('v0.17.0')
+      mockedFindLatestVersionTag.mockResolvedValue('v0.17.0')
+      mockedCountCommitsAhead.mockResolvedValue(5)
+
+      const stored = { commit: 'abc1234' }
+      const result = await resolveInstalledVersion('/repo', 'abc1234', stored)
+      expect(result).toEqual({ commit: 'abc1234', baseTag: 'v0.17.0', commitsAhead: 5 })
+    })
+
+    it('re-resolves when commit changed', async () => {
+      mockedFindNearestTag.mockResolvedValue('v0.18.0')
+      mockedFindLatestVersionTag.mockResolvedValue('v0.18.0')
+      mockedCountCommitsAhead.mockResolvedValue(0)
+
+      const stored = { commit: 'old1234', baseTag: 'v0.17.2', commitsAhead: 12 }
+      const result = await resolveInstalledVersion('/repo', 'new5678', stored)
+      expect(result).toEqual({ commit: 'new5678', baseTag: 'v0.18.0', commitsAhead: 0 })
+    })
+
+    it('re-resolves when no stored version exists', async () => {
+      mockedFindNearestTag.mockResolvedValue('v0.17.0')
+      mockedFindLatestVersionTag.mockResolvedValue('v0.17.0')
+      mockedCountCommitsAhead.mockResolvedValue(0)
+
+      const result = await resolveInstalledVersion('/repo', 'abc1234', undefined)
+      expect(result).toEqual({ commit: 'abc1234', baseTag: 'v0.17.0', commitsAhead: 0 })
+    })
+
+    it('passes hint and latestTagOverride through to resolveLocalVersion', async () => {
+      mockedFindNearestTag.mockResolvedValue('v0.16.4')
+      mockedCountCommitsAhead.mockImplementation(async (_repo, tag) => {
+        if (tag === 'v0.16.4') return 38
+        if (tag === 'sha-of-v0.17.1') return 7
+        return undefined
+      })
+      mockedIsAncestorOf.mockResolvedValue(true)
+
+      const result = await resolveInstalledVersion('/repo', 'abc1234', undefined, 'v0.14.0', {
+        name: 'v0.17.1',
+        sha: 'sha-of-v0.17.1',
+      })
+      expect(result).toEqual({ commit: 'abc1234', baseTag: 'v0.17.1', commitsAhead: 7 })
     })
   })
 })

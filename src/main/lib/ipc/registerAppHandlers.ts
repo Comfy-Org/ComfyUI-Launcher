@@ -24,7 +24,7 @@ export function registerAppHandlers(): void {
       .map((s) => ({ id: s.id, label: s.label, category: s.category, description: s.description, fields: s.fields, skipInstall: !!s.skipInstall, hideInstallPath: !!s.skipInstall }))
   )
 
-  ipcMain.handle('get-field-options', async (_event, sourceId: string, fieldId: string, selections: Record<string, unknown>) => {
+  ipcMain.handle('get-field-options', async (_event, sourceId: string, fieldId: string, selections: Record<string, unknown>, extraContext?: Record<string, unknown>) => {
     const source = sourceMap[sourceId]
     if (!source) return []
     let gpuPromise = getGpuPromise()
@@ -37,7 +37,7 @@ export function registerAppHandlers(): void {
     const options = await source.getFieldOptions(
       fieldId,
       selections as Record<string, FieldOption | undefined>,
-      { gpu: gpu && gpu.id }
+      { gpu: gpu && gpu.id, ...extraContext }
     )
     return options
   })

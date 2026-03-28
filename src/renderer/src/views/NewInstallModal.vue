@@ -346,7 +346,8 @@ async function loadFieldOptions(fieldIndex: number): Promise<void> {
     const options = await window.api.getFieldOptions(
       source.id,
       field.id,
-      rawSelections()
+      rawSelections(),
+      field.id === 'release' ? { includeLatestStable: true } : undefined
     )
 
     // Discard stale response if source/modal changed during the await
