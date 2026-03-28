@@ -385,6 +385,8 @@
     "deleteEnvConfirmMessage": "删除环境 \"{env}\"？此操作无法撤销。",
     "setupEnv": "配置环境",
     "updateToStable": "更新到最新稳定版",
+    "latestVersion": "最新版本",
+    "latestVersionDesc": "使用最新的独立版本，然后将 ComfyUI 更新到最新稳定版",
     "updates": "更新",
     "updateChannel": "更新通道",
     "channelStable": "稳定版",

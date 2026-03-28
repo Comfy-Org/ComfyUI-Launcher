@@ -88,9 +88,13 @@ export const standalone: SourcePlugin = {
     const manifest = vd?.manifest
     const variantId = vd?.variantId || ''
     const isCpu = stripPlatform(variantId) === 'cpu' || stripPlatform(variantId).startsWith('cpu-')
+    const isLatest = selections.release?.value === 'latest'
+    // For "Latest version", use the underlying release's tag_name
+    const releaseData = selections.release?.data as unknown as GitHubRelease | undefined
+    const releaseTag = isLatest ? (releaseData?.tag_name || 'unknown') : (selections.release?.value || 'unknown')
     return {
-      version: manifest?.comfyui_ref || selections.release?.value || 'unknown',
-      releaseTag: selections.release?.value || 'unknown',
+      version: manifest?.comfyui_ref || releaseTag,
+      releaseTag,
       variant: variantId,
       downloadUrl: vd?.downloadUrl || '',
       downloadFiles: vd?.downloadFiles || [],
@@ -98,6 +102,7 @@ export const standalone: SourcePlugin = {
       launchArgs: isCpu ? `${DEFAULT_LAUNCH_ARGS} --cpu` : DEFAULT_LAUNCH_ARGS,
       launchMode: 'window',
       browserPartition: 'unique',
+      ...(isLatest ? { autoUpdate: true } : {}),
     }
   },
 
@@ -169,10 +174,24 @@ export const standalone: SourcePlugin = {
         releases.unshift(latest)
       }
       const filtered = releases.filter((r) => r.assets.some((a) => a.name === 'manifests.json'))
-      return filtered.map((r, i) => {
-          const name = r.name && r.name !== r.tag_name ? `${r.tag_name}  —  ${r.name}` : r.tag_name
-          return { value: r.tag_name, label: name, recommended: i === 0, data: r as unknown as Record<string, unknown> }
+      const options: FieldOption[] = []
+
+      // Synthetic "Latest version" entry — uses the newest release but auto-updates ComfyUI after install
+      if (filtered.length > 0) {
+        options.push({
+          value: 'latest',
+          label: t('standalone.latestVersion'),
+          description: t('standalone.latestVersionDesc'),
+          recommended: true,
+          data: filtered[0] as unknown as Record<string, unknown>,
         })
+      }
+
+      for (const r of filtered) {
+        const name = r.name && r.name !== r.tag_name ? `${r.tag_name}  —  ${r.name}` : r.tag_name
+        options.push({ value: r.tag_name, label: name, data: r as unknown as Record<string, unknown> })
+      }
+      return options
     }
 
     if (fieldId === 'variant') {

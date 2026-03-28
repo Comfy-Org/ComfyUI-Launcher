@@ -140,8 +140,8 @@ export async function postInstall(installation: InstallationRecord, { sendProgre
     console.warn('Initial snapshot failed:', err)
   }
 
-  // Auto-update to latest stable release if the bundled version is behind
-  if (fs.existsSync(path.join(comfyuiDir, '.git'))) {
+  // Auto-update to latest stable release if the user selected "Latest version"
+  if (installation.autoUpdate && fs.existsSync(path.join(comfyuiDir, '.git'))) {
     if (signal?.aborted) throw new Error('Cancelled')
     sendProgress('update', { percent: -1, status: 'Fetching latest stable version' })
 
