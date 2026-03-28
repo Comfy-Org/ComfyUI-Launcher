@@ -137,7 +137,7 @@ async function initializeDatadog(): Promise<void> {
       telemetry_effective_enabled: telemetryEnabled !== false,
     })
     window.api.getSystemInfo().then((info) => {
-      try { datadogRum.setGlobalContextProperty('system', info) } catch {}
+      trackTelemetryAction('launcher.session.system_info', info as unknown as Record<string, string | number | boolean | null | undefined>)
     }).catch(() => {})
   } catch {}
 }
@@ -215,14 +215,11 @@ window.api.onInstanceStarted((data) => {
   window.api.getInstallationDdContext(data.installationId).then((ctx) => {
     if (!ctx) return
     const { snapshot_diffs, ...metadata } = ctx
-    try { datadogRum.setGlobalContextProperty('installation', metadata) } catch {}
-    try { datadogRum.addAction('launcher.session.snapshot_history', { installation_id: ctx.installation_id, snapshot_diffs }) } catch {}
+    trackTelemetryAction('launcher.session.installation_started', metadata as unknown as Record<string, string | number | boolean | null | undefined>)
+    if (snapshot_diffs.length > 0) {
+      try { datadogRum.addAction('launcher.session.snapshot_history', { installation_id: ctx.installation_id, snapshot_diffs }) } catch {}
+    }
   }).catch(() => {})
-})
-
-window.api.onInstanceStopped(() => {
-  if (!isDatadogInitialized) return
-  try { datadogRum.removeGlobalContextProperty('installation') } catch {}
 })
 
 const i18n = createI18n({
