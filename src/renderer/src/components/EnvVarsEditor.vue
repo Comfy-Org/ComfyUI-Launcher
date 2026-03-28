@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { ShieldAlert } from 'lucide-vue-next'
 
 const props = defineProps<{
   modelValue: Record<string, string>
@@ -75,7 +76,7 @@ function onValueChange(index: number, val: string): void {
 <template>
   <div class="env-vars-editor">
     <div v-if="entries.length" class="env-vars-list">
-      <div class="env-vars-notice">{{ $t('envVars.securityWarning') }}</div>
+      <div class="env-vars-notice"><ShieldAlert :size="14" class="env-vars-notice-icon" />{{ $t('envVars.securityWarning') }}</div>
       <div v-for="(entry, i) in entries" :key="i" class="env-var-row">
         <input
           type="text"
@@ -101,9 +102,16 @@ function onValueChange(index: number, val: string): void {
 
 <style scoped>
 .env-vars-notice {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: var(--info);
   margin-bottom: 4px;
+}
+
+.env-vars-notice-icon {
+  flex-shrink: 0;
 }
 
 .env-vars-list {

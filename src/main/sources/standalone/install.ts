@@ -10,8 +10,8 @@ import { t } from '../../lib/i18n'
 import * as snapshots from '../../lib/snapshots'
 import { repairMacBinaries, codesignBinaries } from './macRepair'
 import {
-  ENVS_DIR, DEFAULT_ENV, ENV_METHOD, MANIFEST_FILE, DEFAULT_LAUNCH_ARGS,
-  getUvPath, findSitePackages, getMasterPythonPath,
+  MANIFEST_FILE, DEFAULT_LAUNCH_ARGS,
+  getUvPath, getVenvDir, findSitePackages, getMasterPythonPath,
 } from './envPaths'
 import type { InstallationRecord } from '../../installations'
 import type { ComfyVersion } from '../../lib/version'
@@ -39,18 +39,17 @@ async function stripMasterPackages(installPath: string): Promise<void> {
 
 async function createEnv(
   installPath: string,
-  envName: string,
   onProgress: (copied: number, total: number, elapsedSecs: number, etaSecs: number) => void,
   signal?: AbortSignal
 ): Promise<void> {
   const uvPath = getUvPath(installPath)
   const masterPython = getMasterPythonPath(installPath)
-  const envPath = path.join(installPath, ENVS_DIR, envName)
+  const venvPath = getVenvDir(installPath)
   await new Promise<void>((resolve, reject) => {
     if (signal?.aborted) return reject(new Error('Cancelled'))
-    const proc = execFile(uvPath, ['venv', '--python', masterPython, envPath], { cwd: installPath }, (err, _stdout, stderr) => {
+    const proc = execFile(uvPath, ['venv', '--python', masterPython, venvPath], { cwd: installPath }, (err, _stdout, stderr) => {
       if (signal?.aborted) return reject(new Error('Cancelled'))
-      if (err) return reject(new Error(`Failed to create environment "${envName}": ${stderr || err.message}`))
+      if (err) return reject(new Error(`Failed to create .venv: ${stderr || err.message}`))
       resolve()
     })
     signal?.addEventListener('abort', () => { try { proc.kill() } catch {} }, { once: true })
@@ -58,14 +57,14 @@ async function createEnv(
 
   try {
     const masterSitePackages = findSitePackages(path.join(installPath, 'standalone-env'))
-    const envSitePackages = findSitePackages(envPath)
+    const envSitePackages = findSitePackages(venvPath)
     if (!masterSitePackages || !envSitePackages || !fs.existsSync(masterSitePackages)) {
-      throw new Error(`Could not locate site-packages for environment "${envName}".`)
+      throw new Error('Could not locate site-packages for .venv.')
     }
     await copyDirWithProgress(masterSitePackages, envSitePackages, onProgress, { signal })
     await codesignBinaries(envSitePackages)
   } catch (err) {
-    await fs.promises.rm(envPath, { recursive: true, force: true }).catch(() => {})
+    await fs.promises.rm(venvPath, { recursive: true, force: true }).catch(() => {})
     throw err
   }
 }
@@ -97,16 +96,14 @@ export async function postInstall(installation: InstallationRecord, { sendProgre
   }
   await repairMacBinaries(installation.installPath, sendProgress)
   if (signal?.aborted) throw new Error('Cancelled')
-  sendProgress('setup', { percent: 0, status: 'Creating default Python environment…' })
-  await createEnv(installation.installPath, DEFAULT_ENV, (copied, total, elapsedSecs, etaSecs) => {
+  sendProgress('setup', { percent: 0, status: 'Creating Python environment…' })
+  await createEnv(installation.installPath, (copied, total, elapsedSecs, etaSecs) => {
     const percent = Math.round((copied / total) * 100)
     const elapsed = formatTime(elapsedSecs)
     const eta = etaSecs >= 0 ? formatTime(etaSecs) : '—'
     sendProgress('setup', { percent, status: `Copying packages… ${copied} / ${total} files  ·  ${elapsed} elapsed  ·  ${eta} remaining` })
   }, signal)
   if (signal?.aborted) throw new Error('Cancelled')
-  const envMethods = { ...(installation.envMethods as Record<string, string> | undefined), [DEFAULT_ENV]: ENV_METHOD }
-  await update({ envMethods })
   sendProgress('cleanup', { percent: -1, status: t('standalone.cleanupEnvStatus') })
   await stripMasterPackages(installation.installPath)
 
@@ -143,6 +140,8 @@ export async function probeInstallation(dirPath: string): Promise<Record<string,
   const envExists = fs.existsSync(path.join(dirPath, 'standalone-env'))
   const mainExists = fs.existsSync(path.join(dirPath, 'ComfyUI', 'main.py'))
   if (!envExists || !mainExists) return null
+  const hasVenv = fs.existsSync(path.join(dirPath, 'ComfyUI', '.venv'))
+  const hasLegacyEnvs = fs.existsSync(path.join(dirPath, 'envs'))
   const hasGit = fs.existsSync(path.join(dirPath, 'ComfyUI', '.git'))
 
   let version = 'unknown'
@@ -176,5 +175,73 @@ export async function probeInstallation(dirPath: string): Promise<Record<string,
     hasGit,
     launchArgs: DEFAULT_LAUNCH_ARGS,
     launchMode: 'window',
+    ...(hasLegacyEnvs && !hasVenv ? { needsEnvMigration: true } : {}),
   }
+}
+
+export async function migrateEnvLayout(
+  installPath: string,
+  update: (data: Record<string, unknown>) => Promise<unknown>,
+  sendProgress?: (step: string, data: { percent: number; status: string }) => void,
+): Promise<boolean> {
+  const venvDir = getVenvDir(installPath)
+  if (fs.existsSync(venvDir)) return false
+
+  const legacyEnvDir = path.join(installPath, 'envs', 'default')
+  if (!fs.existsSync(legacyEnvDir)) return false
+
+  sendProgress?.('migration', { percent: 0, status: 'Migrating environment layout…' })
+
+  // Move envs/default/ → ComfyUI/.venv/
+  await fs.promises.rename(legacyEnvDir, venvDir)
+
+  // Fix up pyvenv.cfg home path (old path included envs/default/)
+  const cfgPath = path.join(venvDir, 'pyvenv.cfg')
+  if (fs.existsSync(cfgPath)) {
+    let content = await fs.promises.readFile(cfgPath, 'utf-8')
+    const oldEnvPath = path.join(installPath, 'envs', 'default')
+    content = content.replaceAll(oldEnvPath, venvDir)
+    await fs.promises.writeFile(cfgPath, content, 'utf-8')
+  }
+
+  // Fix up shebangs on unix
+  if (process.platform !== 'win32') {
+    const binDir = path.join(venvDir, 'bin')
+    if (fs.existsSync(binDir)) {
+      const entries = await fs.promises.readdir(binDir, { withFileTypes: true })
+      const oldEnvPath = path.join(installPath, 'envs', 'default')
+      for (const entry of entries) {
+        if (!entry.isFile()) continue
+        const filePath = path.join(binDir, entry.name)
+        try {
+          let content = await fs.promises.readFile(filePath, 'utf-8')
+          if (content.startsWith('#!') && content.includes(oldEnvPath)) {
+            content = content.replaceAll(oldEnvPath, venvDir)
+            await fs.promises.writeFile(filePath, content, 'utf-8')
+          }
+        } catch {}
+      }
+    }
+  }
+
+  // On macOS, re-codesign moved binaries
+  if (process.platform === 'darwin') {
+    sendProgress?.('migration', { percent: 50, status: 'Codesigning migrated binaries…' })
+    await codesignBinaries(venvDir)
+  }
+
+  // Remove empty envs/ directory
+  const envsDir = path.join(installPath, 'envs')
+  try {
+    const remaining = await fs.promises.readdir(envsDir)
+    if (remaining.length === 0) {
+      await fs.promises.rmdir(envsDir)
+    }
+  } catch {}
+
+  // Clean up stale metadata fields
+  await update({ activeEnv: undefined, envMethods: undefined, needsEnvMigration: undefined })
+
+  sendProgress?.('migration', { percent: 100, status: 'Migration complete' })
+  return true
 }

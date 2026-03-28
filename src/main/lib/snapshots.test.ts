@@ -665,13 +665,13 @@ describe('restorePipPackages', () => {
   beforeEach(async () => {
     tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pip-restore-test-'))
     // Create the directory structure that restorePipPackages expects
-    const envDir = path.join(tmpDir, 'envs', 'default')
+    const venvDir = path.join(tmpDir, 'ComfyUI', '.venv')
     if (process.platform === 'win32') {
-      sitePackagesDir = path.join(envDir, 'Lib', 'site-packages')
-      pythonPath = path.join(envDir, 'Scripts', 'python.exe')
+      sitePackagesDir = path.join(venvDir, 'Lib', 'site-packages')
+      pythonPath = path.join(venvDir, 'Scripts', 'python.exe')
     } else {
-      sitePackagesDir = path.join(envDir, 'lib', 'python3.11', 'site-packages')
-      pythonPath = path.join(envDir, 'bin', 'python3')
+      sitePackagesDir = path.join(venvDir, 'lib', 'python3.11', 'site-packages')
+      pythonPath = path.join(venvDir, 'bin', 'python3')
     }
     await fs.promises.mkdir(sitePackagesDir, { recursive: true })
     await fs.promises.mkdir(path.dirname(pythonPath), { recursive: true })
