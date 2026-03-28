@@ -182,7 +182,7 @@
     "nameLocation": "Name & Location",
     "next": "Next",
     "recommended": "Recommended",
-    "latest": "Latest",
+    "latest": "Recommended",
     "changeInstallType": "Change Install Type"
   },
 
@@ -513,8 +513,7 @@
     "cleanupEnv": "Clean up environment",
     "cleanupEnvStatus": "Removing redundant packages from template environment…",
     "updateToStable": "Update to latest stable",
-    "latestVersion": "Latest version",
-    "latestVersionDesc": "Uses the newest standalone release, then updates ComfyUI to the latest stable version",
+    "latestVersion": "Latest Stable",
     "repairBinaries": "Repair macOS Binaries",
     "repairBinariesTitle": "Repairing macOS Binaries",
     "updates": "Updates",

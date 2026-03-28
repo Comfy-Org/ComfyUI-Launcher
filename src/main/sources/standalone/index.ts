@@ -181,7 +181,6 @@ export const standalone: SourcePlugin = {
         options.push({
           value: 'latest',
           label: t('standalone.latestVersion'),
-          description: t('standalone.latestVersionDesc'),
           recommended: true,
           data: filtered[0] as unknown as Record<string, unknown>,
         })
