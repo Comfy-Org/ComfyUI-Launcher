@@ -139,25 +139,29 @@ export function registerAppHandlers(): void {
     let cpuPhysicalCores: number | null = null
     let cpuSpeedGhz: number | null = null
     let allGpus: Array<{ vendor: string; model: string; vram_mb: number | null; driver_version: string | null }> = []
-    try {
-      const [osInfo, cpuInfo, graphicsInfo] = await Promise.all([
-        si.osInfo(),
-        si.cpu(),
-        si.graphics(),
-      ])
-      osDistro = osInfo.distro || null
-      osRelease = osInfo.release || null
-      osArch = osInfo.arch || null
-      cpuManufacturer = cpuInfo.manufacturer || null
-      cpuPhysicalCores = cpuInfo.physicalCores ?? null
-      cpuSpeedGhz = cpuInfo.speed ?? null
-      allGpus = graphicsInfo.controllers.map((ctrl) => ({
+    const [osResult, cpuResult, gpuResult] = await Promise.allSettled([
+      si.osInfo(),
+      si.cpu(),
+      si.graphics(),
+    ])
+    if (osResult.status === 'fulfilled') {
+      osDistro = osResult.value.distro || null
+      osRelease = osResult.value.release || null
+      osArch = osResult.value.arch || null
+    }
+    if (cpuResult.status === 'fulfilled') {
+      cpuManufacturer = cpuResult.value.manufacturer || null
+      cpuPhysicalCores = cpuResult.value.physicalCores ?? null
+      cpuSpeedGhz = cpuResult.value.speed ?? null
+    }
+    if (gpuResult.status === 'fulfilled') {
+      allGpus = gpuResult.value.controllers.map((ctrl) => ({
         vendor: ctrl.vendor || '',
         model: ctrl.model || '',
         vram_mb: ctrl.vram ?? null,
         driver_version: ctrl.driverVersion?.trim() || null,
       }))
-    } catch {}
+    }
 
     return {
       gpu_vendor: gpu?.id ?? null,
