@@ -8,7 +8,7 @@ import { pipFreeze, runUvPip as sharedRunUvPip, installFilteredRequirements, get
 import { installCnrNode, switchCnrVersion, isSafePathComponent } from '../cnr'
 import { killProcTree } from '../process'
 import { formatComfyVersion } from '../version'
-import { getUvPath, getActivePythonPath } from '../pythonEnv'
+import { getUvPath, getActivePythonPath, getVenvDir } from '../pythonEnv'
 import type { Snapshot, RestoreResult, NodeRestoreResult } from './types'
 import type { ScannedNode } from '../nodes'
 import type { InstallationRecord } from '../../installations'
@@ -366,9 +366,13 @@ export async function restorePipPackages(
 
   // 3. Create targeted backup of packages that will be modified or removed
   sendProgress('restore', { percent: 10, status: 'Creating backup of affected packages…' })
-  const envName = (installation.activeEnv as string | undefined) || 'default'
-  const envDir = path.join(installPath, 'envs', envName)
-  const sitePackages = findSitePackagesDir(envDir)
+  let envDir = getVenvDir(installPath)
+  let sitePackages = findSitePackagesDir(envDir)
+  if (!sitePackages) {
+    // Fallback: legacy envs/default/ layout (pre-migration)
+    envDir = path.join(installPath, 'envs', 'default')
+    sitePackages = findSitePackagesDir(envDir)
+  }
   if (!sitePackages) {
     throw new Error('Could not locate site-packages directory')
   }

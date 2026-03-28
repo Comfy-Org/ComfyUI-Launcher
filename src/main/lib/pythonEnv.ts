@@ -2,9 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import type { InstallationRecord } from '../installations'
 
-export const ENVS_DIR = 'envs'
-export const DEFAULT_ENV = 'default'
-
 export function getUvPath(installPath: string): string {
   if (process.platform === 'win32') {
     return path.join(installPath, 'standalone-env', 'uv.exe')
@@ -12,37 +9,25 @@ export function getUvPath(installPath: string): string {
   return path.join(installPath, 'standalone-env', 'bin', 'uv')
 }
 
-export function getEnvPythonPath(installPath: string, envName: string): string {
-  const envDir = path.join(installPath, ENVS_DIR, envName)
+export function getVenvDir(installPath: string): string {
+  return path.join(installPath, 'ComfyUI', '.venv')
+}
+
+export function getVenvPythonPath(installPath: string): string {
+  const venvDir = getVenvDir(installPath)
   if (process.platform === 'win32') {
-    return path.join(envDir, 'Scripts', 'python.exe')
+    return path.join(venvDir, 'Scripts', 'python.exe')
   }
-  return path.join(envDir, 'bin', 'python3')
-}
-
-export function listEnvs(installPath: string): string[] {
-  const envsPath = path.join(installPath, ENVS_DIR)
-  if (!fs.existsSync(envsPath)) return []
-  try {
-    return fs.readdirSync(envsPath, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-  } catch {
-    return []
-  }
-}
-
-export function resolveActiveEnv(installation: InstallationRecord): string | null {
-  const preferred = (installation.activeEnv as string | undefined) || DEFAULT_ENV
-  const envs = listEnvs(installation.installPath)
-  if (envs.includes(preferred)) return preferred
-  return envs.length > 0 ? envs[0]! : null
+  return path.join(venvDir, 'bin', 'python3')
 }
 
 export function getActivePythonPath(installation: InstallationRecord): string | null {
-  const env = resolveActiveEnv(installation)
-  if (!env) return null
-  const envPython = getEnvPythonPath(installation.installPath, env)
-  if (fs.existsSync(envPython)) return envPython
+  const pythonPath = getVenvPythonPath(installation.installPath)
+  if (fs.existsSync(pythonPath)) return pythonPath
+  // Fallback: legacy envs/default/ layout (pre-migration)
+  const legacyPath = process.platform === 'win32'
+    ? path.join(installation.installPath, 'envs', 'default', 'Scripts', 'python.exe')
+    : path.join(installation.installPath, 'envs', 'default', 'bin', 'python3')
+  if (fs.existsSync(legacyPath)) return legacyPath
   return null
 }
