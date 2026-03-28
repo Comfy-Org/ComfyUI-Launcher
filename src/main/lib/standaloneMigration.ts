@@ -91,7 +91,8 @@ async function resolveStandaloneInstallData(
     release = target.release
     variant = target.variant
   } else {
-    const releaseOptions = await standaloneSource.getFieldOptions!('release', {}, {})
+    // Exclude the synthetic "Latest Stable" entry — migration targets a specific release
+    const releaseOptions = (await standaloneSource.getFieldOptions!('release', {}, {})).filter((r) => r.value !== 'latest')
     if (releaseOptions.length === 0) {
       cleanupOnError()
       throw new Error('No releases available.')
