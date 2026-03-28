@@ -164,13 +164,17 @@ async function handleBrowse(): Promise<void> {
   }
 }
 
+const contentRef = ref<HTMLElement | null>(null)
+
 function handleDragOver(event: DragEvent): void {
   event.preventDefault()
   dragging.value = true
 }
 
-function handleDragLeave(): void {
-  dragging.value = false
+function handleDragLeave(event: DragEvent): void {
+  if (contentRef.value && !contentRef.value.contains(event.relatedTarget as Node)) {
+    dragging.value = false
+  }
 }
 
 async function handleDrop(event: DragEvent): Promise<void> {
@@ -298,7 +302,13 @@ defineExpose({ open })
     @mousedown="handleOverlayMouseDown"
     @click="handleOverlayClick"
   >
-    <div class="view-modal-content">
+    <div
+      ref="contentRef"
+      class="view-modal-content"
+      @dragover="!preview && handleDragOver($event)"
+      @dragleave="!preview && handleDragLeave($event)"
+      @drop="!preview && handleDrop($event)"
+    >
       <div class="view-modal-header">
         <div class="view-modal-title">{{ $t('list.loadSnapshot') }}</div>
         <button class="view-modal-close" @click="emit('close')">✕</button>
@@ -310,9 +320,6 @@ defineExpose({ open })
             <div
               class="ls-drop-zone"
               :class="{ 'ls-drop-zone-active': dragging, 'ls-drop-zone-loading': loading }"
-              @dragover="handleDragOver"
-              @dragleave="handleDragLeave"
-              @drop="handleDrop"
             >
               <div v-if="loading" class="ls-drop-loading with-spinner">{{ $t('newInstall.loading') }}</div>
               <template v-else>
@@ -518,12 +525,18 @@ defineExpose({ open })
 </template>
 
 <style scoped>
+/* Ensure view-scroll stretches the drop zone when no preview is loaded */
+.view-scroll:has(.ls-drop-zone-wrap) {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Drop zone */
 .ls-drop-zone-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  flex: 1;
 }
 
 .ls-drop-zone {
@@ -533,7 +546,7 @@ defineExpose({ open })
   justify-content: center;
   gap: 10px;
   width: 100%;
-  min-height: 180px;
+  height: 100%;
   border: 2px dashed var(--border);
   border-radius: 8px;
   padding: 32px;
