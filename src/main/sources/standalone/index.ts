@@ -5,9 +5,9 @@ import { parseArgs, extractPort } from '../../lib/util'
 import { t } from '../../lib/i18n'
 import { launchAction } from '../../lib/actions'
 import {
-  PLATFORM_PREFIX, DEFAULT_LAUNCH_ARGS, ENVS_DIR,
+  PLATFORM_PREFIX, DEFAULT_LAUNCH_ARGS,
   getVariantLabel, stripPlatform, getActivePythonPath,
-  listEnvs, recommendVariant,
+  getVenvDir, recommendVariant,
 } from './envPaths'
 import { install, postInstall, probeInstallation } from './install'
 import { getListPreview, getStatusTag, getDetailSections, RELEASE_REPO } from './updateSections'
@@ -129,34 +129,30 @@ export const standalone: SourcePlugin = {
   handleAction,
 
   async fixupCopy(srcPath: string, destPath: string): Promise<void> {
-    const envsDir = path.join(destPath, ENVS_DIR)
-    if (!fs.existsSync(envsDir)) return
+    const venvPath = getVenvDir(destPath)
+    if (!fs.existsSync(venvPath)) return
 
-    for (const envName of listEnvs(destPath)) {
-      const envPath = path.join(envsDir, envName)
+    const cfgPath = path.join(venvPath, 'pyvenv.cfg')
+    if (fs.existsSync(cfgPath)) {
+      let content = await fs.promises.readFile(cfgPath, 'utf-8')
+      content = content.replaceAll(srcPath, destPath)
+      await fs.promises.writeFile(cfgPath, content, 'utf-8')
+    }
 
-      const cfgPath = path.join(envPath, 'pyvenv.cfg')
-      if (fs.existsSync(cfgPath)) {
-        let content = await fs.promises.readFile(cfgPath, 'utf-8')
-        content = content.replaceAll(srcPath, destPath)
-        await fs.promises.writeFile(cfgPath, content, 'utf-8')
-      }
-
-      if (process.platform !== 'win32') {
-        const binDir = path.join(envPath, 'bin')
-        if (fs.existsSync(binDir)) {
-          const entries = await fs.promises.readdir(binDir, { withFileTypes: true })
-          for (const entry of entries) {
-            if (!entry.isFile()) continue
-            const filePath = path.join(binDir, entry.name)
-            try {
-              let content = await fs.promises.readFile(filePath, 'utf-8')
-              if (content.startsWith('#!') && content.includes(srcPath)) {
-                content = content.replaceAll(srcPath, destPath)
-                await fs.promises.writeFile(filePath, content, 'utf-8')
-              }
-            } catch {}
-          }
+    if (process.platform !== 'win32') {
+      const binDir = path.join(venvPath, 'bin')
+      if (fs.existsSync(binDir)) {
+        const entries = await fs.promises.readdir(binDir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (!entry.isFile()) continue
+          const filePath = path.join(binDir, entry.name)
+          try {
+            let content = await fs.promises.readFile(filePath, 'utf-8')
+            if (content.startsWith('#!') && content.includes(srcPath)) {
+              content = content.replaceAll(srcPath, destPath)
+              await fs.promises.writeFile(filePath, content, 'utf-8')
+            }
+          } catch {}
         }
       }
     }

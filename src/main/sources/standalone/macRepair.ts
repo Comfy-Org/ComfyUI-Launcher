@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { execFile } from 'child_process'
-import { ENVS_DIR } from './envPaths'
+import { getVenvDir } from './envPaths'
 
 export async function removeQuarantine(dir: string, log?: (text: string) => void): Promise<void> {
   if (process.platform !== 'darwin') return
@@ -24,11 +24,11 @@ export async function repairMacBinaries(
   await removeQuarantine(standaloneEnvDir, sendOutput)
   sendProgress('repair', { percent: -1, status: 'Codesigning binaries…' })
   await codesignBinaries(standaloneEnvDir, sendOutput)
-  const envsDir = path.join(installPath, ENVS_DIR)
-  if (fs.existsSync(envsDir)) {
+  const venvDir = getVenvDir(installPath)
+  if (fs.existsSync(venvDir)) {
     sendProgress('repair', { percent: -1, status: 'Codesigning environment binaries…' })
-    await removeQuarantine(envsDir, sendOutput)
-    await codesignBinaries(envsDir, sendOutput)
+    await removeQuarantine(venvDir, sendOutput)
+    await codesignBinaries(venvDir, sendOutput)
   }
 }
 

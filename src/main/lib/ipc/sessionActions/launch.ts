@@ -20,7 +20,8 @@ import {
 import type { ChildProcess, LaunchCmd } from '../shared'
 import type { ActionContext, ActionResult } from './types'
 
-export async function handleLaunch({ event, installationId, inst, actionData }: ActionContext): Promise<ActionResult> {
+export async function handleLaunch({ event, installationId, inst: instArg, actionData }: ActionContext): Promise<ActionResult> {
+  let inst = instArg
   if (_runningSessions.has(installationId)) {
     return { ok: false, message: i18n.t('errors.alreadyRunning') }
   }
@@ -32,6 +33,18 @@ export async function handleLaunch({ event, installationId, inst, actionData }: 
   if (!source.skipInstall && isEffectivelyEmptyInstallDir(inst.installPath)) {
     return { ok: false, message: i18n.t('errors.installDirEmpty') }
   }
+  // Migrate legacy envs/default/ → ComfyUI/.venv/ for standalone installations
+  if (inst.sourceId === 'standalone') {
+    const { migrateEnvLayout } = await import('../../../sources/standalone/install')
+    const updateFn = async (data: Record<string, unknown>): Promise<unknown> => installations.update(installationId, data)
+    try {
+      const migrated = await migrateEnvLayout(inst.installPath, updateFn)
+      if (migrated) inst = (await installations.get(installationId)) || inst
+    } catch (err) {
+      console.warn('Env layout migration failed:', err)
+    }
+  }
+
   const launchCmdRaw = source.getLaunchCommand(inst)
   if (!launchCmdRaw) {
     return { ok: false, message: i18n.t('errors.noEnvFound') }
