@@ -36,6 +36,9 @@ async function buildSnapshotPreview(filePath: string, envelope: SnapshotExportEn
   const ref = await _findReferenceRepo()
 
   const resolveVersion = async (comfyui: { ref: string; commit: string | null; baseTag?: string; commitsAhead?: number }, style: 'short' | 'detail'): Promise<string> => {
+    // If the snapshot already has stored version metadata, prefer it — re-resolving
+    // against the current repo can produce wrong results when newer tags exist.
+    if (comfyui.baseTag !== undefined) return formatSnapshotVersion(comfyui, style)
     if (!comfyui.commit || !ref) return formatSnapshotVersion(comfyui, style)
     try {
       const cv = await resolveLocalVersion(ref.comfyuiDir, comfyui.commit, undefined, ref.override)
