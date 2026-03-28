@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { spawn, execFile } from 'child_process'
+import { execFile } from 'child_process'
 import { fetchJSON } from '../lib/fetch'
-import { untrackAction } from '../lib/actions'
+import { runLoggedProcess, formatProcessError } from '../lib/logged-process'
+import { untrackAction, launchAction, openFolderAction, migrateToStandaloneAction } from '../lib/actions'
 import { parseArgs, extractPort } from '../lib/util'
 import { t } from '../lib/i18n'
 import { buildLaunchSettingsFields } from './common/launchSettingsFields'
@@ -145,10 +146,9 @@ export const gitSource: SourcePlugin = {
     const hasVenv = !!resolveVenvPython(installation)
     const hasMain = !!findMainPy(installation.installPath)
     const canLaunch = installed && hasVenv && hasMain
+    const disabledMsg = !canLaunch ? (!hasVenv ? t('git.noVenv') : !hasMain ? t('git.noMainPy') : t('errors.installNotReady')) : undefined
     return [
-      { id: 'launch', label: t('actions.launch'), style: 'primary', enabled: canLaunch,
-        ...(!canLaunch && { disabledMessage: !hasVenv ? t('git.noVenv') : !hasMain ? t('git.noMainPy') : t('errors.installNotReady') }),
-        showProgress: true, progressTitle: t('common.startingComfyUI'), cancellable: true },
+      launchAction(canLaunch, disabledMsg),
     ]
   },
 
@@ -196,25 +196,11 @@ export const gitSource: SourcePlugin = {
         title: 'Actions',
         pinBottom: true,
         actions: [
-          { id: 'launch', label: t('actions.launch'), style: 'primary', enabled: canLaunch,
-            ...(!canLaunch && { disabledMessage: !hasVenv ? t('git.noVenv') : !hasMain ? t('git.noMainPy') : t('errors.installNotReady') }),
-            showProgress: true, progressTitle: t('common.startingComfyUI'), cancellable: true },
-          { id: 'open-folder', label: t('actions.openDirectory'), style: 'default', enabled: !!installation.installPath },
+          launchAction(canLaunch, !canLaunch ? (!hasVenv ? t('git.noVenv') : !hasMain ? t('git.noMainPy') : t('errors.installNotReady')) : undefined),
+          openFolderAction(installation.installPath),
           { id: 'git-pull', label: t('git.gitPull'), style: 'default', enabled: installed,
             showProgress: true, progressTitle: t('git.gitPulling') },
-          { id: 'migrate-to-standalone',
-            label: t('migrate.migrateToStandalone'),
-            style: 'default',
-            enabled: installed,
-            showProgress: true,
-            progressTitle: t('migrate.migrating'),
-            cancellable: true,
-            confirm: {
-              title: t('migrate.migrateToStandaloneConfirmTitle'),
-              message: t('migrate.migrateToStandaloneConfirmMessage'),
-              confirmLabel: t('migrate.migrateToStandaloneConfirm'),
-            },
-          },
+          migrateToStandaloneAction(installed),
           untrackAction(),
         ],
       },
@@ -284,47 +270,14 @@ export const gitSource: SourcePlugin = {
 
       sendProgress('pull', { percent: -1, status: t('git.gitPulling') })
 
-      let stdoutBuf = ''
-      let stderrBuf = ''
-      let exitSignal: string | null = null
-      const exitCode = await new Promise<number>((resolve) => {
-        const proc = spawn(gitPath, ['pull'], {
-          cwd: installation.installPath,
-          stdio: ['ignore', 'pipe', 'pipe'],
-          windowsHide: true,
-          env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-        })
-        proc.stdout.on('data', (chunk: Buffer) => {
-          const text = chunk.toString('utf-8')
-          stdoutBuf += text
-          sendOutput(text)
-        })
-        proc.stderr.on('data', (chunk: Buffer) => {
-          const text = chunk.toString('utf-8')
-          stderrBuf += text
-          sendOutput(text)
-        })
-        proc.on('error', (err: Error) => {
-          sendOutput(`Error: ${err.message}\n`)
-          resolve(1)
-        })
-        proc.on('close', (code: number | null, sig: string | null) => {
-          exitSignal = sig
-          resolve(code ?? 1)
-        })
+      const result = await runLoggedProcess(gitPath, ['pull'], {
+        cwd: installation.installPath,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+        sendOutput,
       })
 
-      if (exitCode !== 0) {
-        const detail = (stderrBuf || stdoutBuf).trim().split('\n').slice(-20).join('\n')
-        let message: string
-        if (detail) {
-          message = `${t('git.gitPullFailed', { code: exitCode })}\n\n${detail}`
-        } else if (exitSignal) {
-          message = `${t('git.gitPullFailed', { code: exitCode })}\n\nProcess was killed by signal ${exitSignal}.`
-        } else {
-          message = `${t('git.gitPullFailed', { code: exitCode })}\n\nProcess produced no output.`
-        }
-        return { ok: false, message }
+      if (result.exitCode !== 0) {
+        return { ok: false, message: formatProcessError(t('git.gitPullFailed', { code: result.exitCode }), result) }
       }
 
       sendOutput(`\n✓ ${t('git.gitPullComplete')}\n`)

@@ -87,7 +87,7 @@ export function createUrlSource(config: UrlSourceConfig): SourcePlugin {
           showProgress: true, progressTitle: t('actions.connecting'), cancellable: true },
       ]
       if (includeUntrack) {
-        actions.push(untrackAction() as unknown as Record<string, unknown>)
+        actions.push(untrackAction())
       }
 
       return [

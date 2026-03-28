@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
-import { spawn } from 'child_process'
 import { app } from 'electron'
 import { fetchJSON } from '../lib/fetch'
-import { deleteAction, untrackAction } from '../lib/actions'
+import { deleteAction, untrackAction, launchAction, openFolderAction, migrateToStandaloneAction } from '../lib/actions'
 import { downloadAndExtract } from '../lib/installer'
+import { runLoggedProcess, formatProcessError } from '../lib/logged-process'
 import * as releaseCache from '../lib/release-cache'
 import { parseArgs, extractPort } from '../lib/util'
 import { t } from '../lib/i18n'
@@ -118,9 +118,7 @@ export const portable: SourcePlugin = {
   getListActions(installation: InstallationRecord): Record<string, unknown>[] {
     const installed = installation.status === 'installed'
     return [
-      { id: 'launch', label: t('actions.launch'), style: 'primary', enabled: installed,
-        ...(!installed && { disabledMessage: t('errors.installNotReady') }),
-        showProgress: true, progressTitle: t('common.startingComfyUI'), cancellable: true },
+      launchAction(installed, !installed ? t('errors.installNotReady') : undefined),
     ]
   },
 
@@ -212,23 +210,9 @@ export const portable: SourcePlugin = {
         title: 'Actions',
         pinBottom: true,
         actions: [
-          { id: 'launch', label: t('actions.launch'), style: 'primary', enabled: installed,
-            ...(!installed && { disabledMessage: t('errors.installNotReady') }),
-            showProgress: true, progressTitle: t('common.startingComfyUI'), cancellable: true },
-          { id: 'open-folder', label: t('actions.openDirectory'), style: 'default', enabled: !!installation.installPath },
-          { id: 'migrate-to-standalone',
-            label: t('migrate.migrateToStandalone'),
-            style: 'default',
-            enabled: installed,
-            showProgress: true,
-            progressTitle: t('migrate.migrating'),
-            cancellable: true,
-            confirm: {
-              title: t('migrate.migrateToStandaloneConfirmTitle'),
-              message: t('migrate.migrateToStandaloneConfirmMessage'),
-              confirmLabel: t('migrate.migrateToStandaloneConfirm'),
-            },
-          },
+          launchAction(installed, !installed ? t('errors.installNotReady') : undefined),
+          openFolderAction(installation.installPath),
+          migrateToStandaloneAction(installed),
           deleteAction(installation),
           untrackAction(),
         ],
@@ -316,48 +300,17 @@ export const portable: SourcePlugin = {
       sendProgress('prepare', { percent: -1, status: 'Checking for updater updates…' })
       sendProgress('run', { percent: -1, status: 'Running update…' })
 
-      const runUpdateScript = (extraArgs: string[]): Promise<{ exitCode: number; stdout: string; stderr: string; signal: string | null }> => {
-        return new Promise<{ exitCode: number; stdout: string; stderr: string; signal: string | null }>((resolve) => {
-          let stdout = ''
-          let stderr = ''
-          const proc = spawn(pythonExe, ['-s', updateScript, comfyuiDir, ...extraArgs, ...stableArgs], {
-            cwd: updateDir,
-            stdio: ['ignore', 'pipe', 'pipe'],
-            windowsHide: true,
-          })
-          proc.stdout.on('data', (chunk: Buffer) => {
-            const text = chunk.toString('utf-8')
-            stdout += text
-            sendOutput(text)
-          })
-          proc.stderr.on('data', (chunk: Buffer) => {
-            const text = chunk.toString('utf-8')
-            stderr += text
-            sendOutput(text)
-          })
-          proc.on('error', (err: Error) => {
-            sendOutput(`Error: ${err.message}\n`)
-            resolve({ exitCode: 1, stdout: '', stderr: err.message, signal: null })
-          })
-          proc.on('close', (code: number | null, sig: string | null) => resolve({ exitCode: code ?? 1, stdout, stderr, signal: sig }))
-        })
-      }
+      const runUpdate = (extraArgs: string[]) =>
+        runLoggedProcess(pythonExe, ['-s', updateScript, comfyuiDir, ...extraArgs, ...stableArgs], { cwd: updateDir, sendOutput })
 
-      const result = await runUpdateScript([])
+      const errorContext = { cmd: pythonExe, script: updateScript }
+
+      const result = await runUpdate([])
 
       if (result.exitCode !== 0) {
         const updateNewPy = path.join(updateDir, 'update_new.py')
         if (!fs.existsSync(updateNewPy)) {
-          const detail = (result.stderr || result.stdout).trim().split('\n').slice(-20).join('\n')
-          let message: string
-          if (detail) {
-            message = `${t('portable.updateFailed', { code: result.exitCode })}\n\n${detail}`
-          } else if (result.signal) {
-            message = `${t('portable.updateFailed', { code: result.exitCode })}\n\nProcess was killed by signal ${result.signal}.\npython: ${pythonExe}\nscript: ${updateScript}`
-          } else {
-            message = `${t('portable.updateFailed', { code: result.exitCode })}\n\nProcess produced no output.\npython: ${pythonExe}\nscript: ${updateScript}`
-          }
-          return { ok: false, message }
+          return { ok: false, message: formatProcessError(t('portable.updateFailed', { code: result.exitCode }), result, errorContext) }
         }
       }
 
@@ -369,18 +322,9 @@ export const portable: SourcePlugin = {
         } catch (err) {
           sendOutput(`Warning: could not replace updater: ${(err as Error).message}\n`)
         }
-        const result2 = await runUpdateScript(['--skip_self_update'])
+        const result2 = await runUpdate(['--skip_self_update'])
         if (result2.exitCode !== 0) {
-          const detail = (result2.stderr || result2.stdout).trim().split('\n').slice(-20).join('\n')
-          let message: string
-          if (detail) {
-            message = `${t('portable.updateFailed', { code: result2.exitCode })}\n\n${detail}`
-          } else if (result2.signal) {
-            message = `${t('portable.updateFailed', { code: result2.exitCode })}\n\nProcess was killed by signal ${result2.signal}.\npython: ${pythonExe}\nscript: ${updateScript}`
-          } else {
-            message = `${t('portable.updateFailed', { code: result2.exitCode })}\n\nProcess produced no output.\npython: ${pythonExe}\nscript: ${updateScript}`
-          }
-          return { ok: false, message }
+          return { ok: false, message: formatProcessError(t('portable.updateFailed', { code: result2.exitCode }), result2, errorContext) }
         }
       }
 

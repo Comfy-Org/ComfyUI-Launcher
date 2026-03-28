@@ -6,7 +6,7 @@ import type { ChannelDef } from '../../lib/channel-cards'
 import { formatComfyVersion } from '../../lib/version'
 import type { ComfyVersion } from '../../lib/version'
 import { truncateNotes } from '../../lib/comfyui-releases'
-import { deleteAction, untrackAction } from '../../lib/actions'
+import { deleteAction, untrackAction, launchAction, openFolderAction } from '../../lib/actions'
 import { t } from '../../lib/i18n'
 import { buildLaunchSettingsFields } from '../common/launchSettingsFields'
 import { getVariantLabel, DEFAULT_LAUNCH_ARGS } from './envPaths'
@@ -184,9 +184,7 @@ export function getDetailSections(installation: InstallationRecord): Record<stri
       title: 'Actions',
       pinBottom: true,
       actions: [
-        { id: 'launch', label: t('actions.launch'), style: 'primary', enabled: installed,
-          ...(!installed && { disabledMessage: t('errors.installNotReady') }),
-          showProgress: true, progressTitle: t('common.startingComfyUI'), cancellable: true },
+        launchAction(installed, !installed ? t('errors.installNotReady') : undefined),
         { id: 'copy', label: t('actions.copyInstallation'), style: 'default', enabled: installed,
           showProgress: true, progressTitle: t('actions.copyingInstallation'), cancellable: true,
           prompt: {
@@ -197,7 +195,7 @@ export function getDetailSections(installation: InstallationRecord): Record<stri
             required: true,
             field: 'name',
           } },
-        { id: 'open-folder', label: t('actions.openDirectory'), style: 'default', enabled: !!installation.installPath },
+        openFolderAction(installation.installPath),
         deleteAction(installation),
         untrackAction(),
       ],

@@ -3,6 +3,7 @@ import path from 'path'
 import { fetchJSON } from '../../lib/fetch'
 import { parseArgs, extractPort } from '../../lib/util'
 import { t } from '../../lib/i18n'
+import { launchAction } from '../../lib/actions'
 import {
   PLATFORM_PREFIX, DEFAULT_LAUNCH_ARGS, ENVS_DIR,
   getVariantLabel, stripPlatform, getActivePythonPath,
@@ -118,9 +119,7 @@ export const standalone: SourcePlugin = {
   getListActions(installation: InstallationRecord): Record<string, unknown>[] {
     const installed = installation.status === 'installed'
     return [
-      { id: 'launch', label: t('actions.launch'), style: 'primary', enabled: installed,
-        ...(!installed && { disabledMessage: t('errors.installNotReady') }),
-        showProgress: true, progressTitle: t('common.startingComfyUI'), cancellable: true },
+      launchAction(installed, !installed ? t('errors.installNotReady') : undefined),
     ]
   },
 
