@@ -1,6 +1,7 @@
 import path from 'path'
 import { hasGitDir } from '../git'
 import { resolveLocalVersion } from '../version-resolve'
+import type { LatestTagOverride } from '../version-resolve'
 import { formatComfyVersion } from '../version'
 import { nodeKey } from '../nodes'
 import { captureState } from './store'
@@ -31,14 +32,18 @@ export async function resolveSnapshotVersion(
   installPath: string,
   comfyui: VersionResolvable,
   style: 'short' | 'detail',
+  options?: { comfyuiDir?: string; latestTagOverride?: LatestTagOverride },
 ): Promise<string> {
+  // If the snapshot already has stored version metadata, prefer it — re-resolving
+  // against the current repo can produce wrong results when newer tags exist.
+  if (comfyui.baseTag !== undefined) return formatSnapshotVersion(comfyui, style)
   if (!comfyui.commit) return comfyui.ref
-  const comfyuiDir = path.join(installPath, 'ComfyUI')
+  const comfyuiDir = options?.comfyuiDir ?? path.join(installPath, 'ComfyUI')
   if (!hasGitDir(comfyuiDir)) {
     return formatSnapshotVersion(comfyui, style)
   }
   try {
-    const cv = await resolveLocalVersion(comfyuiDir, comfyui.commit)
+    const cv = await resolveLocalVersion(comfyuiDir, comfyui.commit, undefined, options?.latestTagOverride)
     return formatComfyVersion(cv, style)
   } catch {
     return formatSnapshotVersion(comfyui, style)
