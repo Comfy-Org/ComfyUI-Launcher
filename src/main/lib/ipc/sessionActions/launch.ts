@@ -380,14 +380,29 @@ export async function handleLaunch({ event, installationId, inst: instArg, actio
       const session = _runningSessions.get(installationId)
       if (session) session.proc = proc
       writePortLock(launchCmd.port!, { pid: proc.pid!, installationName: inst.name })
-      await waitForPort(launchCmd.port!, '127.0.0.1', {
-        timeoutMs: COMFY_BOOT_TIMEOUT_MS,
-        signal: abort.signal,
-        onPoll: ({ elapsedMs }) => {
-          const secs = Math.round(elapsedMs / 1000)
-          sendProgress('launch', { percent: -1, status: i18n.t('launch.waitingTime', { secs }) })
-        },
+      const relaunchEarlyExit = new Promise<void>((_resolve, reject) => {
+        proc.on('error', (err: Error) => reject(err))
+        proc.on('exit', (code) => reject(new Error(`Process exited with code ${code}`)))
       })
+      try {
+        await Promise.race([
+          waitForPort(launchCmd.port!, '127.0.0.1', {
+            timeoutMs: COMFY_BOOT_TIMEOUT_MS,
+            signal: abort.signal,
+            onPoll: ({ elapsedMs }) => {
+              const secs = Math.round(elapsedMs / 1000)
+              sendProgress('launch', { percent: -1, status: i18n.t('launch.waitingTime', { secs }) })
+            },
+          }),
+          relaunchEarlyExit,
+        ])
+      } catch (err) {
+        await killProcessTree(proc)
+        _removeSession(installationId)
+        _broadcastToRenderer('instance-launch-failed', { installationId })
+        if (abort.signal.aborted) return { ok: false, cancelled: true }
+        return { ok: false, message: (err as Error).message }
+      }
       site1Relaunched = true
     }
   }
