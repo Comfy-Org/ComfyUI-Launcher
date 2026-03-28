@@ -230,6 +230,11 @@ const api: ElectronApi = {
     ipcRenderer.on('error-detail', handler)
     return () => ipcRenderer.removeListener('error-detail', handler)
   },
+  onSuggestChineseMirrors: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('suggest-chinese-mirrors', handler)
+    return () => ipcRenderer.removeListener('suggest-chinese-mirrors', handler)
+  },
 }
 
 if (process.contextIsolated) {

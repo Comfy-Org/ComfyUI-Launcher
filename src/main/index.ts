@@ -274,6 +274,19 @@ function createMainWindow(): void {
     if (process.platform === 'win32') mainWindow?.moveTop()
     mainWindow?.focus()
     createTray()
+
+    // Suggest Chinese mirrors on first startup if system locale is Chinese
+    const effectiveLocale = (settings.get('language') as string | undefined) || app.getLocale()
+    if (
+      effectiveLocale.startsWith('zh') &&
+      settings.get('useChineseMirrors') === undefined &&
+      settings.get('chineseMirrorsPrompted') !== true
+    ) {
+      // Small delay so the renderer has time to mount
+      setTimeout(() => {
+        mainWindow?.webContents.send('suggest-chinese-mirrors')
+      }, 1500)
+    }
   })
 
   attachContextMenu(mainWindow)

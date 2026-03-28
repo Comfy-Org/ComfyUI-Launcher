@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import type { SettingsField } from '../types/ipc'
 import { emitTelemetryAction } from '../lib/telemetry'
 import InfoTooltip from './InfoTooltip.vue'
+import { ShieldAlert } from 'lucide-vue-next'
 
 interface Props {
   field: SettingsField
@@ -128,5 +129,22 @@ v-else-if="field.type === 'number'" type="number" class="detail-field-input"
     <input
 v-else type="text" class="detail-field-input"
            :value="field.value ?? ''" :placeholder="field.placeholder" @change="updateSetting(($event.target as HTMLInputElement).value)" />
+
+    <div v-if="field.description" class="field-info-notice"><ShieldAlert :size="14" class="field-info-notice-icon" />{{ field.description }}</div>
   </div>
 </template>
+
+<style scoped>
+.field-info-notice {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--info);
+  margin-top: 4px;
+}
+
+.field-info-notice-icon {
+  flex-shrink: 0;
+}
+</style>

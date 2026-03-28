@@ -16,6 +16,7 @@ export interface KnownSettings {
   autoUpdate?: boolean
   pypiMirror?: string
   useChineseMirrors?: boolean
+  chineseMirrorsPrompted?: boolean
   telemetryEnabled?: boolean
   primaryInstallId?: string
   pinnedInstallIds?: string[]
@@ -50,6 +51,7 @@ const SETTINGS_SCHEMA = {
   autoUpdate: { nullable: false },
   pypiMirror: { nullable: false },
   useChineseMirrors: { nullable: false },
+  chineseMirrorsPrompted: { nullable: false },
   telemetryEnabled: { nullable: false },
   primaryInstallId: { nullable: false },
   pinnedInstallIds: { nullable: false },

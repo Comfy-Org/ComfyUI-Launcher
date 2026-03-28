@@ -252,6 +252,7 @@ export interface SettingsField {
   min?: number
   max?: number
   tooltip?: string
+  description?: string
 }
 
 // --- Models types ---
@@ -713,6 +714,7 @@ export interface ElectronApi {
   onTelemetrySettingChanged(callback: (enabled: boolean | undefined) => void): Unsubscribe
   onDatadogError(callback: (payload: DatadogForwardedError) => void): Unsubscribe
   onErrorDetail(callback: (data: ErrorDetailData) => void): Unsubscribe
+  onSuggestChineseMirrors(callback: () => void): Unsubscribe
 }
 
 /** Action IDs that require the installation to be stopped before running.

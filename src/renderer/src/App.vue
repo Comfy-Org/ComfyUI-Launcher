@@ -253,6 +253,20 @@ function setupLocaleListener(): void {
   })
 }
 
+function setupChineseMirrorsSuggestion(): void {
+  window.api.onSuggestChineseMirrors(async () => {
+    const confirmed = await modal.confirm({
+      title: t('settings.chineseMirrorsSuggestTitle'),
+      message: t('settings.chineseMirrorsSuggestMessage'),
+      confirmLabel: t('settings.chineseMirrorsSuggestConfirm'),
+    })
+    if (confirmed) {
+      await window.api.setSetting('useChineseMirrors', true)
+    }
+    await window.api.setSetting('chineseMirrorsPrompted', true)
+  })
+}
+
 // --- Init ---
 onMounted(async () => {
   await loadLocale()
@@ -261,6 +275,7 @@ onMounted(async () => {
   launcherPrefs.loadPrefs()
   setupQuitConfirmation()
   setupLocaleListener()
+  setupChineseMirrorsSuggestion()
   listRef.value?.refresh()
   appVersion.value = await window.api.getAppVersion()
 })
