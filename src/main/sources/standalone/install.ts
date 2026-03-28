@@ -166,43 +166,58 @@ export async function postInstall(installation: InstallationRecord, { sendProgre
         let preMgrReqs = ''
         try { preMgrReqs = await fs.promises.readFile(mgrReqPath, 'utf-8') } catch {}
 
-        const markers: Record<string, string> = {}
-        let markerBuf = ''
-        let outputBuf = ''
-        const exitCode = await new Promise<number>((resolve) => {
-          const proc = spawn(masterPython, ['-s', updateScript, comfyuiDir, '--stable'], {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            windowsHide: true,
-          })
-          if (signal) {
-            const onAbort = (): void => { proc.kill() }
-            signal.addEventListener('abort', onAbort, { once: true })
-            proc.on('close', () => signal.removeEventListener('abort', onAbort))
-          }
-          proc.stdout.on('data', (chunk: Buffer) => {
-            const text = chunk.toString('utf-8')
-            outputBuf += text
-            markerBuf += text
-            const lines = markerBuf.split(/\r?\n/)
-            markerBuf = lines.pop()!
-            for (const line of lines) {
-              const match = line.match(/^\[(\w+)\]\s*(.+)$/)
-              if (match) markers[match[1]!] = match[2]!.trim()
+        const runUpdateScript = async (): Promise<{ exitCode: number; exitSignal: string | null; markers: Record<string, string>; outputBuf: string }> => {
+          const markers: Record<string, string> = {}
+          let markerBuf = ''
+          let outputBuf = ''
+          let exitSignal: string | null = null
+          const exitCode = await new Promise<number>((resolve) => {
+            const proc = spawn(masterPython, ['-s', updateScript, comfyuiDir, '--stable'], {
+              stdio: ['ignore', 'pipe', 'pipe'],
+              windowsHide: true,
+            })
+            if (signal) {
+              const onAbort = (): void => { proc.kill() }
+              signal.addEventListener('abort', onAbort, { once: true })
+              proc.on('close', () => signal.removeEventListener('abort', onAbort))
             }
+            proc.stdout.on('data', (chunk: Buffer) => {
+              const text = chunk.toString('utf-8')
+              outputBuf += text
+              markerBuf += text
+              const lines = markerBuf.split(/\r?\n/)
+              markerBuf = lines.pop()!
+              for (const line of lines) {
+                const match = line.match(/^\[(\w+)\]\s*(.+)$/)
+                if (match) markers[match[1]!] = match[2]!.trim()
+              }
+            })
+            proc.stderr.on('data', (chunk: Buffer) => { outputBuf += chunk.toString('utf-8') })
+            proc.on('error', () => resolve(1))
+            proc.on('close', (code, sig) => { exitSignal = sig; resolve(code ?? 1) })
           })
-          proc.stderr.on('data', (chunk: Buffer) => { outputBuf += chunk.toString('utf-8') })
-          proc.on('error', () => resolve(1))
-          proc.on('close', (code) => resolve(code ?? 1))
-        })
-        if (markerBuf) {
-          const match = markerBuf.match(/^\[(\w+)\]\s*(.+)$/)
-          if (match) markers[match[1]!] = match[2]!.trim()
+          if (markerBuf) {
+            const match = markerBuf.match(/^\[(\w+)\]\s*(.+)$/)
+            if (match) markers[match[1]!] = match[2]!.trim()
+          }
+          return { exitCode, exitSignal, markers, outputBuf }
         }
 
-        if (exitCode !== 0) {
-          console.warn(`Auto-update script failed (exit ${exitCode}):\n${outputBuf.trim().split('\n').slice(-10).join('\n')}`)
+        let result = await runUpdateScript()
+
+        // On macOS, SIGKILL typically means Gatekeeper blocked an unsigned binary.
+        // Auto-repair (quarantine removal + codesigning) and retry once.
+        if (result.exitCode !== 0 && result.exitSignal === 'SIGKILL' && process.platform === 'darwin') {
+          console.warn('macOS killed update process — attempting binary repair and retry')
+          await repairMacBinaries(installation.installPath, sendProgress)
+          result = await runUpdateScript()
+        }
+
+        if (result.exitCode !== 0) {
+          console.warn(`Auto-update script failed (exit ${result.exitCode}):\n${result.outputBuf.trim().split('\n').slice(-10).join('\n')}`)
           sendProgress('update', { percent: 100, status: 'Skipped (update failed)' })
         } else {
+          const { markers } = result
           if (signal?.aborted) throw new Error('Cancelled')
 
           // Install updated dependencies if requirements.txt changed
@@ -217,7 +232,7 @@ export async function postInstall(installation: InstallationRecord, { sendProgre
             if (fs.existsSync(uvPath) && activeEnvPython) {
               const result = await installFilteredRequirements(
                 reqPath, uvPath, activeEnvPython, installation.installPath,
-                '.post-install-reqs.txt', () => {}, signal, settings.getMirrorConfig()
+                '.post-install-reqs.txt', console.log, signal, settings.getMirrorConfig()
               )
               if (result !== 0) {
                 console.warn(`Post-install requirements install exited with code ${result}`)
@@ -236,7 +251,7 @@ export async function postInstall(installation: InstallationRecord, { sendProgre
             if (fs.existsSync(uvPath) && activeEnvPython) {
               const result = await installFilteredRequirements(
                 mgrReqPath, uvPath, activeEnvPython, installation.installPath,
-                '.post-install-mgr-reqs.txt', () => {}, signal, settings.getMirrorConfig()
+                '.post-install-mgr-reqs.txt', console.log, signal, settings.getMirrorConfig()
               )
               if (result !== 0) {
                 console.warn(`Post-install manager requirements install exited with code ${result}`)
