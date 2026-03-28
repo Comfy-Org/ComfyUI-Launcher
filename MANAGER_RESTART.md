@@ -16,7 +16,7 @@ ComfyUI-Manager's restart logic (`rebootAPI()` in `js/common.js`) has three code
 
 ### Preventing orphans
 
-When spawning ComfyUI, `lib/ipc.js` sets `__COMFY_CLI_SESSION__` in the child process environment, pointing to a unique temp path. This ensures Manager never falls through to the `os.execv()` legacy path.
+When spawning ComfyUI, `src/main/lib/ipc/shared.ts` sets `__COMFY_CLI_SESSION__` in the child process environment (line 365), pointing to a unique temp path. The `.reboot` marker check is at line 371. This ensures Manager never falls through to the `os.execv()` legacy path.
 
 ### Why we do NOT inject `electronAPI`
 
@@ -31,21 +31,21 @@ This preserves Manager's own UX while the launcher handles the process lifecycle
 
 ### Exit handler respawn
 
-`attachExitHandler` in `lib/ipc.js` runs on every process exit:
+`attachExitHandler` in `src/main/lib/ipc/sessionActions/launch.ts` (line 416) runs on every process exit:
 
 1. Checks for the `.reboot` marker file at the session path
 2. If found: deletes the marker, respawns ComfyUI with the same command/args/env, reattaches stdout/stderr forwarding, updates `_runningProc`, and calls `onComfyRestarted` with the new process handle
 3. If not found: declares the process stopped (`comfy-exited`)
 
-In app window mode, `onComfyRestarted` in `main.js` polls `waitForPort` until the new server is ready, then reloads the ComfyUI BrowserWindow URL. The window stays open throughout.
+In app window mode, `onComfyRestarted` in `src/main/index.ts` polls `waitForPort` until the new server is ready, then reloads the ComfyUI BrowserWindow URL. The window stays open throughout.
 
 In console mode, the restart message (`"--- ComfyUI restarting ---"`) is written to the terminal via `sendOutput` (the same comfy-output channel as stdout/stderr), so it appears inline in the console view.
 
 ### Process cleanup
 
-`stopRunning()` in `lib/ipc.js` handles both cases — if a tracked process exists, it uses `killProcessTree`; it also calls `killByPort` to catch any process listening on the port. The running state is cleared so the exit handler does not respawn.
+`stopRunning()` in `src/main/lib/ipc/shared.ts` (line 598) handles both cases — if a tracked process exists, it uses `killProcessTree`; it also calls `killByPort` to catch any process listening on the port. The running state is cleared so the exit handler does not respawn.
 
 ## Reference
 
-- ComfyUI-Manager restart logic: `ltdrdata/ComfyUI-Manager` → `js/common.js` (`rebootAPI`), `glob/manager_server.py` (`/manager/reboot`)
+- ComfyUI-Manager restart logic: `Comfy-Org/ComfyUI-Manager` → `js/common.js` (`rebootAPI`), `glob/manager_server.py` (`/manager/reboot`)
 - Comfy-Org/desktop approach: injects `electronAPI` and uses `RESTART_CORE` IPC channel. We chose not to follow this pattern to preserve Manager's confirmation dialog.

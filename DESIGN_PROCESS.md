@@ -4,18 +4,18 @@
 
 The codebase is organized into four layers, each with a clear responsibility:
 
-- **Main process entry** — Window lifecycle only. Delegates all IPC to a separate module.
-- **`lib/`** — Shared main-process utilities (IPC registration, HTTP helpers, etc.). Houses logic that multiple modules depend on.
-- **`sources/`** — One module per install method, plus a registry. Each source is self-contained: it defines its install form, detail view, actions, and data shape.
-- **`renderer/`** — One file per view, plus shared UI utilities (helpers, modals, styles). Views are generic and data-driven — they render whatever sources describe.
+- **Main process entry (`src/main/index.ts`)** — Window lifecycle only. Delegates all IPC to a separate module.
+- **`src/main/lib/`** — Shared main-process utilities (HTTP helpers, process management, etc.). IPC registration lives in `src/main/lib/ipc/`, split across handler modules (`registerSessionHandlers.ts`, `registerInstallationHandlers.ts`, etc.).
+- **`src/main/sources/`** — One module per install method, plus a registry (`index.ts`). Each source is self-contained: it defines its install form, detail view, actions, and data shape.
+- **`src/renderer/src/`** — Vue 3 renderer. Views are generic and data-driven — they render whatever sources describe. Shared logic lives in `composables/`, `lib/`, and `components/`.
 
-Supporting files (data store, preload bridge) sit at the root and remain thin pass-throughs with no business logic.
+Supporting files (data store in `src/main/installations.ts` and `src/main/settings.ts`, preload bridge in `src/preload/`) remain thin pass-throughs with no business logic.
 
 ## Design Principles
 
 ### 1. Sources own their data and behavior
 
-Each source module (`sources/<name>.js`) defines:
+Each source module (`src/main/sources/<name>.ts` or `src/main/sources/<name>/index.ts`) defines:
 - `id`, `label` — identity (used by ipc.js to inject `sourceId`/`sourceLabel` automatically; sources should not repeat these in `buildInstallation`)
 - `fields` — what the new-install form renders
 - `getFieldOptions(fieldId, selections)` — populates each field
@@ -28,7 +28,7 @@ Each source module (`sources/<name>.js`) defines:
 - `getLaunchCommand(installation)` — returns `{ cmd, args, cwd, port }` describing how to start this ComfyUI installation, or `null` if launch is not supported. The launcher uses this to spawn the process, poll the port, then open an app window.
 - `install(installation, tools)` *(optional)* — performs the actual installation (download, extract, etc.). Receives shared tools `{ sendProgress, download, cache, extract }` from ipc.js rather than importing lib modules directly, keeping sources decoupled from infrastructure.
 
-The renderer never contains source-specific knowledge. If it needs to behave differently per source, that behavior must be declared in the source's data (see principle 3).
+The renderer never contains source-specific knowledge. If it needs to behave differently per source, that behavior must be declared in the source's data (see principle 3). Additional sources beyond the three described in Install Methods below (e.g., `remote`, `cloud`, `desktop`) follow the same interface pattern.
 
 Fields support multiple types, each handled generically by the renderer:
 - `type: "select"` — dropdown, auto-cascades to load the next field on change.
@@ -36,10 +36,10 @@ Fields support multiple types, each handled generically by the renderer:
 
 ### 2. One concern per file
 
-- `main.js` does not register IPC handlers — `lib/ipc.js` does.
-- `lib/ipc.js` handles IPC only. It may reference `BrowserWindow` when an IPC handler requires a parent window (e.g., native dialogs), but does not manage window lifecycle.
-- Each renderer view is its own file.
-- Shared utilities (`fetch.js`, `util.js`, `modal.js`) are extracted, not duplicated.
+- `src/main/index.ts` does not register IPC handlers — `src/main/lib/ipc/` does.
+- `src/main/lib/ipc/` handles IPC only. It may reference `BrowserWindow` when an IPC handler requires a parent window (e.g., native dialogs), but does not manage window lifecycle.
+- Each renderer view is its own file under `src/renderer/src/`.
+- Shared utilities (`fetch.ts`, `util.ts`, composables) are extracted, not duplicated.
 
 ### 3. Behavior through data, not conditionals
 
@@ -55,13 +55,13 @@ Any new behavioral hint should follow this pattern: add a property to the action
 
 ### 4. Use in-app modals, not native dialogs, for messages
 
-Never use `alert()` or other native OS dialogs for user-facing messages. Use `modal.alert()` and `modal.confirm()` from `renderer/modal.js` so the experience stays consistent and themed.
+Never use `alert()` or other native OS dialogs for user-facing messages. Use `modal.alert()` and `modal.confirm()` from the renderer's composables/lib so the experience stays consistent and themed.
 
-### 5. Common logic lives in lib/ or ipc.js
+### 5. Common logic lives in lib/ or src/main/lib/ipc/
 
-- `sourceId`/`sourceLabel` injection is done by `ipc.js`, not by each source.
-- The `remove` action is handled centrally in `ipc.js` since it's a generic CRUD operation.
-- HTTP fetching is in `lib/fetch.js`, not in individual sources.
+- `sourceId`/`sourceLabel` injection is done by `src/main/lib/ipc/`, not by each source.
+- The `remove` action is handled centrally in `src/main/lib/ipc/` since it's a generic CRUD operation.
+- HTTP fetching is in `lib/fetch.ts`, not in individual sources.
 
 ## Reference: Comfy-Org/desktop
 
@@ -71,7 +71,7 @@ This project aims to eventually replace [Comfy-Org/desktop](https://github.com/C
 
 Three source modules provide different installation strategies, each targeting different user needs.
 
-### 1. Portable (`sources/portable.js`) — Windows only
+### 1. Portable (`src/main/sources/portable.ts`) — Windows only
 
 Downloads Comfy-Org's official `.7z` portable release, which bundles Python embedded + pre-installed wheels + ComfyUI source in a single archive. Download → extract → run.
 
@@ -80,7 +80,7 @@ Downloads Comfy-Org's official `.7z` portable release, which bundles Python embe
 - **Cons:** Windows only; monolithic archive means re-downloading everything for updates
 - **Status:** Implemented
 
-### 2. Standalone (`sources/standalone.js`) — Cross-platform
+### 2. Standalone (`src/main/sources/standalone/`) — Cross-platform
 
 Our own pre-built environment archives. Each archive contains a relocatable Python runtime (from [python-build-standalone](https://github.com/indygreg/python-build-standalone)) with all GPU-specific wheels (PyTorch, etc.) pre-installed. ComfyUI source is cloned via git separately. The result is a single download + extract for the environment, plus a git clone — no pip/uv/network-dependent package installation at install time.
 
@@ -162,26 +162,24 @@ The `-s` flag prevents system site-packages from interfering. The standalone Pyt
 - **Archive sizes:** Need to verify that CUDA-heavy archives (win-nvidia, linux-nvidia) fit within the 2GB GitHub Release asset limit after compression. If not, split into environment + wheels, or use a CDN.
 - **Windows AMD:** ROCm on Windows is experimental. Currently building with CPU wheels; users can upgrade to ROCm nightly post-install. Revisit when official ROCm Windows wheels stabilize.
 
-### 3. Git (`sources/git.js`) — Cross-platform, network-dependent
+### 3. Git (`src/main/sources/git.ts`) — Cross-platform, network-dependent
 
-Clones ComfyUI from a Git repository and uses `uv` to install a Python environment + dependencies from the network. Intended for users with reliable network connections who want fine-grained control over branches, commits, and dependencies.
+Clones ComfyUI from a Git repository. Intended for users who want fine-grained control over branches, commits, and dependencies.
 
-- **Platforms:** All (wherever Python + git are available, or where `uv` can manage them)
+- **Platforms:** All (wherever Python + git are available)
 - **Pros:** Always up-to-date; user picks exact branch/commit; lightweight initial download for the launcher itself
-- **Cons:** Network-dependent for both install and updates; pip/uv failures possible in restricted network environments
-- **Status:** Partial (form fields + GitHub API polling implemented; `install()` and `getLaunchCommand()` not yet implemented)
+- **Cons:** Network-dependent for both install and updates
+- **Status:** Implemented
 
-#### Planned Install Flow
+#### Install Flow
 
-1. Bundle `uv` binary per platform in `assets/uv/`
-2. `uv venv --python 3.12 --python-preference only-managed` — downloads Python and creates venv
-3. `uv pip install -r requirements.compiled` — installs GPU-specific pre-compiled requirements
-4. `git clone` the selected repo/branch/commit
-5. Write `.comfyui-desktop-2` marker file
+1. Clone the selected repo/branch/commit from GitHub (using logged processes)
+2. Detect existing venvs via `findVenv`
+3. Launch using the detected venv's Python
 
 ## Known Debt
 
-(None currently tracked.)
+See Future Enhancements below.
 
 ## Modularity Review Checklist
 
@@ -192,8 +190,8 @@ When reviewing code for modularity, check:
 3. **Is the same value defined in two places?** Derive it from a single source of truth.
 4. **Is a utility duplicated across modules?** Extract to `lib/`.
 5. **Does a renderer view contain hardcoded conditionals for specific action/source IDs?** Replace with a data-driven pattern (add a property to the schema).
-6. **Does a source repeat information already available from its own definition?** Have the framework (ipc.js) inject it.
-7. **Can a new source be added by only creating a file in `sources/` and registering it in `sources/index.js`?** If not, something is coupled.
+6. **Does a source repeat information already available from its own definition?** Have the framework (`src/main/lib/ipc/`) inject it.
+7. **Can a new source be added by only creating a file in `src/main/sources/` and registering it in `src/main/sources/index.ts`?** If not, something is coupled.
 
 ## Future Enhancements
 
