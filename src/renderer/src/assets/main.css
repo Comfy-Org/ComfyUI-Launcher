@@ -570,12 +570,12 @@ input[type="checkbox"]:checked::after { transform: translateX(16px); }
 .progress-status.progress-error-message { max-height: 50%; overflow-y: auto; flex-shrink: 0; white-space: pre-wrap; }
 .terminal-toggle {
   display: flex; align-items: center; gap: 6px;
-  font-size: 13px; color: var(--text-muted); cursor: pointer;
-  padding: 6px 0; user-select: none; flex-shrink: 0;
+  font-size: 14px; color: var(--text-muted); cursor: pointer;
+  padding: 6px 4px; user-select: none; flex-shrink: 0;
   background: none; border: none;
 }
 .terminal-toggle:hover { color: var(--text); }
-.terminal-toggle-icon { font-size: 11px; }
+.terminal-toggle-icon { font-size: 14px; }
 
 /* View modals */
 .view-modal {
