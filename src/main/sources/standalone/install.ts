@@ -1,22 +1,20 @@
 import fs from 'fs'
 import path from 'path'
-import { execFile, spawn } from 'child_process'
+import { execFile } from 'child_process'
 import { downloadAndExtract, downloadAndExtractMulti } from '../../lib/installer'
 import { copyDirWithProgress } from '../../lib/copy'
 import { readGitHead, isGitAvailable, isPygit2Configured, tryConfigurePygit2Fallback, fetchTags } from '../../lib/git'
-import { resolveInstalledVersion, clearVersionCache } from '../../lib/version-resolve'
+import { resolveInstalledVersion } from '../../lib/version-resolve'
 import { formatTime } from '../../lib/util'
 import { t } from '../../lib/i18n'
 import * as snapshots from '../../lib/snapshots'
 import { fetchLatestRelease } from '../../lib/comfyui-releases'
-import { installFilteredRequirements } from '../../lib/pip'
-import { getBundledScriptPath } from '../../lib/bundledScript'
 import { formatComfyVersion } from '../../lib/version'
-import * as settings from '../../settings'
 import { repairMacBinaries, codesignBinaries } from './macRepair'
+import { runComfyUIUpdate } from './updateOrchestrator'
 import {
   MANIFEST_FILE, DEFAULT_LAUNCH_ARGS,
-  getUvPath, getVenvDir, findSitePackages, getMasterPythonPath, getActivePythonPath,
+  getUvPath, getVenvDir, findSitePackages, getMasterPythonPath,
 } from './envPaths'
 import type { InstallationRecord } from '../../installations'
 import type { ComfyVersion } from '../../lib/version'
@@ -155,138 +153,19 @@ export async function postInstall(installation: InstallationRecord, { sendProgre
       if (!latestTag || latestTag === currentTag) {
         sendProgress('update', { percent: 100, status: 'Already up to date' })
       } else {
-        const masterPython = getMasterPythonPath(installation.installPath)
-        const updateScript = getBundledScriptPath('update_comfyui.py')
-
-        const reqPath = path.join(comfyuiDir, 'requirements.txt')
-        let preReqs = ''
-        try { preReqs = await fs.promises.readFile(reqPath, 'utf-8') } catch {}
-
-        const mgrReqPath = path.join(comfyuiDir, 'manager_requirements.txt')
-        let preMgrReqs = ''
-        try { preMgrReqs = await fs.promises.readFile(mgrReqPath, 'utf-8') } catch {}
-
-        const runUpdateScript = async (): Promise<{ exitCode: number; exitSignal: string | null; markers: Record<string, string>; outputBuf: string }> => {
-          const markers: Record<string, string> = {}
-          let markerBuf = ''
-          let outputBuf = ''
-          let exitSignal: string | null = null
-          const exitCode = await new Promise<number>((resolve) => {
-            const proc = spawn(masterPython, ['-s', updateScript, comfyuiDir, '--stable'], {
-              stdio: ['ignore', 'pipe', 'pipe'],
-              windowsHide: true,
-            })
-            if (signal) {
-              const onAbort = (): void => { proc.kill() }
-              signal.addEventListener('abort', onAbort, { once: true })
-              proc.on('close', () => signal.removeEventListener('abort', onAbort))
-            }
-            proc.stdout.on('data', (chunk: Buffer) => {
-              const text = chunk.toString('utf-8')
-              outputBuf += text
-              markerBuf += text
-              const lines = markerBuf.split(/\r?\n/)
-              markerBuf = lines.pop()!
-              for (const line of lines) {
-                const match = line.match(/^\[(\w+)\]\s*(.+)$/)
-                if (match) markers[match[1]!] = match[2]!.trim()
-              }
-            })
-            proc.stderr.on('data', (chunk: Buffer) => { outputBuf += chunk.toString('utf-8') })
-            proc.on('error', () => resolve(1))
-            proc.on('close', (code, sig) => { exitSignal = sig; resolve(code ?? 1) })
-          })
-          if (markerBuf) {
-            const match = markerBuf.match(/^\[(\w+)\]\s*(.+)$/)
-            if (match) markers[match[1]!] = match[2]!.trim()
-          }
-          return { exitCode, exitSignal, markers, outputBuf }
-        }
-
-        let result = await runUpdateScript()
-
-        // On macOS, SIGKILL typically means Gatekeeper blocked an unsigned binary.
-        // Auto-repair (quarantine removal + codesigning) and retry once.
-        if (result.exitCode !== 0 && result.exitSignal === 'SIGKILL' && process.platform === 'darwin') {
-          console.warn('macOS killed update process — attempting binary repair and retry')
-          await repairMacBinaries(installation.installPath, sendProgress)
-          result = await runUpdateScript()
-        }
-
-        if (result.exitCode !== 0) {
-          console.warn(`Auto-update script failed (exit ${result.exitCode}):\n${result.outputBuf.trim().split('\n').slice(-10).join('\n')}`)
-          sendProgress('update', { percent: 100, status: 'Skipped (update failed)' })
-        } else {
-          const { markers } = result
-          if (signal?.aborted) throw new Error('Cancelled')
-
-          // Install updated dependencies if requirements.txt changed
-          let postReqs = ''
-          try { postReqs = await fs.promises.readFile(reqPath, 'utf-8') } catch {}
-
-          if (preReqs !== postReqs && postReqs.length > 0) {
-            sendProgress('update', { percent: -1, status: 'Installing updated dependencies' })
-            const uvPath = getUvPath(installation.installPath)
-            const activeEnvPython = getActivePythonPath(installation)
-
-            if (fs.existsSync(uvPath) && activeEnvPython) {
-              const result = await installFilteredRequirements(
-                reqPath, uvPath, activeEnvPython, installation.installPath,
-                '.post-install-reqs.txt', console.log, signal, settings.getMirrorConfig()
-              )
-              if (result !== 0) {
-                console.warn(`Post-install requirements install exited with code ${result}`)
-              }
-            }
-          }
-
-          // Install manager_requirements.txt if changed
-          let postMgrReqs = ''
-          try { postMgrReqs = await fs.promises.readFile(mgrReqPath, 'utf-8') } catch {}
-
-          if (preMgrReqs !== postMgrReqs && postMgrReqs.length > 0) {
-            const uvPath = getUvPath(installation.installPath)
-            const activeEnvPython = getActivePythonPath(installation)
-
-            if (fs.existsSync(uvPath) && activeEnvPython) {
-              const result = await installFilteredRequirements(
-                mgrReqPath, uvPath, activeEnvPython, installation.installPath,
-                '.post-install-mgr-reqs.txt', console.log, signal, settings.getMirrorConfig()
-              )
-              if (result !== 0) {
-                console.warn(`Post-install manager requirements install exited with code ${result}`)
-              }
-            }
-          }
-
-          // Re-resolve comfyVersion from git state
-          clearVersionCache()
-          const checkedOutTag = markers.CHECKED_OUT_TAG || undefined
-          const fullPostHead = markers.POST_UPDATE_HEAD || readGitHead(comfyuiDir)
-          if (fullPostHead) {
-            const newComfyVersion = await resolveInstalledVersion(comfyuiDir, fullPostHead, installation.comfyVersion as ComfyVersion | undefined, checkedOutTag)
-            const installedTag = formatComfyVersion(newComfyVersion, 'short')
-            await update({
-              comfyVersion: newComfyVersion,
-              updateChannel: 'stable',
-              updateInfoByChannel: {
-                ...((installation.updateInfoByChannel as Record<string, Record<string, unknown>> | undefined) || {}),
-                stable: { installedTag },
-              },
-            })
-            installation = { ...installation, comfyVersion: newComfyVersion } as InstallationRecord
-          }
-
-          // Re-capture snapshot reflecting the updated state
-          try {
-            const filename = await snapshots.saveSnapshot(installation.installPath, installation, 'post-update')
-            const snapshotCount = await snapshots.getSnapshotCount(installation.installPath)
-            await update({ lastSnapshot: filename, snapshotCount })
-          } catch (err) {
-            console.warn('Post-update snapshot failed:', err)
-          }
-
+        const result = await runComfyUIUpdate({
+          installPath: installation.installPath,
+          installation,
+          channel: 'stable',
+          update,
+          sendProgress: sendProgress as (step: string, data: Record<string, unknown>) => void,
+          signal,
+        })
+        installation = result.installation
+        if (result.ok) {
           sendProgress('update', { percent: 100, status: 'Up to date' })
+        } else {
+          sendProgress('update', { percent: 100, status: 'Skipped (update failed)' })
         }
       }
     } catch (err) {
