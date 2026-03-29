@@ -53,8 +53,8 @@ function getTempDir(): string {
 }
 
 function getAssetTempDir(): string {
-  const cacheDir = (settings.get('cacheDir') as string | undefined) || settings.defaults.cacheDir
-  return path.join(cacheDir, 'asset-downloads')
+  const outputDir = (settings.get('outputDir') as string | undefined) || settings.defaults.outputDir
+  return path.join(path.dirname(outputDir), TEMP_DIR_NAME)
 }
 
 // Windows MAX_PATH is 260 chars (259 usable + null terminator).
@@ -88,7 +88,6 @@ export function sanitizeAssetFilename(filename: string, outputDir: string): stri
   }
 
   // On Windows, truncate filename stem if the full path exceeds MAX_PATH.
-  // Temp files are stored in the app cache dir, so only dedup reserve applies here.
   if (process.platform === 'win32') {
     const fullLen = resolved.length
     if (fullLen + DEDUP_RESERVE > WIN_MAX_PATH) {
@@ -321,9 +320,9 @@ export async function startAssetDownload(
     }
   }
 
-  const initial = makeProgress({ status: 'pending' })
-  pendingDownloads.set(url, {
-    url,
+  const initial = makeProgress({ url: downloadUrl, status: 'pending' })
+  pendingDownloads.set(downloadUrl, {
+    url: downloadUrl,
     filename: savedFilename,
     directory: '',
     savePath,
@@ -355,41 +354,6 @@ async function deduplicatePath(filePath: string): Promise<string> {
     i++
   } while (await fileExists(candidate))
   return candidate
-}
-
-export async function saveAssetBlob(
-  win: BrowserWindow | null,
-  filename: string,
-  data: Buffer,
-  outputDir: string,
-): Promise<boolean> {
-  const safeFilename = sanitizeAssetFilename(filename, outputDir)
-  if (!safeFilename) return false
-  const savePath = await deduplicatePath(path.join(outputDir, safeFilename))
-  const savedFilename = path.basename(savePath)
-
-  await fs.promises.mkdir(path.dirname(savePath), { recursive: true })
-  await fs.promises.writeFile(savePath, data)
-
-  const progress: DownloadProgress = {
-    url: `blob:${savedFilename}-${Date.now()}`,
-    filename: savedFilename,
-    directory: '',
-    savePath,
-    progress: 1,
-    status: 'completed',
-  }
-
-  // Send to the originating ComfyUI window (toast UI)
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('desktop2-download-progress', progress)
-  }
-  // Send to the Launcher window (DownloadsPanel)
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('model-download-progress', progress)
-  }
-
-  return true
 }
 
 function attachDownloadListeners(item: Electron.DownloadItem, pending: PendingDownload): void {
