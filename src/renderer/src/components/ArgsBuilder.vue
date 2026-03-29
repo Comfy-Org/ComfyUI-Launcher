@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import type { ComfyArgDef } from '../../../types/ipc'
 import ArgRow from './ArgRow.vue'
+import ArgRadioGroup from './ArgRadioGroup.vue'
 import { Settings } from 'lucide-vue-next'
 
 interface Props {
@@ -263,6 +264,59 @@ const groupedArgs = computed(() => {
   }
   return groups
 })
+
+// --- Structured items per group (exclusive radio clusters + individual args) ---
+
+type GroupItem =
+  | { kind: 'arg'; arg: ComfyArgDef }
+  | { kind: 'exclusive'; group: string; args: ComfyArgDef[] }
+
+const structuredGroups = computed(() => {
+  const result = new Map<string, GroupItem[]>()
+  const seenExclusive = new Set<string>()
+  for (const [category, args] of groupedArgs.value) {
+    const items: GroupItem[] = []
+    for (const arg of args) {
+      if (arg.exclusiveGroup) {
+        if (seenExclusive.has(arg.exclusiveGroup)) continue
+        seenExclusive.add(arg.exclusiveGroup)
+        // Always use full schema for siblings so search filtering doesn't break the group
+        const siblings = schema.value.filter((a) => a.exclusiveGroup === arg.exclusiveGroup)
+        if (siblings.length > 1) {
+          items.push({ kind: 'exclusive', group: arg.exclusiveGroup, args: siblings })
+        } else {
+          items.push({ kind: 'arg', arg })
+        }
+      } else {
+        items.push({ kind: 'arg', arg })
+      }
+    }
+    result.set(category, items)
+  }
+  return result
+})
+
+/** Active args that are in an exclusive group, keyed by exclusiveGroup id */
+const activeExclusiveGroups = computed(() => {
+  const groups = new Map<string, { args: ComfyArgDef[]; activeName: string | null; activeValue: string }>()
+  for (const arg of activeArgs.value) {
+    if (!arg.exclusiveGroup) continue
+    if (groups.has(arg.exclusiveGroup)) continue
+    const siblings = schema.value.filter((a) => a.exclusiveGroup === arg.exclusiveGroup)
+    const activeSibling = siblings.find((a) => parsed.value.known.has(a.name))
+    groups.set(arg.exclusiveGroup, {
+      args: siblings,
+      activeName: activeSibling?.name ?? null,
+      activeValue: activeSibling ? (parsed.value.known.get(activeSibling.name) ?? '') : '',
+    })
+  }
+  return groups
+})
+
+/** Active args that are NOT in exclusive groups (rendered individually) */
+const activeIndividualArgs = computed(() =>
+  activeArgs.value.filter((a) => !a.exclusiveGroup)
+)
 
 // --- Getters ---
 
@@ -587,8 +641,19 @@ function toggleGroup(group: string): void {
             <span class="args-active-count">{{ activeArgs.length }}</span>
           </div>
           <div v-show="!collapsedGroups.has('__active__')" class="args-group-body">
+            <template v-for="[gid, eg] in activeExclusiveGroups" :key="'active-eg-' + gid">
+              <ArgRadioGroup
+                :args="eg.args"
+                :active-arg="eg.activeName"
+                :active-value="eg.activeValue"
+                @toggle-boolean="toggleBoolean"
+                @toggle-optional-value="toggleOptionalValue"
+                @set-value-arg="setValueArg"
+                @set-optional-value-text="setOptionalValueText"
+              />
+            </template>
             <ArgRow
-              v-for="a in activeArgs" :key="'active-' + a.name"
+              v-for="a in activeIndividualArgs" :key="'active-' + a.name"
               :arg="a"
               :active="isActive(a.name)"
               :value="getValue(a.name)"
@@ -600,22 +665,34 @@ function toggleGroup(group: string): void {
           </div>
         </div>
 
-        <div v-for="[group, args] in groupedArgs" :key="group" class="args-group">
+        <div v-for="[group, items] in structuredGroups" :key="group" class="args-group">
           <div class="args-group-header" @click="toggleGroup(group)">
             <span class="args-group-chevron" :class="{ collapsed: collapsedGroups.has(group) }">▸</span>
             {{ group }}
           </div>
           <div v-show="!collapsedGroups.has(group)" class="args-group-body">
-            <ArgRow
-              v-for="a in args" :key="a.name"
-              :arg="a"
-              :active="isActive(a.name)"
-              :value="getValue(a.name)"
-              @toggle-boolean="toggleBoolean"
-              @toggle-optional-value="toggleOptionalValue"
-              @set-value-arg="setValueArg"
-              @set-optional-value-text="setOptionalValueText"
-            />
+            <template v-for="item in items" :key="item.kind === 'arg' ? item.arg.name : item.group">
+              <ArgRadioGroup
+                v-if="item.kind === 'exclusive'"
+                :args="item.args"
+                :active-arg="item.args.find((a) => isActive(a.name))?.name ?? null"
+                :active-value="item.args.find((a) => isActive(a.name)) ? getValue(item.args.find((a) => isActive(a.name))!.name) : ''"
+                @toggle-boolean="toggleBoolean"
+                @toggle-optional-value="toggleOptionalValue"
+                @set-value-arg="setValueArg"
+                @set-optional-value-text="setOptionalValueText"
+              />
+              <ArgRow
+                v-else
+                :arg="item.arg"
+                :active="isActive(item.arg.name)"
+                :value="getValue(item.arg.name)"
+                @toggle-boolean="toggleBoolean"
+                @toggle-optional-value="toggleOptionalValue"
+                @set-value-arg="setValueArg"
+                @set-optional-value-text="setOptionalValueText"
+              />
+            </template>
           </div>
         </div>
       </template>
