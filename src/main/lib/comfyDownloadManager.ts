@@ -267,26 +267,21 @@ export async function startAssetDownload(
 ): Promise<boolean> {
   const safeFilename = sanitizeAssetFilename(filename, outputDir)
   if (!safeFilename) return false
-  const savePath = path.join(outputDir, safeFilename)
+  const savePath = await deduplicatePath(path.join(outputDir, safeFilename))
+  const savedFilename = path.basename(savePath)
   const tempDir = path.join(outputDir, TEMP_DIR_NAME)
-  const tempPath = path.join(tempDir, `${Date.now()}-${filename}.tmp`)
+  const tempPath = path.join(tempDir, `${Date.now()}-${savedFilename}.tmp`)
 
   const makeProgress = (
     overrides: Partial<DownloadProgress>,
   ): DownloadProgress => ({
     url,
-    filename,
+    filename: savedFilename,
     directory: '',
     progress: 0,
     status: 'pending',
     ...overrides,
   })
-
-  if (await fileExists(savePath)) {
-    const progress = makeProgress({ progress: 1, status: 'completed', savePath })
-    broadcastProgress(progress)
-    return true
-  }
 
   const existing = pendingDownloads.get(url)
   if (existing) {
