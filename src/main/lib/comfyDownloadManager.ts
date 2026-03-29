@@ -52,6 +52,55 @@ function getTempDir(): string {
   return path.join(getModelsBaseDir(), TEMP_DIR_NAME)
 }
 
+// Windows MAX_PATH is 260 chars (259 usable + null terminator).
+// Reserve space for deduplication suffix " (999)" = 6 chars.
+const WIN_MAX_PATH = 259
+const DEDUP_RESERVE = 6
+
+/**
+ * Sanitize an asset filename to prevent path traversal and ensure it fits
+ * within filesystem limits.  Returns null if the filename is invalid.
+ */
+export function sanitizeAssetFilename(filename: string, outputDir: string): string | null {
+  if (!filename || filename.trim() === '') return null
+
+  // Normalise separators and collapse sequences
+  let safe = filename.replace(/\\/g, '/')
+
+  // Strip path traversal components
+  safe = safe.split('/').filter((seg) => seg !== '..' && seg !== '.').join('/')
+
+  // Remove leading slashes (absolute path attempt)
+  safe = safe.replace(/^\/+/, '')
+
+  if (safe === '') return null
+
+  // Verify the resolved path stays inside outputDir
+  const resolved = path.resolve(outputDir, safe)
+  const resolvedBase = path.resolve(outputDir)
+  if (!resolved.startsWith(resolvedBase + path.sep) && resolved !== resolvedBase) {
+    return null
+  }
+
+  // On Windows, truncate filename stem if the full path exceeds MAX_PATH
+  if (process.platform === 'win32') {
+    const fullLen = resolved.length
+    if (fullLen + DEDUP_RESERVE > WIN_MAX_PATH) {
+      const ext = path.extname(safe)
+      const dir = path.dirname(safe)
+      const stem = path.basename(safe, ext)
+      const dirPart = path.resolve(outputDir, dir)
+      // Available space: MAX_PATH - dirPart length - separator - extension - dedup reserve
+      const available = WIN_MAX_PATH - dirPart.length - 1 - ext.length - DEDUP_RESERVE
+      if (available <= 0) return null
+      const truncatedStem = stem.substring(0, available)
+      safe = dir && dir !== '.' ? dir + '/' + truncatedStem + ext : truncatedStem + ext
+    }
+  }
+
+  return safe
+}
+
 export function isPathContained(filePath: string, baseDir: string): boolean {
   const resolved = path.resolve(filePath)
   const resolvedBase = path.resolve(baseDir)
@@ -216,7 +265,9 @@ export async function startAssetDownload(
   filename: string,
   outputDir: string,
 ): Promise<boolean> {
-  const savePath = path.join(outputDir, filename)
+  const safeFilename = sanitizeAssetFilename(filename, outputDir)
+  if (!safeFilename) return false
+  const savePath = path.join(outputDir, safeFilename)
   const tempDir = path.join(outputDir, TEMP_DIR_NAME)
   const tempPath = path.join(tempDir, `${Date.now()}-${filename}.tmp`)
 
@@ -295,7 +346,9 @@ export async function saveAssetBlob(
   data: Buffer,
   outputDir: string,
 ): Promise<boolean> {
-  const savePath = await deduplicatePath(path.join(outputDir, filename))
+  const safeFilename = sanitizeAssetFilename(filename, outputDir)
+  if (!safeFilename) return false
+  const savePath = await deduplicatePath(path.join(outputDir, safeFilename))
   const savedFilename = path.basename(savePath)
 
   await fs.promises.mkdir(path.dirname(savePath), { recursive: true })
