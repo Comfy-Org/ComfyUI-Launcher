@@ -769,7 +769,7 @@ function resolveOutputDir(inst: InstallationRecord): string | null {
     return (settings.get('outputDir') as string | undefined) || settings.defaults.outputDir
   }
   const custom = inst.outputDir as string | undefined
-  return custom && custom.trim() !== '' ? custom : null
+  return custom && custom.trim() !== '' ? custom : (settings.get('outputDir') as string | undefined) || settings.defaults.outputDir
 }
 
 function findInstallationIdForWindow(win: BrowserWindow): string | undefined {
