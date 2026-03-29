@@ -305,8 +305,9 @@ export async function startAssetDownload(
   if (!safeFilename) return false
   const savePath = await deduplicatePath(path.join(outputDir, safeFilename))
   const savedFilename = path.basename(savePath)
-  // Temp dir must be on the same filesystem as the output dir for atomic rename
-  const tempDir = path.join(outputDir, TEMP_DIR_NAME)
+  // Temp dir is a sibling of the output dir — same filesystem for atomic rename,
+  // but outside the output dir so ComfyUI won't scan it.
+  const tempDir = path.join(path.dirname(outputDir), TEMP_DIR_NAME)
   const tempPath = path.join(tempDir, `${Date.now()}-${savedFilename}.tmp`)
 
   const makeProgress = (
@@ -648,14 +649,9 @@ export async function cleanupTempDownloads(): Promise<void> {
   try {
     await fs.promises.rm(getTempDir(), { recursive: true, force: true })
   } catch {}
-  // Clean legacy asset temp dir (sibling of output dir)
+  // Clean asset temp dir (sibling of output dir)
   try {
     await fs.promises.rm(getAssetTempDir(), { recursive: true, force: true })
-  } catch {}
-  // Clean current asset temp dir (inside output dir)
-  const outputDir = (settings.get('outputDir') as string | undefined) || settings.defaults.outputDir
-  try {
-    await fs.promises.rm(path.join(outputDir, TEMP_DIR_NAME), { recursive: true, force: true })
   } catch {}
 }
 
