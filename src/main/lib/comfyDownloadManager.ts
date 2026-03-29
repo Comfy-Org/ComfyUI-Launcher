@@ -275,22 +275,35 @@ export async function startAssetDownload(
   return true
 }
 
+async function deduplicatePath(filePath: string): Promise<string> {
+  if (!(await fileExists(filePath))) return filePath
+  const dir = path.dirname(filePath)
+  const ext = path.extname(filePath)
+  const base = path.basename(filePath, ext)
+  let i = 1
+  let candidate: string
+  do {
+    candidate = path.join(dir, `${base} (${i})${ext}`)
+    i++
+  } while (await fileExists(candidate))
+  return candidate
+}
+
 export async function saveAssetBlob(
   filename: string,
   data: Buffer,
   outputDir: string,
 ): Promise<boolean> {
-  const savePath = path.join(outputDir, filename)
+  await fs.promises.mkdir(outputDir, { recursive: true })
+  const savePath = await deduplicatePath(path.join(outputDir, filename))
+  const savedFilename = path.basename(savePath)
 
-  if (await fileExists(savePath)) return true
-
-  await fs.promises.mkdir(path.dirname(savePath), { recursive: true })
   await fs.promises.writeFile(savePath, data)
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('model-download-progress', {
-      url: `blob:${filename}`,
-      filename,
+      url: `blob:${savedFilename}-${Date.now()}`,
+      filename: savedFilename,
       directory: '',
       savePath,
       progress: 1,

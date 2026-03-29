@@ -242,10 +242,24 @@ export function getModelDownloadContentScript(): string {
       return baseUrl + '/api/view?' + params;
     }
 
+    function _parseContentDispositionFilename(header) {
+      if (!header) return null;
+      // Try filename*= (RFC 5987 encoded)
+      var starMatch = header.match(/filename\\*\\s*=\\s*(?:UTF-8''|utf-8'')([^;\\s]+)/i);
+      if (starMatch) {
+        try { return decodeURIComponent(starMatch[1]); } catch(e) {}
+      }
+      // Try filename="..." or filename=...
+      var match = header.match(/filename\\s*=\\s*"([^"]+)"/i) || header.match(/filename\\s*=\\s*([^;\\s]+)/i);
+      return match ? match[1] : null;
+    }
+
     function _downloadItem(baseUrl, authToken, item) {
       if (!item || !item.filename) return;
       // Skip temporary preview outputs (PreviewImage, etc.)
       if (item.type === 'temp') return;
+      // Prefer display_name from the executed message (human-readable name)
+      var preferredName = item.display_name || null;
       var viewUrl = _buildViewUrl(baseUrl, item);
       if (_useBlobDownload) {
         // Cloud path: fetch with auth token, send blob to main process.
@@ -256,13 +270,31 @@ export function getModelDownloadContentScript(): string {
           fetchOpts.headers = { 'Authorization': 'Bearer ' + authToken };
         }
         fetch(viewUrl, fetchOpts)
-          .then(function(res) { return res.ok ? res.arrayBuffer() : null; })
+          .then(function(res) {
+            if (!res.ok) return null;
+            // Extract real filename from Content-Disposition header if available
+            if (!preferredName) {
+              var cd = res.headers.get('content-disposition');
+              preferredName = _parseContentDispositionFilename(cd);
+            }
+            // Also try the redirected URL's response-content-disposition param
+            if (!preferredName) {
+              try {
+                var rUrl = new URL(res.url);
+                var rcd = rUrl.searchParams.get('response-content-disposition');
+                preferredName = _parseContentDispositionFilename(rcd);
+              } catch(e) {}
+            }
+            return res.arrayBuffer();
+          })
           .then(function(buf) {
-            if (buf) window.__comfyDesktop2.downloadAssetBlob(item.filename, buf).catch(function() {});
+            var saveName = preferredName || item.filename;
+            if (buf) window.__comfyDesktop2.downloadAssetBlob(saveName, buf).catch(function() {});
           })
           .catch(function() {});
       } else {
-        window.__comfyDesktop2.downloadAsset(viewUrl, item.filename).catch(function() {});
+        var saveName = preferredName || item.filename;
+        window.__comfyDesktop2.downloadAsset(viewUrl, saveName).catch(function() {});
       }
     }
 
