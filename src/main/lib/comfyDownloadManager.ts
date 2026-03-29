@@ -295,10 +295,10 @@ export async function saveAssetBlob(
   data: Buffer,
   outputDir: string,
 ): Promise<boolean> {
-  await fs.promises.mkdir(outputDir, { recursive: true })
   const savePath = await deduplicatePath(path.join(outputDir, filename))
   const savedFilename = path.basename(savePath)
 
+  await fs.promises.mkdir(path.dirname(savePath), { recursive: true })
   await fs.promises.writeFile(savePath, data)
 
   const progress: DownloadProgress = {
