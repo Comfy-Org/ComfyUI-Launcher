@@ -326,10 +326,14 @@ function createMainWindow(): void {
   // Pinch-to-zoom
   mainWindow.webContents.on('zoom-changed', () => notifyZoomLevel())
 
-  // Keyboard zoom (Ctrl/Cmd + =/-/0)
-  mainWindow.webContents.on('before-input-event', (_e, input) => {
+  // Keyboard zoom (Ctrl/Cmd + =/-/0) and block Ctrl+W from closing the window
+  mainWindow.webContents.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown') return
     const mod = input.control || input.meta
+    if (mod && input.key.toLowerCase() === 'w') {
+      e.preventDefault()
+      return
+    }
     if (mod && (input.key === '=' || input.key === '+' || input.key === '-' || input.key === '0')) {
       setTimeout(notifyZoomLevel, 50)
     }
@@ -673,7 +677,12 @@ function onLaunch({ port, url, process: proc, installation, mode }: {
 
   comfyWindow.webContents.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown') return
-    if (input.key === 'F5' || (input.key === 'r' && (input.control || input.meta))) {
+    const mod = input.control || input.meta
+    if (mod && input.key.toLowerCase() === 'w') {
+      e.preventDefault()
+      return
+    }
+    if (input.key === 'F5' || (input.key.toLowerCase() === 'r' && mod)) {
       e.preventDefault()
       reloadComfy()
     }
